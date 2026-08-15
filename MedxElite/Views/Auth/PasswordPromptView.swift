@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 public struct PasswordPromptView: View {
     public let profile: Profile
@@ -16,19 +17,19 @@ public struct PasswordPromptView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             // Profile Avatar & Welcome
-            VStack(spacing: 14) {
+            VStack(spacing: 12) {
                 ZStack {
                     Circle()
                         .fill(profile.gradient)
-                        .frame(width: 76, height: 76)
+                        .frame(width: 70, height: 70)
 
                     Text(String(profile.displayName.prefix(1)))
-                        .font(MedxFont.rounded(32, weight: .heavy))
+                        .font(MedxFont.rounded(30, weight: .heavy))
                         .foregroundColor(.white)
                 }
-                .shadow(color: profile.accentColor.opacity(0.45), radius: 16, x: 0, y: 8)
+                .shadow(color: profile.accentColor.opacity(0.45), radius: 14, x: 0, y: 6)
 
                 VStack(spacing: 4) {
                     Text(profile.displayName)
@@ -44,7 +45,6 @@ public struct PasswordPromptView: View {
                         .foregroundColor(.white.opacity(0.6))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 20)
-                        .padding(.top, 2)
                 }
             }
 
@@ -78,6 +78,19 @@ public struct PasswordPromptView: View {
                             }
                     }
 
+                    // Paste Button
+                    Button {
+                        if let pasted = UIPasteboard.general.string {
+                            password = pasted
+                            HapticManager.light()
+                        }
+                    } label: {
+                        Image(systemName: "doc.on.clipboard.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.6))
+                            .padding(4)
+                    }
+
                     // Show / Hide Password Toggle
                     Button {
                         isPasswordVisible.toggle()
@@ -85,7 +98,7 @@ public struct PasswordPromptView: View {
                     } label: {
                         Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
                             .font(.system(size: 15))
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundColor(.white.opacity(0.6))
                             .padding(4)
                     }
                 }
@@ -126,7 +139,7 @@ public struct PasswordPromptView: View {
             }
             .padding(.horizontal, 24)
 
-            // Actions
+            // Primary Action Buttons
             VStack(spacing: 12) {
                 // Sign In Button
                 ModernButton(
@@ -147,11 +160,77 @@ public struct PasswordPromptView: View {
                         }
                         .font(MedxFont.rounded(13, weight: .semibold))
                         .foregroundColor(.white.opacity(0.7))
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 4)
                     }
                 }
             }
             .padding(.horizontal, 24)
+
+            // On-Screen Keypad Helper (For Swift Playgrounds Preview without physical/software keyboard)
+            VStack(spacing: 8) {
+                HStack {
+                    Text("PLAYGROUNDS KEYPAD")
+                        .font(MedxFont.rounded(10, weight: .bold))
+                        .foregroundColor(.white.opacity(0.4))
+                        .tracking(1.5)
+                    Spacer()
+                    Button("Clear") {
+                        password = ""
+                    }
+                    .font(MedxFont.rounded(11, weight: .semibold))
+                    .foregroundColor(MedxTheme.destructiveRed.opacity(0.8))
+                }
+                .padding(.horizontal, 28)
+
+                // Quick Number Keypad grid
+                let rows = [
+                    ["1", "2", "3", "4", "5"],
+                    ["6", "7", "8", "9", "0"],
+                    ["a", "b", "c", "d", "e", "f", "g"],
+                    ["h", "i", "j", "k", "l", "m", "n"],
+                    ["o", "p", "q", "r", "s", "t", "u"],
+                    ["v", "w", "x", "y", "z", "@", ".", "!"]
+                ]
+
+                VStack(spacing: 5) {
+                    ForEach(rows, id: \.self) { row in
+                        HStack(spacing: 5) {
+                            ForEach(row, id: \.self) { char in
+                                Button {
+                                    HapticManager.light()
+                                    password.append(char)
+                                } label: {
+                                    Text(char)
+                                        .font(MedxFont.monospacedDigits(14, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 32)
+                                        .background(Color.white.opacity(0.1))
+                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                }
+                            }
+
+                            if row == rows.last {
+                                Button {
+                                    HapticManager.light()
+                                    if !password.isEmpty {
+                                        password.removeLast()
+                                    }
+                                } label: {
+                                    Image(systemName: "delete.left.fill")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.white.opacity(0.8))
+                                        .frame(width: 44, height: 32)
+                                        .background(Color.white.opacity(0.15))
+                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 24)
+            }
+            .padding(.top, 8)
         }
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
