@@ -3,7 +3,6 @@ import SwiftUI
 public struct ProfileSelectView: View {
     @ObservedObject var authService = AuthService.shared
     @State private var selectedProfile: Profile?
-    @State private var showPasswordSheet = false
     @State private var animateGlow = false
 
     public init() {}
@@ -36,70 +35,87 @@ public struct ProfileSelectView: View {
             .animation(.easeInOut(duration: 8).repeatForever(autoreverses: true), value: animateGlow)
             .onAppear { animateGlow = true }
 
-            VStack(spacing: 32) {
-                Spacer()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 32) {
+                    Spacer(minLength: 40)
 
-                // Header Title
-                VStack(spacing: 10) {
-                    Text("FMGE · JANUARY 2027")
-                        .font(MedxFont.rounded(12, weight: .bold))
-                        .foregroundColor(MedxTheme.cyanAccent)
-                        .tracking(2.5)
+                    // Header Title
+                    VStack(spacing: 10) {
+                        Text("FMGE · JANUARY 2027")
+                            .font(MedxFont.rounded(12, weight: .bold))
+                            .foregroundColor(MedxTheme.cyanAccent)
+                            .tracking(2.5)
 
-                    HStack(spacing: 0) {
-                        Text("Medx")
-                            .font(MedxFont.rounded(42, weight: .black))
-                            .foregroundColor(.white)
-                        Text("-elite")
-                            .font(MedxFont.rounded(42, weight: .light))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [MedxTheme.cyanAccent, MedxTheme.primaryPink],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
+                        HStack(spacing: 0) {
+                            Text("Medx")
+                                .font(MedxFont.rounded(42, weight: .black))
+                                .foregroundColor(.white)
+                            Text("-elite")
+                                .font(MedxFont.rounded(42, weight: .light))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [MedxTheme.cyanAccent, MedxTheme.primaryPink],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
                                 )
-                            )
-                    }
-
-                    Text("Private high-yield study suite for FMGE")
-                        .font(MedxFont.rounded(15, weight: .regular))
-                        .foregroundColor(.white.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                }
-
-                // Profile Cards
-                VStack(spacing: 18) {
-                    ForEach(Profile.allProfiles) { profile in
-                        ProfileCardButton(
-                            profile: profile,
-                            hasSavedPassword: authService.hasSavedPassword(for: profile.id),
-                            isBusy: authService.isBusy && selectedProfile?.id == profile.id
-                        ) {
-                            handleProfileTap(profile)
                         }
+
+                        Text("Private high-yield study suite for FMGE")
+                            .font(MedxFont.rounded(15, weight: .regular))
+                            .foregroundColor(.white.opacity(0.7))
+                            .multilineTextAlignment(.center)
                     }
-                }
-                .padding(.horizontal, 24)
 
-                if let err = authService.errorMessage {
-                    Text(err)
-                        .font(MedxFont.rounded(14, weight: .medium))
-                        .foregroundColor(MedxTheme.destructiveRed)
-                        .multilineTextAlignment(.center)
+                    if let profile = selectedProfile {
+                        // Inline Password Entry Card (Guarantees immediate keyboard focus on iPad Playgrounds)
+                        PasswordPromptView(profile: profile) {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                selectedProfile = nil
+                            }
+                        }
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.94)),
+                            removal: .opacity.combined(with: .scale(scale: 0.94))
+                        ))
+                    } else {
+                        // Profile Picker Cards
+                        VStack(spacing: 18) {
+                            ForEach(Profile.allProfiles) { profile in
+                                ProfileCardButton(
+                                    profile: profile,
+                                    hasSavedPassword: authService.hasSavedPassword(for: profile.id),
+                                    isBusy: authService.isBusy && selectedProfile?.id == profile.id
+                                ) {
+                                    handleProfileTap(profile)
+                                }
+                            }
+                        }
                         .padding(.horizontal, 24)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.94)),
+                            removal: .opacity.combined(with: .scale(scale: 0.94))
+                        ))
+                    }
+
+                    if let err = authService.errorMessage, selectedProfile == nil {
+                        Text(err)
+                            .font(MedxFont.rounded(14, weight: .medium))
+                            .foregroundColor(MedxTheme.destructiveRed)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                    }
+
+                    Spacer(minLength: 40)
+
+                    // Footer
+                    Text("Exclusive 2-Member Environment")
+                        .font(MedxFont.rounded(12, weight: .medium))
+                        .foregroundColor(.white.opacity(0.4))
+                        .padding(.bottom, 16)
                 }
-
-                Spacer()
-
-                // Footer
-                Text("Exclusive 2-Member Environment")
-                    .font(MedxFont.rounded(12, weight: .medium))
-                    .foregroundColor(.white.opacity(0.4))
-                    .padding(.bottom, 16)
+                .frame(minHeight: UIScreen.main.bounds.height - 80)
             }
-        }
-        .sheet(item: $selectedProfile) { profile in
-            PasswordPromptView(profile: profile)
         }
     }
 
@@ -112,11 +128,15 @@ public struct ProfileSelectView: View {
                     HapticManager.success()
                 } catch {
                     HapticManager.error()
-                    selectedProfile = profile
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        selectedProfile = profile
+                    }
                 }
             }
         } else {
-            selectedProfile = profile
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                selectedProfile = profile
+            }
         }
     }
 }
