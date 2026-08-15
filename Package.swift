@@ -1,20 +1,42 @@
 // swift-tools-version: 5.9
+
+// WARNING:
+// This file is configured for Swift Playgrounds on iPadOS / iOS and Xcode.
+
 import PackageDescription
+import AppleProductTypes
 
 let package = Package(
     name: "MedxElite",
     platforms: [
-        .iOS(.v17)
+        .iOS("17.0")
     ],
     products: [
-        .library(
+        .iOSApplication(
             name: "MedxElite",
-            targets: ["MedxElite"]
-        ),
+            targets: ["MedxElite"],
+            bundleIdentifier: "quest.srihari.medxelite",
+            displayVersion: "1.0.0",
+            bundleVersion: "1",
+            appIcon: .placeholder(icon: .book),
+            accentColor: .presetColor(.blue),
+            supportedDeviceFamilies: [
+                .pad,
+                .phone
+            ],
+            supportedInterfaceOrientations: [
+                .portrait,
+                .landscapeRight,
+                .landscapeLeft,
+                .portraitUpsideDown(.when(deviceBasedOn: .pad))
+            ],
+            capabilities: [
+                .outgoingNetworkConnections()
+            ]
+        )
     ],
-    dependencies: [],
     targets: [
-        .target(
+        .executableTarget(
             name: "MedxElite",
             path: "MedxElite",
             resources: [
