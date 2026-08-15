@@ -7,11 +7,8 @@ public struct HomeView: View {
     @State private var isLoading = true
     @State private var showSettings = false
     @State private var showTrackerSheet = false
-    public var onSelectTab: (TabItem) -> Void
 
-    public init(onSelectTab: @escaping (TabItem) -> Void) {
-        self.onSelectTab = onSelectTab
-    }
+    public init() {}
 
     private var greetingText: String {
         let hour = Calendar.current.component(.hour, from: Date())
@@ -22,113 +19,93 @@ public struct HomeView: View {
     }
 
     public var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+        List {
+            // Greeting header
+            Section {
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(greetingText),")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        // Greeting Header
-                        HStack(alignment: .center) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("\(greetingText),")
-                                    .font(MedxFont.rounded(15, weight: .medium))
-                                    .foregroundColor(.secondary)
-
-                                if let profile = authService.currentProfile {
-                                    Text(profile.displayName)
-                                        .font(MedxFont.rounded(28, weight: .black))
-                                        .foregroundStyle(profile.gradient)
-                                }
-                            }
-
-                            Spacer()
-
-                            // Profile Avatar / Settings Button
-                            Button {
-                                HapticManager.light()
-                                showSettings = true
-                            } label: {
-                                if let profile = authService.currentProfile {
-                                    ZStack {
-                                        Circle()
-                                            .fill(profile.gradient)
-                                            .frame(width: 44, height: 44)
-                                        Text(String(profile.displayName.prefix(1)))
-                                            .font(MedxFont.rounded(18, weight: .bold))
-                                            .foregroundColor(.white)
-                                    }
-                                    .shadow(color: profile.accentColor.opacity(0.35), radius: 8, x: 0, y: 4)
-                                } else {
-                                    Image(systemName: "person.crop.circle.fill")
-                                        .font(.system(size: 36))
-                                        .foregroundColor(.secondary)
-                                }
-                            }
+                        if let profile = authService.currentProfile {
+                            Text(profile.displayName)
+                                .font(.system(.title, design: .rounded, weight: .bold))
+                                .foregroundStyle(profile.gradient)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 10)
-
-                        // Countdown Banner
-                        CountdownWidgetView()
-                            .padding(.horizontal, 20)
-
-                        // Syllabus Tracker Shortcut Card
-                        Button {
-                            HapticManager.light()
-                            showTrackerSheet = true
-                        } label: {
-                            HStack {
-                                HStack(spacing: 12) {
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                            .fill(MedxTheme.primaryBlue.opacity(0.15))
-                                            .frame(width: 44, height: 44)
-                                        Image(systemName: "list.clipboard.fill")
-                                            .font(.headline)
-                                            .foregroundColor(MedxTheme.primaryBlue)
-                                    }
-
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Syllabus Checklist Matrix")
-                                            .font(MedxFont.rounded(15, weight: .bold))
-                                            .foregroundColor(.primary)
-                                        Text("Track videos, revision cycles & PYQs")
-                                            .font(MedxFont.rounded(12, weight: .medium))
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-
-                                Spacer()
-
-                                Image(systemName: "chevron.right")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(16)
-                            .liquidGlassCard(cornerRadius: 20, glowColor: MedxTheme.primaryBlue)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .padding(.horizontal, 20)
-
-                        // QBank Progress Card
-                        QBankProgressCard(attempts: attempts) {
-                            onSelectTab(.qbank)
-                        }
-                        .padding(.horizontal, 20)
-
-                        // Question of the Day
-                        QuestionOfTheDayCard()
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 90)
                     }
-                    .padding(.top, 6)
+
+                    Spacer()
+
+                    Button {
+                        showSettings = true
+                    } label: {
+                        if let profile = authService.currentProfile {
+                            ZStack {
+                                Circle()
+                                    .fill(profile.gradient)
+                                    .frame(width: 40, height: 40)
+                                Text(String(profile.displayName.prefix(1)))
+                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white)
+                            }
+                        } else {
+                            Image(systemName: "person.crop.circle.fill")
+                                .font(.title)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
-                .refreshable {
-                    await loadHomeData()
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+            }
+
+            // Countdown
+            Section {
+                CountdownWidgetView()
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    .listRowBackground(Color.clear)
+            }
+
+            // Syllabus Tracker
+            Section {
+                Button {
+                    showTrackerSheet = true
+                } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Syllabus Checklist Matrix")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            Text("Track videos, revision cycles & PYQs")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "list.clipboard.fill")
+                            .foregroundColor(.accentColor)
+                    }
                 }
             }
-            .navigationBarHidden(true)
+
+            // QBank Progress
+            Section {
+                QBankProgressCard(attempts: attempts) {}
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    .listRowBackground(Color.clear)
+            }
+
+            // Question of the Day
+            Section {
+                QuestionOfTheDayCard()
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    .listRowBackground(Color.clear)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Home")
+        .refreshable {
+            await loadHomeData()
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()

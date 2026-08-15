@@ -6,30 +6,46 @@ public struct MainTabView: View {
     public init() {}
 
     public var body: some View {
-        ZStack(alignment: .bottom) {
-            Group {
-                switch selectedTab {
-                case .home:
-                    HomeView { tab in
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                            selectedTab = tab
-                        }
-                    }
-                case .qbank:
-                    QBankSubjectListView()
-                case .tests:
-                    TestsListView()
-                case .flashcards:
-                    FlashcardsSubjectListView()
-                case .videos:
-                    VideosBatchListView()
-                }
+        TabView(selection: $selectedTab) {
+            NavigationStack {
+                HomeView()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .tabItem {
+                Label(TabItem.home.rawValue, systemImage: "house.fill")
+            }
+            .tag(TabItem.home)
 
-            // Custom Floating Tab Bar
-            FloatingTabBar(selectedTab: $selectedTab)
+            NavigationStack {
+                QBankSubjectListView()
+            }
+            .tabItem {
+                Label(TabItem.qbank.rawValue, systemImage: "books.vertical.fill")
+            }
+            .tag(TabItem.qbank)
+
+            NavigationStack {
+                TestsListView()
+            }
+            .tabItem {
+                Label(TabItem.tests.rawValue, systemImage: "checkmark.seal.fill")
+            }
+            .tag(TabItem.tests)
+
+            NavigationStack {
+                FlashcardsSubjectListView()
+            }
+            .tabItem {
+                Label(TabItem.flashcards.rawValue, systemImage: "sparkles.rectangle.stack.fill")
+            }
+            .tag(TabItem.flashcards)
+
+            NavigationStack {
+                VideosBatchListView()
+            }
+            .tabItem {
+                Label(TabItem.videos.rawValue, systemImage: "play.tv.fill")
+            }
+            .tag(TabItem.videos)
         }
-        .ignoresSafeArea(.keyboard)
     }
 }

@@ -33,82 +33,82 @@ public struct QBankSubjectListView: View {
     }
 
     public var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+        List {
+            if isLoading {
+                Section {
+                    HStack {
+                        Spacer()
+                        ProgressView("Loading Question Bank...")
+                        Spacer()
+                    }
+                    .listRowBackground(Color.clear)
+                }
+            } else {
+                // Summary
+                Section {
+                    let totalQ = subjects.reduce(0) { $0 + ($1.questionCount ?? 0) }
+                    Text("\(totalQ.formatted()) questions · \(subjects.count) subjects")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
 
-                if isLoading {
-                    ProgressView("Loading Question Bank...")
-                } else {
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            // Subheader Summary
-                            let totalQ = subjects.reduce(0) { $0 + ($1.questionCount ?? 0) }
-                            HStack {
-                                Text("\(totalQ.formatted()) questions · \(subjects.count) subjects")
-                                    .font(MedxFont.rounded(13, weight: .medium))
-                                    .foregroundColor(.secondary)
+                // Subject List
+                Section {
+                    ForEach(filteredSubjects) { subject in
+                        NavigationLink {
+                            QBankChapterView(
+                                subject: subject,
+                                attempts: attempts
+                            ) { module, mode in
+                                startSession(moduleId: module.id, subjectName: subject.name, moduleName: module.name, mode: mode)
+                            }
+                        } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: "book.closed.fill")
+                                    .font(.title3)
+                                    .foregroundColor(.accentColor)
+                                    .frame(width: 32)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(subject.name)
+                                        .font(.headline)
+
+                                    Text("\(subject.moduleCount) modules · \((subject.questionCount ?? 0).formatted()) questions")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
                                 Spacer()
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.top, 4)
 
-                            // Search Bar
-                            HStack {
-                                Image(systemName: "magnifyingglass")
-                                    .foregroundColor(.secondary)
-                                TextField("Search subjects...", text: $searchText)
-                                    .font(MedxFont.rounded(15, weight: .regular))
-                                if !searchText.isEmpty {
-                                    Button {
-                                        searchText = ""
-                                    } label: {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.secondary)
-                                    }
+                                let attempted = attemptedSubjectsCount[subject.subjectId] ?? 0
+                                if attempted > 0 {
+                                    Text("\(attempted)")
+                                        .font(.caption.bold())
+                                        .foregroundColor(.green)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3)
+                                        .background(Color.green.opacity(0.12))
+                                        .clipShape(Capsule())
                                 }
                             }
-                            .padding(12)
-                            .liquidGlassCard(cornerRadius: 14)
-                            .padding(.horizontal, 20)
-
-                            // Subject Cards
-                            LazyVStack(spacing: 12) {
-                                ForEach(filteredSubjects) { subject in
-                                    NavigationLink {
-                                        QBankChapterView(
-                                            subject: subject,
-                                            attempts: attempts
-                                        ) { module, mode in
-                                            startSession(moduleId: module.id, subjectName: subject.name, moduleName: module.name, mode: mode)
-                                        }
-                                    } label: {
-                                        SubjectRowCard(
-                                            subject: subject,
-                                            attemptedCount: attemptedSubjectsCount[subject.subjectId] ?? 0
-                                        )
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                }
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 90)
+                            .padding(.vertical, 4)
                         }
                     }
-                    .refreshable {
-                        await loadData()
-                    }
                 }
             }
-            .navigationTitle("Question Bank")
-            .navigationBarTitleDisplayMode(.large)
-            .task {
-                await loadData()
-            }
-            .fullScreenCover(item: $activeRunnerPayload) { payload in
-                QuizRunnerView(payload: payload) {
-                    Task { await loadData() }
-                }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Question Bank")
+        .searchable(text: $searchText, prompt: "Search subjects")
+        .refreshable {
+            await loadData()
+        }
+        .task {
+            await loadData()
+        }
+        .fullScreenCover(item: $activeRunnerPayload) { payload in
+            QuizRunnerView(payload: payload) {
+                Task { await loadData() }
             }
         }
     }
@@ -156,51 +156,5 @@ public struct RunnerPayload: Identifiable, Hashable, Sendable {
         self.subject = subject
         self.mode = mode
         self.gradable = gradable
-    }
-}
-
-private struct SubjectRowCard: View {
-    let subject: QBankSubject
-    let attemptedCount: Int
-
-    var body: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(MedxTheme.primaryBlue.opacity(0.12))
-                    .frame(width: 44, height: 44)
-                Image(systemName: "book.closed.fill")
-                    .font(.headline)
-                    .foregroundColor(MedxTheme.primaryBlue)
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(subject.name)
-                    .font(MedxFont.rounded(16, weight: .bold))
-                    .foregroundColor(.primary)
-
-                Text("\(subject.moduleCount) modules · \((subject.questionCount ?? 0).formatted()) questions")
-                    .font(MedxFont.rounded(13, weight: .regular))
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            if attemptedCount > 0 {
-                Text("\(attemptedCount)")
-                    .font(MedxFont.monospacedDigits(12, weight: .bold))
-                    .foregroundColor(MedxTheme.successGreen)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(MedxTheme.successGreen.opacity(0.15))
-                    .clipShape(Capsule())
-            }
-
-            Image(systemName: "chevron.right")
-                .font(.subheadline)
-                .foregroundColor(.secondary.opacity(0.6))
-        }
-        .padding(16)
-        .liquidGlassCard(cornerRadius: 18)
     }
 }
