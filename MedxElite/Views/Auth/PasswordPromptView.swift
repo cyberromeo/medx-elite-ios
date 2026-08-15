@@ -7,9 +7,9 @@ public struct PasswordPromptView: View {
 
     @ObservedObject var authService = AuthService.shared
     @State private var password = ""
-    @State private var isPasswordVisible = true
+    @State private var isPasswordVisible = false
     @State private var localError: String?
-    @FocusState private var isPasswordFocused: Bool
+    @FocusState private var isFocused: Bool
 
     public init(profile: Profile, onCancel: (() -> Void)? = nil) {
         self.profile = profile
@@ -17,48 +17,69 @@ public struct PasswordPromptView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 20) {
-            // Profile Avatar & Welcome
-            VStack(spacing: 12) {
+        VStack(spacing: 28) {
+            // Apple-style Glass Profile Avatar & Info
+            VStack(spacing: 16) {
                 ZStack {
                     Circle()
-                        .fill(profile.gradient)
-                        .frame(width: 70, height: 70)
+                        .fill(.ultraThinMaterial)
+                        .frame(width: 88, height: 88)
+                        .overlay(
+                            Circle()
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: [
+                                            profile.accentColor.opacity(0.8),
+                                            Color.white.opacity(0.3)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 2
+                                )
+                        )
+                        .shadow(color: profile.accentColor.opacity(0.4), radius: 20, x: 0, y: 10)
 
                     Text(String(profile.displayName.prefix(1)))
-                        .font(MedxFont.rounded(30, weight: .heavy))
-                        .foregroundColor(.white)
+                        .font(.system(size: 38, weight: .bold, design: .rounded))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.white, Color.white.opacity(0.85)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
                 }
-                .shadow(color: profile.accentColor.opacity(0.45), radius: 14, x: 0, y: 6)
 
-                VStack(spacing: 4) {
+                VStack(spacing: 6) {
                     Text(profile.displayName)
-                        .font(MedxFont.rounded(22, weight: .bold))
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
 
-                    Text(profile.email)
-                        .font(MedxFont.rounded(13, weight: .medium))
+                    Text(profile.handle)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundColor(profile.accentColor)
 
-                    Text("Enter password to unlock. It will be saved securely.")
-                        .font(MedxFont.rounded(13, weight: .regular))
-                        .foregroundColor(.white.opacity(0.6))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 20)
+                    Text("Enter password to unlock")
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(.white.opacity(0.55))
+                        .padding(.top, 2)
                 }
             }
 
-            // Password Input Box
-            VStack(alignment: .leading, spacing: 8) {
+            // Apple Liquid Glass Input Capsule
+            VStack(spacing: 10) {
                 HStack(spacing: 12) {
-                    Image(systemName: "lock.fill")
+                    Image(systemName: "key.fill")
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundColor(profile.accentColor)
-                        .font(.system(size: 16, weight: .semibold))
+                        .frame(width: 24)
 
                     if isPasswordVisible {
-                        TextField("Enter password", text: $password)
-                            .focused($isPasswordFocused)
+                        TextField("Password", text: $password)
+                            .focused($isFocused)
                             .foregroundColor(.white)
+                            .font(.system(size: 16, weight: .regular))
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
                             .submitLabel(.go)
@@ -66,9 +87,10 @@ public struct PasswordPromptView: View {
                                 handleSignIn()
                             }
                     } else {
-                        SecureField("Enter password", text: $password)
-                            .focused($isPasswordFocused)
+                        SecureField("Password", text: $password)
+                            .focused($isFocused)
                             .foregroundColor(.white)
+                            .font(.system(size: 16, weight: .regular))
                             .textContentType(.password)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
@@ -81,21 +103,14 @@ public struct PasswordPromptView: View {
                     // Paste Button
                     Button {
                         if let pasted = UIPasteboard.general.string {
-                            let clean = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
-                            password = clean
+                            password = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
                             HapticManager.light()
                         }
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "doc.on.clipboard.fill")
-                            Text("Paste")
-                                .font(MedxFont.rounded(12, weight: .bold))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.18))
-                        .clipShape(Capsule())
+                        Image(systemName: "doc.on.clipboard")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white.opacity(0.65))
+                            .padding(6)
                     }
 
                     // Show / Hide Password Toggle
@@ -103,138 +118,118 @@ public struct PasswordPromptView: View {
                         isPasswordVisible.toggle()
                     } label: {
                         Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
-                            .font(.system(size: 15))
-                            .foregroundColor(.white.opacity(0.6))
-                            .padding(4)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white.opacity(0.65))
+                            .padding(6)
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.vertical, 14)
                 .background(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.white.opacity(0.08))
-                        .background(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .fill(.ultraThinMaterial)
-                        )
+                        .fill(.ultraThinMaterial)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .strokeBorder(
-                            isPasswordFocused
-                                ? profile.accentColor
-                                : Color.white.opacity(0.15),
-                            lineWidth: isPasswordFocused ? 1.5 : 1
+                            LinearGradient(
+                                colors: [
+                                    isFocused ? profile.accentColor : Color.white.opacity(0.35),
+                                    isFocused ? profile.accentColor.opacity(0.5) : Color.white.opacity(0.08)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: isFocused ? 1.5 : 1
                         )
+                )
+                .shadow(
+                    color: isFocused ? profile.accentColor.opacity(0.25) : Color.black.opacity(0.2),
+                    radius: 16,
+                    x: 0,
+                    y: 8
                 )
 
                 if let err = localError ?? authService.errorMessage {
                     HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.circle.fill")
+                        Image(systemName: "exclamationmark.triangle.fill")
                             .font(.caption)
                         Text(err)
-                            .font(MedxFont.rounded(12, weight: .medium))
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
                     }
                     .foregroundColor(MedxTheme.destructiveRed)
-                    .padding(.horizontal, 6)
+                    .padding(.horizontal, 8)
                 }
             }
             .padding(.horizontal, 24)
 
-            // Primary Action Buttons
-            VStack(spacing: 12) {
-                // Sign In Button
-                ModernButton(
-                    title: "Unlock & Continue",
-                    icon: "arrow.right",
-                    gradient: profile.gradient,
-                    isBusy: authService.isBusy
-                ) {
+            // Apple Glass Action Buttons
+            VStack(spacing: 14) {
+                // Unlock Button
+                Button {
                     handleSignIn()
-                }
+                } label: {
+                    HStack(spacing: 8) {
+                        if authService.isBusy {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Text("Unlock")
+                                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 14, weight: .bold))
+                        }
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(profile.gradient)
 
-                // Switch Account Button
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.25), Color.clear],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        }
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.4), lineWidth: 1)
+                    )
+                    .shadow(color: profile.accentColor.opacity(0.4), radius: 18, x: 0, y: 8)
+                }
+                .disabled(authService.isBusy)
+                .buttonStyle(GlassPressButtonStyle())
+
+                // Switch Profile Button
                 if let cancel = onCancel {
                     Button(action: cancel) {
                         HStack(spacing: 6) {
-                            Image(systemName: "arrow.left")
-                            Text("Choose a different profile")
+                            Image(systemName: "person.2.fill")
+                                .font(.system(size: 12))
+                            Text("Switch Profile")
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
                         }
-                        .font(MedxFont.rounded(13, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.7))
-                        .padding(.vertical, 4)
+                        .foregroundColor(.white.opacity(0.65))
+                        .padding(.vertical, 8)
                     }
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
             .padding(.horizontal, 24)
-
-            // On-Screen Keypad Helper (For Swift Playgrounds Preview)
-            VStack(spacing: 8) {
-                HStack {
-                    Text("PLAYGROUNDS ON-SCREEN KEYPAD")
-                        .font(MedxFont.rounded(10, weight: .bold))
-                        .foregroundColor(.white.opacity(0.4))
-                        .tracking(1.5)
-                    Spacer()
-                    Button("Clear") {
-                        password = ""
-                    }
-                    .font(MedxFont.rounded(11, weight: .semibold))
-                    .foregroundColor(MedxTheme.destructiveRed.opacity(0.8))
-                }
-                .padding(.horizontal, 28)
-
-                // Quick Keypad grid
-                let rows = [
-                    ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
-                    ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
-                    ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
-                    ["z", "x", "c", "v", "b", "n", "m", "@", ".", "!"]
-                ]
-
-                VStack(spacing: 5) {
-                    ForEach(rows, id: \.self) { row in
-                        HStack(spacing: 4) {
-                            ForEach(row, id: \.self) { char in
-                                Button {
-                                    HapticManager.light()
-                                    password.append(char)
-                                } label: {
-                                    Text(char)
-                                        .font(MedxFont.monospacedDigits(14, weight: .semibold))
-                                        .foregroundColor(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: 34)
-                                        .background(Color.white.opacity(0.12))
-                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                }
-                            }
-
-                            if row == rows.last {
-                                Button {
-                                    HapticManager.light()
-                                    if !password.isEmpty {
-                                        password.removeLast()
-                                    }
-                                } label: {
-                                    Image(systemName: "delete.left.fill")
-                                        .font(.system(size: 13))
-                                        .foregroundColor(.white.opacity(0.8))
-                                        .frame(width: 40, height: 34)
-                                        .background(Color.white.opacity(0.2))
-                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 20)
-            }
-            .padding(.top, 4)
         }
+        .padding(.vertical, 28)
+        .liquidGlassCard(cornerRadius: 32, glowColor: profile.accentColor)
+        .padding(.horizontal, 20)
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                isPasswordFocused = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                isFocused = true
             }
         }
     }
@@ -242,7 +237,7 @@ public struct PasswordPromptView: View {
     private func handleSignIn() {
         let clean = password.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else {
-            isPasswordFocused = true
+            isFocused = true
             localError = "Please enter your password."
             return
         }
@@ -254,8 +249,18 @@ public struct PasswordPromptView: View {
             } catch {
                 HapticManager.error()
                 localError = error.localizedDescription
-                isPasswordFocused = true
+                isFocused = true
             }
         }
+    }
+}
+
+/// Pure Apple Tactile Glass Button Press Style
+public struct GlassPressButtonStyle: ButtonStyle {
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }

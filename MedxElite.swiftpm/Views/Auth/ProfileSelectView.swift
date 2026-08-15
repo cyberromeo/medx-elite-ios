@@ -3,74 +3,62 @@ import SwiftUI
 public struct ProfileSelectView: View {
     @ObservedObject var authService = AuthService.shared
     @State private var selectedProfile: Profile?
-    @State private var animateGlow = false
 
     public init() {}
 
     public var body: some View {
         ZStack {
-            // Dynamic Aura Background
-            Color.black.ignoresSafeArea()
-
-            // Ambient Glow orbs
-            ZStack {
-                Circle()
-                    .fill(Color(hex: "#0A84FF").opacity(0.35))
-                    .frame(width: 320, height: 320)
-                    .blur(radius: 80)
-                    .offset(x: animateGlow ? -60 : 60, y: animateGlow ? -120 : -60)
-
-                Circle()
-                    .fill(Color(hex: "#FF375F").opacity(0.3))
-                    .frame(width: 300, height: 300)
-                    .blur(radius: 80)
-                    .offset(x: animateGlow ? 80 : -40, y: animateGlow ? 160 : 80)
-
-                Circle()
-                    .fill(Color(hex: "#BF5AF2").opacity(0.25))
-                    .frame(width: 280, height: 280)
-                    .blur(radius: 70)
-                    .offset(x: animateGlow ? -100 : 100, y: animateGlow ? 80 : -100)
-            }
-            .animation(.easeInOut(duration: 8).repeatForever(autoreverses: true), value: animateGlow)
-            .onAppear { animateGlow = true }
+            // Living Ambient Apple Mesh Aura
+            AmbientGlassAuraBackground()
 
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 32) {
-                    Spacer(minLength: 40)
+                VStack(spacing: 36) {
+                    Spacer(minLength: 50)
 
-                    // Header Title
-                    VStack(spacing: 10) {
-                        Text("FMGE · JANUARY 2027")
-                            .font(MedxFont.rounded(12, weight: .bold))
-                            .foregroundColor(MedxTheme.cyanAccent)
-                            .tracking(2.5)
+                    // Apple-style Monogram App Header
+                    VStack(spacing: 12) {
+                        // Glass Icon Badge
+                        ZStack {
+                            Circle()
+                                .fill(.ultraThinMaterial)
+                                .frame(width: 64, height: 64)
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(Color.white.opacity(0.35), lineWidth: 1.5)
+                                )
+                                .shadow(color: MedxTheme.cyanAccent.opacity(0.3), radius: 18, x: 0, y: 8)
 
-                        HStack(spacing: 0) {
-                            Text("Medx")
-                                .font(MedxFont.rounded(42, weight: .black))
-                                .foregroundColor(.white)
-                            Text("-elite")
-                                .font(MedxFont.rounded(42, weight: .light))
+                            Image(systemName: "cross.case.fill")
+                                .font(.system(size: 28))
                                 .foregroundStyle(
                                     LinearGradient(
                                         colors: [MedxTheme.cyanAccent, MedxTheme.primaryPink],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
                                     )
                                 )
                         }
 
-                        Text("Private high-yield study suite for FMGE")
-                            .font(MedxFont.rounded(15, weight: .regular))
-                            .foregroundColor(.white.opacity(0.7))
-                            .multilineTextAlignment(.center)
+                        VStack(spacing: 4) {
+                            Text("MEDX-ELITE")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .tracking(3.0)
+                                .foregroundColor(MedxTheme.cyanAccent)
+
+                            Text("FMGE 2027 Suite")
+                                .font(.system(size: 32, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+
+                            Text("Select your profile to continue")
+                                .font(.system(size: 15, weight: .regular))
+                                .foregroundColor(.white.opacity(0.6))
+                        }
                     }
 
                     if let profile = selectedProfile {
-                        // Inline Password Entry Card (Guarantees immediate keyboard focus on iPad Playgrounds)
+                        // Apple-style Frosted Password Modal Card
                         PasswordPromptView(profile: profile) {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
                                 selectedProfile = nil
                             }
                         }
@@ -79,10 +67,10 @@ public struct ProfileSelectView: View {
                             removal: .opacity.combined(with: .scale(scale: 0.94))
                         ))
                     } else {
-                        // Profile Picker Cards
-                        VStack(spacing: 18) {
+                        // Apple Glass Profile Selection Cards
+                        VStack(spacing: 16) {
                             ForEach(Profile.allProfiles) { profile in
-                                ProfileCardButton(
+                                ProfileGlassCard(
                                     profile: profile,
                                     hasSavedPassword: authService.hasSavedPassword(for: profile.id),
                                     isBusy: authService.isBusy && selectedProfile?.id == profile.id
@@ -99,22 +87,28 @@ public struct ProfileSelectView: View {
                     }
 
                     if let err = authService.errorMessage, selectedProfile == nil {
-                        Text(err)
-                            .font(MedxFont.rounded(14, weight: .medium))
-                            .foregroundColor(MedxTheme.destructiveRed)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 24)
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                            Text(err)
+                        }
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(MedxTheme.destructiveRed)
+                        .padding(.horizontal, 24)
                     }
 
-                    Spacer(minLength: 40)
+                    Spacer(minLength: 50)
 
-                    // Footer
-                    Text("Exclusive 2-Member Environment")
-                        .font(MedxFont.rounded(12, weight: .medium))
-                        .foregroundColor(.white.opacity(0.4))
-                        .padding(.bottom, 16)
+                    // Apple Encrypted Privacy Badge
+                    HStack(spacing: 6) {
+                        Image(systemName: "lock.shield.fill")
+                            .font(.system(size: 11))
+                        Text("Encrypted On-Device Keychain Session")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                    }
+                    .foregroundColor(.white.opacity(0.4))
+                    .padding(.bottom, 20)
                 }
-                .frame(minHeight: UIScreen.main.bounds.height - 80)
+                .frame(minHeight: UIScreen.main.bounds.height - 60)
             }
         }
     }
@@ -128,20 +122,21 @@ public struct ProfileSelectView: View {
                     HapticManager.success()
                 } catch {
                     HapticManager.error()
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
                         selectedProfile = profile
                     }
                 }
             }
         } else {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
                 selectedProfile = profile
             }
         }
     }
 }
 
-private struct ProfileCardButton: View {
+/// Pure Apple Liquid Glass Profile Card
+private struct ProfileGlassCard: View {
     let profile: Profile
     let hasSavedPassword: Bool
     let isBusy: Bool
@@ -150,76 +145,75 @@ private struct ProfileCardButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 16) {
-                // Profile Avatar Circle
+                // Glass Monogram Avatar
                 ZStack {
                     Circle()
                         .fill(profile.gradient)
-                        .frame(width: 58, height: 58)
+                        .frame(width: 54, height: 54)
+
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.35), Color.clear],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .frame(width: 54, height: 54)
 
                     Text(String(profile.displayName.prefix(1)))
-                        .font(MedxFont.rounded(24, weight: .bold))
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                 }
-                .shadow(color: profile.accentColor.opacity(0.4), radius: 10, x: 0, y: 4)
+                .overlay(
+                    Circle()
+                        .strokeBorder(Color.white.opacity(0.4), lineWidth: 1.5)
+                )
+                .shadow(color: profile.accentColor.opacity(0.4), radius: 12, x: 0, y: 6)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(profile.handle)
-                        .font(MedxFont.rounded(19, weight: .bold))
+                // Info
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(profile.displayName)
+                        .font(.system(size: 19, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
 
-                    Text(profile.displayName)
-                        .font(MedxFont.rounded(14, weight: .medium))
-                        .foregroundColor(.white.opacity(0.6))
+                    Text(profile.handle)
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(profile.accentColor)
                 }
 
                 Spacer()
 
+                // Trailing Status Indicator
                 if isBusy {
                     ProgressView()
                         .tint(.white)
                 } else if hasSavedPassword {
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark.seal.fill")
-                            .foregroundColor(MedxTheme.successGreen)
-                        Text("Saved")
-                            .font(MedxFont.rounded(13, weight: .bold))
-                            .foregroundColor(MedxTheme.successGreen)
+                            .font(.system(size: 13))
+                        Text("Unlocked")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
                     }
+                    .foregroundColor(MedxTheme.successGreen)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(MedxTheme.successGreen.opacity(0.15))
+                    .background(.ultraThinMaterial)
                     .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(MedxTheme.successGreen.opacity(0.4), lineWidth: 1)
+                    )
                 } else {
                     Image(systemName: "chevron.right")
-                        .font(.headline)
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white.opacity(0.4))
                 }
             }
-            .padding(18)
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color.white.opacity(0.08))
-                    .background(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [
-                                profile.accentColor.opacity(0.6),
-                                Color.white.opacity(0.1)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1.5
-                    )
-            )
-            .shadow(color: profile.accentColor.opacity(0.2), radius: 16, x: 0, y: 8)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .liquidGlassCard(cornerRadius: 24, glowColor: profile.accentColor)
         }
-        .buttonStyle(BouncyButtonStyle())
+        .buttonStyle(GlassPressButtonStyle())
     }
 }
