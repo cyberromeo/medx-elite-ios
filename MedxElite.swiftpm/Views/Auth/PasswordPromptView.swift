@@ -7,7 +7,7 @@ public struct PasswordPromptView: View {
 
     @ObservedObject var authService = AuthService.shared
     @State private var password = ""
-    @State private var isPasswordVisible = false
+    @State private var isPasswordVisible = true
     @State private var localError: String?
     @FocusState private var isPasswordFocused: Bool
 
@@ -36,8 +36,8 @@ public struct PasswordPromptView: View {
                         .font(MedxFont.rounded(22, weight: .bold))
                         .foregroundColor(.white)
 
-                    Text(profile.handle)
-                        .font(MedxFont.rounded(14, weight: .medium))
+                    Text(profile.email)
+                        .font(MedxFont.rounded(13, weight: .medium))
                         .foregroundColor(profile.accentColor)
 
                     Text("Enter password to unlock. It will be saved securely.")
@@ -81,20 +81,26 @@ public struct PasswordPromptView: View {
                     // Paste Button
                     Button {
                         if let pasted = UIPasteboard.general.string {
-                            password = pasted
+                            let clean = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
+                            password = clean
                             HapticManager.light()
                         }
                     } label: {
-                        Image(systemName: "doc.on.clipboard.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(.white.opacity(0.6))
-                            .padding(4)
+                        HStack(spacing: 4) {
+                            Image(systemName: "doc.on.clipboard.fill")
+                            Text("Paste")
+                                .font(MedxFont.rounded(12, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.18))
+                        .clipShape(Capsule())
                     }
 
                     // Show / Hide Password Toggle
                     Button {
                         isPasswordVisible.toggle()
-                        isPasswordFocused = true
                     } label: {
                         Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
                             .font(.system(size: 15))
@@ -103,7 +109,7 @@ public struct PasswordPromptView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 14)
+                .padding(.vertical, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .fill(Color.white.opacity(0.08))
@@ -121,10 +127,6 @@ public struct PasswordPromptView: View {
                             lineWidth: isPasswordFocused ? 1.5 : 1
                         )
                 )
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    isPasswordFocused = true
-                }
 
                 if let err = localError ?? authService.errorMessage {
                     HStack(spacing: 6) {
@@ -166,10 +168,10 @@ public struct PasswordPromptView: View {
             }
             .padding(.horizontal, 24)
 
-            // On-Screen Keypad Helper (For Swift Playgrounds Preview without physical/software keyboard)
+            // On-Screen Keypad Helper (For Swift Playgrounds Preview)
             VStack(spacing: 8) {
                 HStack {
-                    Text("PLAYGROUNDS KEYPAD")
+                    Text("PLAYGROUNDS ON-SCREEN KEYPAD")
                         .font(MedxFont.rounded(10, weight: .bold))
                         .foregroundColor(.white.opacity(0.4))
                         .tracking(1.5)
@@ -182,19 +184,17 @@ public struct PasswordPromptView: View {
                 }
                 .padding(.horizontal, 28)
 
-                // Quick Number Keypad grid
+                // Quick Keypad grid
                 let rows = [
-                    ["1", "2", "3", "4", "5"],
-                    ["6", "7", "8", "9", "0"],
-                    ["a", "b", "c", "d", "e", "f", "g"],
-                    ["h", "i", "j", "k", "l", "m", "n"],
-                    ["o", "p", "q", "r", "s", "t", "u"],
-                    ["v", "w", "x", "y", "z", "@", ".", "!"]
+                    ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
+                    ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+                    ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
+                    ["z", "x", "c", "v", "b", "n", "m", "@", ".", "!"]
                 ]
 
                 VStack(spacing: 5) {
                     ForEach(rows, id: \.self) { row in
-                        HStack(spacing: 5) {
+                        HStack(spacing: 4) {
                             ForEach(row, id: \.self) { char in
                                 Button {
                                     HapticManager.light()
@@ -204,8 +204,8 @@ public struct PasswordPromptView: View {
                                         .font(MedxFont.monospacedDigits(14, weight: .semibold))
                                         .foregroundColor(.white)
                                         .frame(maxWidth: .infinity)
-                                        .frame(height: 32)
-                                        .background(Color.white.opacity(0.1))
+                                        .frame(height: 34)
+                                        .background(Color.white.opacity(0.12))
                                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                                 }
                             }
@@ -220,34 +220,36 @@ public struct PasswordPromptView: View {
                                     Image(systemName: "delete.left.fill")
                                         .font(.system(size: 13))
                                         .foregroundColor(.white.opacity(0.8))
-                                        .frame(width: 44, height: 32)
-                                        .background(Color.white.opacity(0.15))
+                                        .frame(width: 40, height: 34)
+                                        .background(Color.white.opacity(0.2))
                                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                                 }
                             }
                         }
                     }
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 20)
             }
-            .padding(.top, 8)
+            .padding(.top, 4)
         }
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 isPasswordFocused = true
             }
         }
     }
 
     private func handleSignIn() {
-        guard !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        let clean = password.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else {
             isPasswordFocused = true
+            localError = "Please enter your password."
             return
         }
         localError = nil
         Task {
             do {
-                try await authService.signIn(profile: profile, password: password)
+                try await authService.signIn(profile: profile, password: clean)
                 HapticManager.success()
             } catch {
                 HapticManager.error()
