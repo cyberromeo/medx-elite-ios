@@ -40,8 +40,8 @@ let package = Package(
         .executableTarget(
             name: "MedxElite",
             path: "MedxElite",
-            resources: [
-                .process("Resources")
+            exclude: [
+                "Resources/Info.plist"
             ]
         )
     ]
