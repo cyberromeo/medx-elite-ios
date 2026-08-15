@@ -19,7 +19,7 @@ let package = Package(
             bundleIdentifier: "quest.srihari.medxelite",
             displayVersion: "1.0.0",
             bundleVersion: "1",
-            appIcon: .placeholder(icon: .book),
+            appIcon: .placeholder(icon: .heart),
             accentColor: .presetColor(.blue),
             supportedDeviceFamilies: [
                 .pad,
@@ -29,7 +29,7 @@ let package = Package(
                 .portrait,
                 .landscapeRight,
                 .landscapeLeft,
-                .portraitUpsideDown(.when(deviceBasedOn: .pad))
+                .portraitUpsideDown(.when(deviceFamilies: [.pad]))
             ],
             capabilities: [
                 .outgoingNetworkConnections()
