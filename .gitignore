@@ -1,0 +1,26 @@
+# Xcode
+#
+# gitignore contributors: paste build/ Industrial Strength / Template folder / Xcode.gitignore
+build/
+DerivedData/
+*.moved-aside
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+
+## User settings
+xcuserdata/
+
+## Compatibility with Xcode 8 and earlier
+*.xcclassmodel
+
+## Swift Package Manager
+.build/
+Packages/
+.swiftpm/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon

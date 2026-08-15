@@ -1,0 +1,494 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		9B0010012A00000100000001 /* MedxEliteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010022A00000100000001 /* MedxEliteApp.swift */; };
+		9B0010032A00000100000001 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010042A00000100000001 /* AppState.swift */; };
+		9B0010052A00000100000001 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010062A00000100000001 /* Profile.swift */; };
+		9B0010072A00000100000001 /* QBank.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010082A00000100000001 /* QBank.swift */; };
+		9B0010092A00000100000001 /* Test.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00100A2A00000100000001 /* Test.swift */; };
+		9B00100B2A00000100000001 /* Flashcard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00100C2A00000100000001 /* Flashcard.swift */; };
+		9B00100D2A00000100000001 /* Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00100E2A00000100000001 /* Video.swift */; };
+		9B00100F2A00000100000001 /* Attempt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010102A00000100000001 /* Attempt.swift */; };
+		9B0010112A00000100000001 /* UserTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010122A00000100000001 /* UserTracker.swift */; };
+		9B0010132A00000100000001 /* QOD.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010142A00000100000001 /* QOD.swift */; };
+		9B0010152A00000100000001 /* FirebaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010162A00000100000001 /* FirebaseConfig.swift */; };
+		9B0010172A00000100000001 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010182A00000100000001 /* AuthService.swift */; };
+		9B0010192A00000100000001 /* FirestoreService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00101A2A00000100000001 /* FirestoreService.swift */; };
+		9B00101B2A00000100000001 /* QODService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00101C2A00000100000001 /* QODService.swift */; };
+		9B00101D2A00000100000001 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00101E2A00000100000001 /* HapticManager.swift */; };
+		9B00101F2A00000100000001 /* CacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010202A00000100000001 /* CacheManager.swift */; };
+		9B0010212A00000100000001 /* ColorSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010222A00000100000001 /* ColorSystem.swift */; };
+		9B0010232A00000100000001 /* GlassModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010242A00000100000001 /* GlassModifier.swift */; };
+		9B0010252A00000100000001 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010262A00000100000001 /* Typography.swift */; };
+		9B0010272A00000100000001 /* HTMLRichTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010282A00000100000001 /* HTMLRichTextView.swift */; };
+		9B0010292A00000100000001 /* ProgressRingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00102A2A00000100000001 /* ProgressRingView.swift */; };
+		9B00102B2A00000100000001 /* CountdownWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00102C2A00000100000001 /* CountdownWidgetView.swift */; };
+		9B00102D2A00000100000001 /* VideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00102E2A00000100000001 /* VideoPlayerView.swift */; };
+		9B00102F2A00000100000001 /* FlashcardDeckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010302A00000100000001 /* FlashcardDeckView.swift */; };
+		9B0010312A00000100000001 /* ModernButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010322A00000100000001 /* ModernButton.swift */; };
+		9B0010332A00000100000001 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010342A00000100000001 /* CachedAsyncImage.swift */; };
+		9B0010352A00000100000001 /* FloatingTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010362A00000100000001 /* FloatingTabBar.swift */; };
+		9B0010372A00000100000001 /* ProfileSelectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010382A00000100000001 /* ProfileSelectView.swift */; };
+		9B0010392A00000100000001 /* PasswordPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00103A2A00000100000001 /* PasswordPromptView.swift */; };
+		9B00103B2A00000100000001 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00103C2A00000100000001 /* MainTabView.swift */; };
+		9B00103D2A00000100000001 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00103E2A00000100000001 /* HomeView.swift */; };
+		9B00103F2A00000100000001 /* QuestionOfTheDayCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010402A00000100000001 /* QuestionOfTheDayCard.swift */; };
+		9B0010412A00000100000001 /* QBankProgressCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010422A00000100000001 /* QBankProgressCard.swift */; };
+		9B0010432A00000100000001 /* SyllabusTrackerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010442A00000100000001 /* SyllabusTrackerSheet.swift */; };
+		9B0010452A00000100000001 /* QBankSubjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010462A00000100000001 /* QBankSubjectListView.swift */; };
+		9B0010472A00000100000001 /* QBankChapterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010482A00000100000001 /* QBankChapterView.swift */; };
+		9B0010492A00000100000001 /* StartSessionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00104A2A00000100000001 /* StartSessionSheet.swift */; };
+		9B00104B2A00000100000001 /* QuizRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00104C2A00000100000001 /* QuizRunnerView.swift */; };
+		9B00104D2A00000100000001 /* QuestionOptionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00104E2A00000100000001 /* QuestionOptionButton.swift */; };
+		9B00104F2A00000100000001 /* SittingReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010502A00000100000001 /* SittingReviewView.swift */; };
+		9B0010512A00000100000001 /* TestsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010522A00000100000001 /* TestsListView.swift */; };
+		9B0010532A00000100000001 /* TestDetailCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010542A00000100000001 /* TestDetailCard.swift */; };
+		9B0010552A00000100000001 /* FlashcardsSubjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010562A00000100000001 /* FlashcardsSubjectListView.swift */; };
+		9B0010572A00000100000001 /* FlashcardStudyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010582A00000100000001 /* FlashcardStudyView.swift */; };
+		9B0010592A00000100000001 /* VideosBatchListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00105A2A00000100000001 /* VideosBatchListView.swift */; };
+		9B00105B2A00000100000001 /* VideoSubjectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00105C2A00000100000001 /* VideoSubjectView.swift */; };
+		9B00105D2A00000100000001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00105E2A00000100000001 /* SettingsView.swift */; };
+		9B00105F2A00000100000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 9B0010602A00000100000001 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		9B0010002A00000100000001 /* MedxElite.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MedxElite.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9B0010022A00000100000001 /* MedxEliteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxEliteApp.swift; sourceTree = "<group>"; };
+		9B0010042A00000100000001 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		9B0010062A00000100000001 /* Profile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Profile.swift; sourceTree = "<group>"; };
+		9B0010082A00000100000001 /* QBank.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QBank.swift; sourceTree = "<group>"; };
+		9B00100A2A00000100000001 /* Test.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Test.swift; sourceTree = "<group>"; };
+		9B00100C2A00000100000001 /* Flashcard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Flashcard.swift; sourceTree = "<group>"; };
+		9B00100E2A00000100000001 /* Video.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Video.swift; sourceTree = "<group>"; };
+		9B0010102A00000100000001 /* Attempt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Attempt.swift; sourceTree = "<group>"; };
+		9B0010122A00000100000001 /* UserTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserTracker.swift; sourceTree = "<group>"; };
+		9B0010142A00000100000001 /* QOD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QOD.swift; sourceTree = "<group>"; };
+		9B0010162A00000100000001 /* FirebaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseConfig.swift; sourceTree = "<group>"; };
+		9B0010182A00000100000001 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		9B00101A2A00000100000001 /* FirestoreService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirestoreService.swift; sourceTree = "<group>"; };
+		9B00101C2A00000100000001 /* QODService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QODService.swift; sourceTree = "<group>"; };
+		9B00101E2A00000100000001 /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
+		9B0010202A00000100000001 /* CacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheManager.swift; sourceTree = "<group>"; };
+		9B0010222A00000100000001 /* ColorSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorSystem.swift; sourceTree = "<group>"; };
+		9B0010242A00000100000001 /* GlassModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassModifier.swift; sourceTree = "<group>"; };
+		9B0010262A00000100000001 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
+		9B0010282A00000100000001 /* HTMLRichTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLRichTextView.swift; sourceTree = "<group>"; };
+		9B00102A2A00000100000001 /* ProgressRingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressRingView.swift; sourceTree = "<group>"; };
+		9B00102C2A00000100000001 /* CountdownWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownWidgetView.swift; sourceTree = "<group>"; };
+		9B00102E2A00000100000001 /* VideoPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPlayerView.swift; sourceTree = "<group>"; };
+		9B0010302A00000100000001 /* FlashcardDeckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashcardDeckView.swift; sourceTree = "<group>"; };
+		9B0010322A00000100000001 /* ModernButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModernButton.swift; sourceTree = "<group>"; };
+		9B0010342A00000100000001 /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
+		9B0010362A00000100000001 /* FloatingTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingTabBar.swift; sourceTree = "<group>"; };
+		9B0010382A00000100000001 /* ProfileSelectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSelectView.swift; sourceTree = "<group>"; };
+		9B00103A2A00000100000001 /* PasswordPromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasswordPromptView.swift; sourceTree = "<group>"; };
+		9B00103C2A00000100000001 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		9B00103E2A00000100000001 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		9B0010402A00000100000001 /* QuestionOfTheDayCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionOfTheDayCard.swift; sourceTree = "<group>"; };
+		9B0010422A00000100000001 /* QBankProgressCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QBankProgressCard.swift; sourceTree = "<group>"; };
+		9B0010442A00000100000001 /* SyllabusTrackerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyllabusTrackerSheet.swift; sourceTree = "<group>"; };
+		9B0010462A00000100000001 /* QBankSubjectListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QBankSubjectListView.swift; sourceTree = "<group>"; };
+		9B0010482A00000100000001 /* QBankChapterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QBankChapterView.swift; sourceTree = "<group>"; };
+		9B00104A2A00000100000001 /* StartSessionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartSessionSheet.swift; sourceTree = "<group>"; };
+		9B00104C2A00000100000001 /* QuizRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizRunnerView.swift; sourceTree = "<group>"; };
+		9B00104E2A00000100000001 /* QuestionOptionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionOptionButton.swift; sourceTree = "<group>"; };
+		9B0010502A00000100000001 /* SittingReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SittingReviewView.swift; sourceTree = "<group>"; };
+		9B0010522A00000100000001 /* TestsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestsListView.swift; sourceTree = "<group>"; };
+		9B0010542A00000100000001 /* TestDetailCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDetailCard.swift; sourceTree = "<group>"; };
+		9B0010562A00000100000001 /* FlashcardsSubjectListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashcardsSubjectListView.swift; sourceTree = "<group>"; };
+		9B0010582A00000100000001 /* FlashcardStudyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashcardStudyView.swift; sourceTree = "<group>"; };
+		9B00105A2A00000100000001 /* VideosBatchListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideosBatchListView.swift; sourceTree = "<group>"; };
+		9B00105C2A00000100000001 /* VideoSubjectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoSubjectView.swift; sourceTree = "<group>"; };
+		9B00105E2A00000100000001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		9B0010602A00000100000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		9B0010612A00000100000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		9B0000012A00000100000001 = {
+			isa = PBXGroup;
+			children = (
+				9B0000022A00000100000001 /* MedxElite */,
+				9B0000032A00000100000001 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		9B0000022A00000100000001 /* MedxElite */ = {
+			isa = PBXGroup;
+			children = (
+				9B0000042A00000100000001 /* App */,
+				9B0000052A00000100000001 /* Models */,
+				9B0000062A00000100000001 /* Services */,
+				9B0000072A00000100000001 /* Theme */,
+				9B0000082A00000100000001 /* Components */,
+				9B0000092A00000100000001 /* Views */,
+				9B00000A2A00000100000001 /* Resources */,
+			);
+			path = MedxElite;
+			sourceTree = "<group>";
+		};
+		9B0000032A00000100000001 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9B0010002A00000100000001 /* MedxElite.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		9B0000042A00000100000001 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				9B0010022A00000100000001 /* MedxEliteApp.swift */,
+				9B0010042A00000100000001 /* AppState.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		9B0000052A00000100000001 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				9B0010062A00000100000001 /* Profile.swift */,
+				9B0010082A00000100000001 /* QBank.swift */,
+				9B00100A2A00000100000001 /* Test.swift */,
+				9B00100C2A00000100000001 /* Flashcard.swift */,
+				9B00100E2A00000100000001 /* Video.swift */,
+				9B0010102A00000100000001 /* Attempt.swift */,
+				9B0010122A00000100000001 /* UserTracker.swift */,
+				9B0010142A00000100000001 /* QOD.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		9B0000062A00000100000001 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				9B0010162A00000100000001 /* FirebaseConfig.swift */,
+				9B0010182A00000100000001 /* AuthService.swift */,
+				9B00101A2A00000100000001 /* FirestoreService.swift */,
+				9B00101C2A00000100000001 /* QODService.swift */,
+				9B00101E2A00000100000001 /* HapticManager.swift */,
+				9B0010202A00000100000001 /* CacheManager.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		9B0000072A00000100000001 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+				9B0010222A00000100000001 /* ColorSystem.swift */,
+				9B0010242A00000100000001 /* GlassModifier.swift */,
+				9B0010262A00000100000001 /* Typography.swift */,
+			);
+			path = Theme;
+			sourceTree = "<group>";
+		};
+		9B0000082A00000100000001 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				9B0010282A00000100000001 /* HTMLRichTextView.swift */,
+				9B00102A2A00000100000001 /* ProgressRingView.swift */,
+				9B00102C2A00000100000001 /* CountdownWidgetView.swift */,
+				9B00102E2A00000100000001 /* VideoPlayerView.swift */,
+				9B0010302A00000100000001 /* FlashcardDeckView.swift */,
+				9B0010322A00000100000001 /* ModernButton.swift */,
+				9B0010342A00000100000001 /* CachedAsyncImage.swift */,
+				9B0010362A00000100000001 /* FloatingTabBar.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		9B0000092A00000100000001 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				9B0010382A00000100000001 /* ProfileSelectView.swift */,
+				9B00103A2A00000100000001 /* PasswordPromptView.swift */,
+				9B00103C2A00000100000001 /* MainTabView.swift */,
+				9B00103E2A00000100000001 /* HomeView.swift */,
+				9B0010402A00000100000001 /* QuestionOfTheDayCard.swift */,
+				9B0010422A00000100000001 /* QBankProgressCard.swift */,
+				9B0010442A00000100000001 /* SyllabusTrackerSheet.swift */,
+				9B0010462A00000100000001 /* QBankSubjectListView.swift */,
+				9B0010482A00000100000001 /* QBankChapterView.swift */,
+				9B00104A2A00000100000001 /* StartSessionSheet.swift */,
+				9B00104C2A00000100000001 /* QuizRunnerView.swift */,
+				9B00104E2A00000100000001 /* QuestionOptionButton.swift */,
+				9B0010502A00000100000001 /* SittingReviewView.swift */,
+				9B0010522A00000100000001 /* TestsListView.swift */,
+				9B0010542A00000100000001 /* TestDetailCard.swift */,
+				9B0010562A00000100000001 /* FlashcardsSubjectListView.swift */,
+				9B0010582A00000100000001 /* FlashcardStudyView.swift */,
+				9B00105A2A00000100000001 /* VideosBatchListView.swift */,
+				9B00105C2A00000100000001 /* VideoSubjectView.swift */,
+				9B00105E2A00000100000001 /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		9B00000A2A00000100000001 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				9B0010602A00000100000001 /* Assets.xcassets */,
+				9B0010612A00000100000001 /* Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		9B0000102A00000100000001 /* MedxElite */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9B0000202A00000100000001 /* Build configuration list for PBXNativeTarget "MedxElite" */;
+			buildPhases = (
+				9B0000112A00000100000001 /* Sources */,
+				9B0000122A00000100000001 /* Frameworks */,
+				9B0000132A00000100000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MedxElite;
+			productName = MedxElite;
+			productReference = 9B0010002A00000100000001 /* MedxElite.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		9B0000002A00000100000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					9B0000102A00000100000001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 9B0000302A00000100000001 /* Build configuration list for PBXProject "MedxElite" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 9B0000012A00000100000001;
+			productRefGroup = 9B0000032A00000100000001 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9B0000102A00000100000001 /* MedxElite */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		9B0000132A00000100000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9B00105F2A00000100000001 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		9B0000112A00000100000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9B0010012A00000100000001 /* MedxEliteApp.swift in Sources */,
+				9B0010032A00000100000001 /* AppState.swift in Sources */,
+				9B0010052A00000100000001 /* Profile.swift in Sources */,
+				9B0010072A00000100000001 /* QBank.swift in Sources */,
+				9B0010092A00000100000001 /* Test.swift in Sources */,
+				9B00100B2A00000100000001 /* Flashcard.swift in Sources */,
+				9B00100D2A00000100000001 /* Video.swift in Sources */,
+				9B00100F2A00000100000001 /* Attempt.swift in Sources */,
+				9B0010112A00000100000001 /* UserTracker.swift in Sources */,
+				9B0010132A00000100000001 /* QOD.swift in Sources */,
+				9B0010152A00000100000001 /* FirebaseConfig.swift in Sources */,
+				9B0010172A00000100000001 /* AuthService.swift in Sources */,
+				9B0010192A00000100000001 /* FirestoreService.swift in Sources */,
+				9B00101B2A00000100000001 /* QODService.swift in Sources */,
+				9B00101D2A00000100000001 /* HapticManager.swift in Sources */,
+				9B00101F2A00000100000001 /* CacheManager.swift in Sources */,
+				9B0010212A00000100000001 /* ColorSystem.swift in Sources */,
+				9B0010232A00000100000001 /* GlassModifier.swift in Sources */,
+				9B0010252A00000100000001 /* Typography.swift in Sources */,
+				9B0010272A00000100000001 /* HTMLRichTextView.swift in Sources */,
+				9B0010292A00000100000001 /* ProgressRingView.swift in Sources */,
+				9B00102B2A00000100000001 /* CountdownWidgetView.swift in Sources */,
+				9B00102D2A00000100000001 /* VideoPlayerView.swift in Sources */,
+				9B00102F2A00000100000001 /* FlashcardDeckView.swift in Sources */,
+				9B0010312A00000100000001 /* ModernButton.swift in Sources */,
+				9B0010332A00000100000001 /* CachedAsyncImage.swift in Sources */,
+				9B0010352A00000100000001 /* FloatingTabBar.swift in Sources */,
+				9B0010372A00000100000001 /* ProfileSelectView.swift in Sources */,
+				9B0010392A00000100000001 /* PasswordPromptView.swift in Sources */,
+				9B00103B2A00000100000001 /* MainTabView.swift in Sources */,
+				9B00103D2A00000100000001 /* HomeView.swift in Sources */,
+				9B00103F2A00000100000001 /* QuestionOfTheDayCard.swift in Sources */,
+				9B0010412A00000100000001 /* QBankProgressCard.swift in Sources */,
+				9B0010432A00000100000001 /* SyllabusTrackerSheet.swift in Sources */,
+				9B0010452A00000100000001 /* QBankSubjectListView.swift in Sources */,
+				9B0010472A00000100000001 /* QBankChapterView.swift in Sources */,
+				9B0010492A00000100000001 /* StartSessionSheet.swift in Sources */,
+				9B00104B2A00000100000001 /* QuizRunnerView.swift in Sources */,
+				9B00104D2A00000100000001 /* QuestionOptionButton.swift in Sources */,
+				9B00104F2A00000100000001 /* SittingReviewView.swift in Sources */,
+				9B0010512A00000100000001 /* TestsListView.swift in Sources */,
+				9B0010532A00000100000001 /* TestDetailCard.swift in Sources */,
+				9B0010552A00000100000001 /* FlashcardsSubjectListView.swift in Sources */,
+				9B0010572A00000100000001 /* FlashcardStudyView.swift in Sources */,
+				9B0010592A00000100000001 /* VideosBatchListView.swift in Sources */,
+				9B00105B2A00000100000001 /* VideoSubjectView.swift in Sources */,
+				9B00105D2A00000100000001 /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		9B0000122A00000100000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		9B0000212A00000100000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MedxElite/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = quest.srihari.medxelite;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		9B0000222A00000100000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MedxElite/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = quest.srihari.medxelite;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		9B0000312A00000100000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		9B0000322A00000100000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		9B0000202A00000100000001 /* Build configuration list for PBXNativeTarget "MedxElite" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9B0000212A00000100000001 /* Debug */,
+				9B0000222A00000100000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9B0000302A00000100000001 /* Build configuration list for PBXProject "MedxElite" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9B0000312A00000100000001 /* Debug */,
+				9B0000322A00000100000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = 9B0000002A00000100000001 /* Project object */;
+}
