@@ -1,0 +1,183 @@
+import SwiftUI
+
+public struct QuestionOfTheDayCard: View {
+    @State private var qod: QODData?
+    @State private var isLoading = true
+    @State private var pickedAnswerId: Int?
+    @State private var showExplanation = true
+
+    public init() {}
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .foregroundColor(MedxTheme.primaryPurple)
+                    Text("Question of the Day")
+                        .font(MedxFont.rounded(16, weight: .bold))
+                }
+
+                Spacer()
+
+                if let subj = qod?.subject, !subj.isEmpty {
+                    Text(subj)
+                        .font(MedxFont.rounded(12, weight: .bold))
+                        .foregroundColor(MedxTheme.primaryPurple)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(MedxTheme.primaryPurple.opacity(0.12))
+                        .clipShape(Capsule())
+                }
+            }
+
+            if isLoading {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .padding(20)
+                    Spacer()
+                }
+            } else if let data = qod {
+                // Question Text
+                if let qHtml = data.question {
+                    HTMLRichTextView(html: qHtml, font: MedxFont.rounded(15, weight: .medium))
+                }
+
+                // Options List
+                let answers = data.answers ?? []
+                let correctId = data.correctChoiceId
+                let isAnswered = pickedAnswerId != nil
+
+                VStack(spacing: 10) {
+                    ForEach(Array(answers.enumerated()), id: \.element.id) { index, ans in
+                        let isChosen = ans.answerId == pickedAnswerId
+                        let isCorrect = ans.answerId == correctId
+                        let letter = String(UnicodeScalar(65 + index)!)
+
+                        Button {
+                            if !isAnswered {
+                                HapticManager.selection()
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                                    pickedAnswerId = ans.answerId
+                                }
+                                if isCorrect {
+                                    HapticManager.success()
+                                } else {
+                                    HapticManager.error()
+                                }
+                            }
+                        } label: {
+                            HStack(alignment: .top, spacing: 12) {
+                                Text(letter)
+                                    .font(MedxFont.rounded(14, weight: .bold))
+                                    .foregroundColor(optionLetterColor(isAnswered: isAnswered, isCorrect: isCorrect, isChosen: isChosen))
+                                    .frame(width: 28, height: 28)
+                                    .background(optionLetterBackground(isAnswered: isAnswered, isCorrect: isCorrect, isChosen: isChosen))
+                                    .clipShape(Circle())
+
+                                if let ansText = ans.answer {
+                                    HTMLRichTextView(html: ansText, font: MedxFont.rounded(14, weight: .regular))
+                                        .multilineTextAlignment(.leading)
+                                }
+
+                                Spacer()
+
+                                if isAnswered {
+                                    if isCorrect {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(MedxTheme.successGreen)
+                                    } else if isChosen {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(MedxTheme.destructiveRed)
+                                    }
+                                }
+                            }
+                            .padding(14)
+                            .background(optionRowBackground(isAnswered: isAnswered, isCorrect: isCorrect, isChosen: isChosen))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .strokeBorder(optionBorderColor(isAnswered: isAnswered, isCorrect: isCorrect, isChosen: isChosen), lineWidth: 1.5)
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .disabled(isAnswered)
+                    }
+                }
+
+                // Explanation Accordion
+                if isAnswered, let expl = data.ansExplanation, !expl.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Button {
+                            withAnimation(.spring()) {
+                                showExplanation.toggle()
+                            }
+                        } label: {
+                            HStack {
+                                Text("Explanation")
+                                    .font(MedxFont.rounded(14, weight: .bold))
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Image(systemName: showExplanation ? "chevron.up" : "chevron.down")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        if showExplanation {
+                            HTMLRichTextView(html: expl, font: MedxFont.rounded(14, weight: .regular), textColor: .secondary)
+                                .padding(.top, 4)
+                        }
+                    }
+                    .padding(14)
+                    .background(Color.primary.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+            } else {
+                Text("Couldn't load today's question.")
+                    .font(MedxFont.rounded(14, weight: .medium))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(20)
+        .liquidGlassCard(cornerRadius: 24, glowColor: MedxTheme.primaryPurple)
+        .task {
+            do {
+                self.qod = try await QODService.shared.fetchQuestionOfTheDay()
+                self.isLoading = false
+            } catch {
+                self.isLoading = false
+            }
+        }
+    }
+
+    private func optionLetterColor(isAnswered: Bool, isCorrect: Bool, isChosen: Bool) -> Color {
+        if !isAnswered { return .primary }
+        if isCorrect { return .white }
+        if isChosen { return .white }
+        return .secondary
+    }
+
+    private func optionLetterBackground(isAnswered: Bool, isCorrect: Bool, isChosen: Bool) -> Color {
+        if !isAnswered { return Color.primary.opacity(0.08) }
+        if isCorrect { return MedxTheme.successGreen }
+        if isChosen { return MedxTheme.destructiveRed }
+        return Color.primary.opacity(0.04)
+    }
+
+    private func optionRowBackground(isAnswered: Bool, isCorrect: Bool, isChosen: Bool) -> Color {
+        if !isAnswered { return Color.primary.opacity(0.03) }
+        if isCorrect { return MedxTheme.successGreen.opacity(0.12) }
+        if isChosen { return MedxTheme.destructiveRed.opacity(0.12) }
+        return Color.primary.opacity(0.02)
+    }
+
+    private func optionBorderColor(isAnswered: Bool, isCorrect: Bool, isChosen: Bool) -> Color {
+        if !isAnswered { return Color.primary.opacity(0.06) }
+        if isCorrect { return MedxTheme.successGreen.opacity(0.5) }
+        if isChosen { return MedxTheme.destructiveRed.opacity(0.5) }
+        return Color.clear
+    }
+}
