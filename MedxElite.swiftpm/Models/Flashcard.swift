@@ -29,6 +29,15 @@ public struct FlashcardSubject: Identifiable, Hashable, Codable, Sendable {
         cards = try container.decodeIfPresent([FlashcardCard].self, forKey: .cards)
     }
 
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(subjectId, forKey: .subjectId)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(slug, forKey: .slug)
+        try container.encode(cardCount, forKey: .cardCount)
+        try container.encodeIfPresent(cards, forKey: .cards)
+    }
+
     public init(subjectId: Int, name: String, slug: String?, cardCount: Int, cards: [FlashcardCard]?) {
         self.subjectId = subjectId
         self.name = name
@@ -62,6 +71,15 @@ public struct FlashcardCard: Identifiable, Hashable, Codable, Sendable {
         description = try container.decodeIfPresent(String.self, forKey: .description)
         chapter = try container.decodeIfPresent(String.self, forKey: .chapter)
         variants = try container.decodeIfPresent(FlashcardVariants.self, forKey: .variants)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(description, forKey: .description)
+        try container.encodeIfPresent(chapter, forKey: .chapter)
+        try container.encodeIfPresent(variants, forKey: .variants)
     }
 
     public init(id: Int, name: String, description: String? = nil, chapter: String? = nil, variants: FlashcardVariants? = nil) {

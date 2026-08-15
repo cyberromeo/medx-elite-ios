@@ -9,7 +9,7 @@ public actor FirestoreService {
 
     // MARK: - Generic Document Fetching & Parsing
 
-    public func fetchCollection<T: Decodable>(
+    public func fetchCollection<T: Codable>(
         collection: String,
         idToken: String,
         useCache: Bool = true
@@ -54,7 +54,7 @@ public actor FirestoreService {
         return decodedItems
     }
 
-    public func fetchDocument<T: Decodable>(
+    public func fetchDocument<T: Codable>(
         collection: String,
         docId: String,
         idToken: String,
@@ -95,7 +95,7 @@ public actor FirestoreService {
 
     // MARK: - Query Helper
 
-    public func runQuery<T: Decodable>(
+    public func runQuery<T: Codable>(
         collection: String,
         whereField field: String,
         equals stringValue: String,
@@ -178,7 +178,7 @@ public actor FirestoreService {
         
         // Check if module is split across parts
         if (rawDoc.questions == nil || rawDoc.questions?.isEmpty == true), (rawDoc.partCount ?? 0) > 0 {
-            struct ModulePart: Decodable {
+            struct ModulePart: Codable {
                 let part: Int?
                 let questions: [Question]?
             }
@@ -220,7 +220,7 @@ public actor FirestoreService {
     }
 
     public func fetchTestQuestions(testId: String, idToken: String) async throws -> [Question] {
-        struct TestQuestionsPart: Decodable {
+        struct TestQuestionsPart: Codable {
             let part: Int?
             let questions: [Question]?
         }

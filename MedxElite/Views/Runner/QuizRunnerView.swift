@@ -46,6 +46,10 @@ public struct QuizRunnerView: View {
                     dismiss()
                 }
             } else if let question = currentQuestion {
+                let currentResp = responses[question.id]
+                let isLocked = currentResp != nil
+                let isRevealed = payload.mode == .revision && revealedQuestions[question.id] == true
+
                 VStack(spacing: 0) {
                     // Top Progress & Timer Bar
                     HStack {
@@ -146,10 +150,6 @@ public struct QuizRunnerView: View {
                             }
 
                             // Options List
-                            let currentResp = responses[question.id]
-                            let isLocked = currentResp != nil
-                            let isRevealed = payload.mode == .revision && revealedQuestions[question.id] == true
-
                             VStack(spacing: 12) {
                                 ForEach(question.options) { opt in
                                     let isChosen = currentResp?.chosenId == opt.id

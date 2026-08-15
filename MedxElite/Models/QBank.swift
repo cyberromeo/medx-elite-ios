@@ -29,6 +29,16 @@ public struct QBankSubject: Identifiable, Hashable, Codable, Sendable {
         chapters = try container.decodeIfPresent([QBankChapter].self, forKey: .chapters)
     }
 
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(subjectId, forKey: .subjectId)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(slug, forKey: .slug)
+        try container.encode(moduleCount, forKey: .moduleCount)
+        try container.encodeIfPresent(questionCount, forKey: .questionCount)
+        try container.encodeIfPresent(chapters, forKey: .chapters)
+    }
+
     public init(subjectId: Int, name: String, slug: String?, moduleCount: Int, questionCount: Int?, chapters: [QBankChapter]?) {
         self.subjectId = subjectId
         self.name = name
@@ -59,6 +69,13 @@ public struct QBankChapter: Identifiable, Hashable, Codable, Sendable {
         }
         name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
         modules = try container.decodeIfPresent([QBankModuleSummary].self, forKey: .modules)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(modules, forKey: .modules)
     }
 
     public init(id: Int, name: String, modules: [QBankModuleSummary]?) {
@@ -92,6 +109,14 @@ public struct QBankModuleSummary: Identifiable, Hashable, Codable, Sendable {
         chapter = try container.decodeIfPresent(String.self, forKey: .chapter)
     }
 
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(questionCount, forKey: .questionCount)
+        try container.encodeIfPresent(chapter, forKey: .chapter)
+    }
+
     public init(id: String, name: String, questionCount: Int, chapter: String? = nil) {
         self.id = id
         self.name = name
@@ -112,6 +137,30 @@ public struct QBankModuleDetail: Identifiable, Hashable, Codable, Sendable {
     public let questionCount: Int
     public let questions: [Question]?
     public let partCount: Int?
+
+    public init(
+        moduleId: String,
+        subjectId: Int? = nil,
+        subject: String? = nil,
+        chapterId: Int? = nil,
+        chapter: String? = nil,
+        name: String,
+        description: String? = nil,
+        questionCount: Int,
+        questions: [Question]? = nil,
+        partCount: Int? = nil
+    ) {
+        self.moduleId = moduleId
+        self.subjectId = subjectId
+        self.subject = subject
+        self.chapterId = chapterId
+        self.chapter = chapter
+        self.name = name
+        self.description = description
+        self.questionCount = questionCount
+        self.questions = questions
+        self.partCount = partCount
+    }
 }
 
 public struct Question: Identifiable, Hashable, Codable, Sendable {
@@ -156,6 +205,22 @@ public struct Question: Identifiable, Hashable, Codable, Sendable {
         explanation = try container.decodeIfPresent(String.self, forKey: .explanation)
         reference = try container.decodeIfPresent(String.self, forKey: .reference)
         images = try container.decodeIfPresent([String].self, forKey: .images)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(lqId, forKey: .lqId)
+        try container.encodeIfPresent(number, forKey: .number)
+        try container.encodeIfPresent(html, forKey: .html)
+        try container.encodeIfPresent(plain, forKey: .plain)
+        try container.encodeIfPresent(type, forKey: .type)
+        try container.encodeIfPresent(answerType, forKey: .answerType)
+        try container.encode(options, forKey: .options)
+        try container.encode(correctIds, forKey: .correctIds)
+        try container.encodeIfPresent(explanation, forKey: .explanation)
+        try container.encodeIfPresent(reference, forKey: .reference)
+        try container.encodeIfPresent(images, forKey: .images)
     }
 
     public init(
@@ -209,6 +274,14 @@ public struct QuestionOption: Identifiable, Hashable, Codable, Sendable {
         label = try container.decodeIfPresent(String.self, forKey: .label) ?? ""
         text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
         correct = try container.decodeIfPresent(Bool.self, forKey: .correct)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(label, forKey: .label)
+        try container.encode(text, forKey: .text)
+        try container.encodeIfPresent(correct, forKey: .correct)
     }
 
     public init(id: Int, label: String, text: String, correct: Bool? = nil) {
