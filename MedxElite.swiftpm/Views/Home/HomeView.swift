@@ -42,17 +42,23 @@ public struct HomeView: View {
                     .opacity(hasAppeared ? 1 : 0)
                     .offset(y: hasAppeared ? 0 : 16)
 
+                // MARK: - Performance Analytics (Swift Charts)
+                AnalyticsCard(attempts: attempts)
+                    .padding(.horizontal, 20)
+                    .opacity(hasAppeared ? 1 : 0)
+                    .offset(y: hasAppeared ? 0 : 20)
+
                 // MARK: - QBank Progress
                 QBankProgressCard(attempts: attempts) {}
                     .padding(.horizontal, 20)
                     .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 20)
+                    .offset(y: hasAppeared ? 0 : 24)
 
                 // MARK: - Question of the Day
                 QuestionOfTheDayCard()
                     .padding(.horizontal, 20)
                     .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 24)
+                    .offset(y: hasAppeared ? 0 : 28)
 
                 Spacer(minLength: 40)
             }
