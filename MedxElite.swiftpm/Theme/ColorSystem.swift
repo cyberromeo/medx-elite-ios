@@ -24,6 +24,11 @@ public extension Color {
             opacity: Double(a) / 255
         )
     }
+
+    // Native iOS system label colors
+    static let secondaryLabel = Color(uiColor: .secondaryLabel)
+    static let tertiaryLabel = Color(uiColor: .tertiaryLabel)
+    static let quaternaryLabel = Color(uiColor: .quaternaryLabel)
 }
 
 public enum MedxTheme {

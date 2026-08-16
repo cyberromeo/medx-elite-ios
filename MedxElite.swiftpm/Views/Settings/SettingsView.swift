@@ -39,7 +39,7 @@ public struct SettingsView: View {
                                     .foregroundColor(.secondary)
                                 Text(profile.email)
                                     .font(MedxFont.caption(12))
-                                    .foregroundColor(.tertiaryLabel)
+                                    .foregroundColor(Color(uiColor: .tertiaryLabel))
                             }
                         }
                         .padding(.vertical, 6)

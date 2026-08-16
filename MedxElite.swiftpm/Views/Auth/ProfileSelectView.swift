@@ -77,7 +77,7 @@ public struct ProfileSelectView: View {
                     // Footer
                     Text("Passwords are stored securely in the iOS Keychain")
                         .font(MedxFont.caption(11))
-                        .foregroundColor(.quaternaryLabel)
+                        .foregroundColor(Color(uiColor: .quaternaryLabel))
                         .padding(.bottom, 20)
                 }
             }

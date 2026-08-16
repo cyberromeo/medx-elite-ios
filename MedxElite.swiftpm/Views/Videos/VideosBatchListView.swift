@@ -180,7 +180,7 @@ public struct VideosBatchListView: View {
                         .foregroundColor(.secondary)
 
                     Text("·")
-                        .foregroundColor(.quaternaryLabel)
+                        .foregroundColor(Color(uiColor: .quaternaryLabel))
 
                     Text(subject.formattedDuration)
                         .font(MedxFont.mono(12, weight: .semibold))
@@ -192,7 +192,7 @@ public struct VideosBatchListView: View {
 
             Image(systemName: "chevron.right")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.tertiaryLabel)
+                .foregroundColor(Color(uiColor: .tertiaryLabel))
         }
         .padding(14)
         .liquidGlassCard(cornerRadius: 16)

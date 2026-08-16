@@ -11,7 +11,6 @@ import Network
 ///   let localURL = proxy.proxiedURL(for: originalStreamURL)
 ///   // Feed localURL to AVPlayer
 ///
-@MainActor
 public final class HLSProxyServer: ObservableObject {
     public static let shared = HLSProxyServer()
 
@@ -66,39 +65,42 @@ public final class HLSProxyServer: ObservableObject {
 
     /// Start the local proxy server
     public func start() {
-        guard !isRunning else { return }
+        if isRunning { return }
 
         do {
-            // Use any available port
             let parameters = NWParameters.tcp
             parameters.allowLocalEndpointReuse = true
-            listener = try NWListener(using: parameters, on: .any)
+            let newListener = try NWListener(using: parameters, on: .any)
 
-            listener?.stateUpdateHandler = { [weak self] state in
+            newListener.stateUpdateHandler = { [weak self] state in
+                guard let self = self else { return }
                 DispatchQueue.main.async {
                     switch state {
                     case .ready:
-                        if let port = self?.listener?.port?.rawValue {
-                            self?.port = port
-                            self?.isRunning = true
-                            print("[HLSProxy] Running on port \(port)")
+                        if let portVal = self.listener?.port?.rawValue {
+                            self.port = portVal
+                            self.isRunning = true
+                            print("[HLSProxy] Running on port \(portVal)")
                         }
                     case .failed(let error):
                         print("[HLSProxy] Failed: \(error)")
-                        self?.isRunning = false
+                        self.isRunning = false
+                        self.port = 0
                     case .cancelled:
-                        self?.isRunning = false
+                        self.isRunning = false
+                        self.port = 0
                     default:
                         break
                     }
                 }
             }
 
-            listener?.newConnectionHandler = { [weak self] connection in
+            newListener.newConnectionHandler = { [weak self] connection in
                 self?.handleConnection(connection)
             }
 
-            listener?.start(queue: queue)
+            self.listener = newListener
+            newListener.start(queue: queue)
         } catch {
             print("[HLSProxy] Failed to start: \(error)")
         }
@@ -108,8 +110,10 @@ public final class HLSProxyServer: ObservableObject {
     public func stop() {
         listener?.cancel()
         listener = nil
-        isRunning = false
-        port = 0
+        DispatchQueue.main.async {
+            self.isRunning = false
+            self.port = 0
+        }
     }
 
     /// Convert a remote stream URL to a local proxied URL
@@ -271,8 +275,9 @@ public final class HLSProxyServer: ObservableObject {
             }
 
             // Rewrite to go through our proxy
+            let currentPort = self.port
             let encoded = absoluteURL.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? absoluteURL
-            rewritten.append("http://127.0.0.1:\(port)/proxy?url=\(encoded)")
+            rewritten.append("http://127.0.0.1:\(currentPort)/proxy?url=\(encoded)")
         }
 
         return Data(rewritten.joined(separator: "\n").utf8)

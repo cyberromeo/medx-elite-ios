@@ -8,7 +8,7 @@ public struct CountdownWidgetView: View {
     }
 
     public var body: some View {
-        TimelineView(.periodic(from: .now, by: 1.0)) { context in
+        TimelineView(.periodic(from: Date(), by: 1.0)) { context in
             let remaining = computeRemaining(at: context.date)
 
             VStack(alignment: .leading, spacing: 14) {
@@ -43,7 +43,7 @@ public struct CountdownWidgetView: View {
                                 endPoint: .bottom
                             )
                         )
-                        .contentTransition(.numericText(value: Double(remaining.days)))
+                        .contentTransition(.numericText())
                         .animation(.snappy, value: remaining.days)
 
                     Text("days to go")
@@ -56,9 +56,9 @@ public struct CountdownWidgetView: View {
                     // Live clock pills
                     HStack(spacing: 4) {
                         ClockPill(value: remaining.hours, unit: "h")
-                        Text(":").font(.system(size: 14, weight: .bold)).foregroundColor(.quaternaryLabel)
+                        Text(":").font(.system(size: 14, weight: .bold)).foregroundColor(Color(uiColor: .quaternaryLabel))
                         ClockPill(value: remaining.minutes, unit: "m")
-                        Text(":").font(.system(size: 14, weight: .bold)).foregroundColor(.quaternaryLabel)
+                        Text(":").font(.system(size: 14, weight: .bold)).foregroundColor(Color(uiColor: .quaternaryLabel))
                         ClockPill(value: remaining.seconds, unit: "s")
                     }
                     .padding(.bottom, 6)
@@ -120,7 +120,7 @@ private struct ClockPill: View {
             Text(String(format: "%02d", value))
                 .font(MedxFont.mono(14, weight: .bold))
                 .foregroundColor(.primary)
-                .contentTransition(.numericText(value: Double(value)))
+                .contentTransition(.numericText())
                 .animation(.snappy, value: value)
 
             Text(unit)
