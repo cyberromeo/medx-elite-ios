@@ -52,25 +52,14 @@ public struct VideoSubjectView: View {
         .navigationTitle(subjectGroup.name)
         .navigationBarTitleDisplayMode(.large)
         .fullScreenCover(item: $activePlayingVideo) { video in
-            NavigationStack {
-                VideoPlayerView(
-                    streamUrl: video.streamUrl,
-                    title: video.title,
-                    subtitle: video.faculty
-                )
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            activePlayingVideo = nil
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 24))
-                                .foregroundStyle(.white.opacity(0.8))
-                                .symbolEffect(.pulse, options: .speed(0.3))
-                        }
-                    }
+            VideoPlayerView(
+                streamUrl: video.streamUrl,
+                title: video.title,
+                subtitle: video.faculty,
+                onDismiss: {
+                    activePlayingVideo = nil
                 }
-            }
+            )
         }
         .onAppear {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.1)) {
