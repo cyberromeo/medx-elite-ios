@@ -249,7 +249,7 @@ public struct VideoPlayerView: View {
             try AVAudioSession.sharedInstance().setCategory(
                 .playback,
                 mode: .moviePlayback,
-                options: [.allowAirPlay, .allowBluetooth]
+                options: [.allowAirPlay]
             )
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {

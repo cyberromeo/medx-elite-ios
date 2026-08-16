@@ -21,43 +21,54 @@ public struct HomeView: View {
 
     public var body: some View {
         ScrollView {
-            LazyVStack(spacing: 20) {
-                // MARK: - Greeting Header
-                greetingHeader
+            LazyVStack(spacing: 18) {
+                // MARK: - iOS Native Date & Greeting Hero Header
+                greetingHeroHeader
                     .padding(.horizontal, 20)
-                    .padding(.top, 8)
+                    .padding(.top, 12)
+                    .padding(.bottom, 2)
                     .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 10)
+                    .offset(y: hasAppeared ? 0 : 8)
 
                 // MARK: - Countdown Widget
                 CountdownWidgetView()
                     .padding(.horizontal, 20)
                     .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 15)
+                    .offset(y: hasAppeared ? 0 : 12)
 
                 // MARK: - Syllabus Tracker
                 syllabusTrackerCard
                     .padding(.horizontal, 20)
                     .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 20)
+                    .offset(y: hasAppeared ? 0 : 16)
 
                 // MARK: - QBank Progress
                 QBankProgressCard(attempts: attempts) {}
                     .padding(.horizontal, 20)
                     .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 25)
+                    .offset(y: hasAppeared ? 0 : 20)
 
                 // MARK: - Question of the Day
                 QuestionOfTheDayCard()
                     .padding(.horizontal, 20)
                     .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 30)
+                    .offset(y: hasAppeared ? 0 : 24)
 
                 Spacer(minLength: 40)
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
-        .navigationTitle("Home")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("MedX Elite")
+                    .font(MedxFont.headline(16))
+                    .foregroundColor(.secondary.opacity(0.8))
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                profileButton
+            }
+        }
         .refreshable {
             await loadHomeData()
         }
@@ -69,11 +80,6 @@ public struct HomeView: View {
                 SyllabusTrackerSheet(uid: uid, trackerDoc: $trackerDoc)
             }
         }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                profileButton
-            }
-        }
         .task {
             await loadHomeData()
             withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
@@ -82,20 +88,32 @@ public struct HomeView: View {
         }
     }
 
-    // MARK: - Greeting Header
+    // MARK: - Greeting Hero Header (Native iOS Style)
 
-    private var greetingHeader: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("\(greetingText),")
-                .font(MedxFont.body(16))
-                .foregroundColor(.secondary)
+    private var greetingHeroHeader: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 3) {
+                // Uppercase Date Label
+                Text(Date.now.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()).uppercased())
+                    .font(MedxFont.mono(11, weight: .bold))
+                    .foregroundColor(.secondary)
+                    .tracking(0.8)
 
-            if let profile = authService.currentProfile {
-                Text(profile.displayName)
-                    .font(MedxFont.hero(32))
-                    .foregroundStyle(profile.gradient)
-                    .contentTransition(.numericText())
+                // Single Line Greeting + Name
+                HStack(spacing: 6) {
+                    Text(greetingText + ",")
+                        .font(MedxFont.title(24))
+                        .foregroundColor(.primary)
+
+                    if let profile = authService.currentProfile {
+                        Text(profile.displayName)
+                            .font(MedxFont.title(24))
+                            .foregroundStyle(profile.gradient)
+                    }
+                }
             }
+
+            Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -109,10 +127,15 @@ public struct HomeView: View {
             if let profile = authService.currentProfile {
                 ZStack {
                     Circle()
+                        .strokeBorder(profile.gradient, lineWidth: 1.5)
+                        .frame(width: 32, height: 32)
+
+                    Circle()
                         .fill(profile.gradient)
-                        .frame(width: 34, height: 34)
+                        .frame(width: 26, height: 26)
+
                     Text(String(profile.displayName.prefix(1)))
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                 }
             } else {
@@ -152,7 +175,7 @@ public struct HomeView: View {
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.secondary.opacity(0.5))
+                    .foregroundColor(Color(uiColor: .tertiaryLabel))
             }
             .padding(16)
             .liquidGlassCard(cornerRadius: 18)
