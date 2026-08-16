@@ -34,14 +34,14 @@ public struct QuestionOptionButton: View {
             HStack(alignment: .top, spacing: 14) {
                 // Option Letter Badge
                 Text(option.label)
-                    .font(MedxFont.rounded(14, weight: .bold))
+                    .font(MedxFont.mono(14, weight: .bold))
                     .foregroundColor(letterTextColor)
                     .frame(width: 32, height: 32)
                     .background(letterBgColor)
                     .clipShape(Circle())
 
                 // Option HTML Text
-                HTMLRichTextView(html: option.text, font: MedxFont.rounded(15, weight: .medium))
+                HTMLRichTextView(html: option.text, fontSize: 15, weight: .regular)
                     .multilineTextAlignment(.leading)
 
                 Spacer()

@@ -16,14 +16,14 @@ public struct QuestionOfTheDayCard: View {
                     Image(systemName: "sparkles")
                         .foregroundColor(MedxTheme.primaryPurple)
                     Text("Question of the Day")
-                        .font(MedxFont.rounded(16, weight: .bold))
+                        .font(MedxFont.headline(17))
                 }
 
                 Spacer()
 
                 if let subj = qod?.subject, !subj.isEmpty {
                     Text(subj)
-                        .font(MedxFont.rounded(12, weight: .bold))
+                        .font(MedxFont.label(12))
                         .foregroundColor(MedxTheme.primaryPurple)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
@@ -42,7 +42,7 @@ public struct QuestionOfTheDayCard: View {
             } else if let data = qod {
                 // Question Text
                 if let qHtml = data.question {
-                    HTMLRichTextView(html: qHtml, font: MedxFont.rounded(15, weight: .medium))
+                    HTMLRichTextView(html: qHtml, fontSize: 16, weight: .semibold)
                 }
 
                 // Options List
@@ -71,14 +71,14 @@ public struct QuestionOfTheDayCard: View {
                         } label: {
                             HStack(alignment: .top, spacing: 12) {
                                 Text(letter)
-                                    .font(MedxFont.rounded(14, weight: .bold))
+                                    .font(MedxFont.mono(14, weight: .bold))
                                     .foregroundColor(optionLetterColor(isAnswered: isAnswered, isCorrect: isCorrect, isChosen: isChosen))
                                     .frame(width: 28, height: 28)
                                     .background(optionLetterBackground(isAnswered: isAnswered, isCorrect: isCorrect, isChosen: isChosen))
                                     .clipShape(Circle())
 
                                 if let ansText = ans.answer {
-                                    HTMLRichTextView(html: ansText, font: MedxFont.rounded(14, weight: .regular))
+                                    HTMLRichTextView(html: ansText, fontSize: 15, weight: .regular)
                                         .multilineTextAlignment(.leading)
                                 }
 
@@ -117,7 +117,7 @@ public struct QuestionOfTheDayCard: View {
                         } label: {
                             HStack {
                                 Text("Explanation")
-                                    .font(MedxFont.rounded(14, weight: .bold))
+                                    .font(MedxFont.headline(14))
                                     .foregroundColor(.primary)
                                 Spacer()
                                 Image(systemName: showExplanation ? "chevron.up" : "chevron.down")
@@ -127,7 +127,7 @@ public struct QuestionOfTheDayCard: View {
                         }
 
                         if showExplanation {
-                            HTMLRichTextView(html: expl, font: MedxFont.rounded(14, weight: .regular), textColor: .secondary)
+                            HTMLRichTextView(html: expl, fontSize: 14, weight: .regular, textColor: .secondary)
                                 .padding(.top, 4)
                         }
                     }
@@ -137,7 +137,7 @@ public struct QuestionOfTheDayCard: View {
                 }
             } else {
                 Text("Couldn't load today's question.")
-                    .font(MedxFont.rounded(14, weight: .medium))
+                    .font(MedxFont.body(14))
                     .foregroundColor(.secondary)
             }
         }

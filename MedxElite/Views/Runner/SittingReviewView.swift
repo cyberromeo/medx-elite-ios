@@ -76,9 +76,9 @@ public struct SittingReviewView: View {
                                         centerContent: AnyView(
                                             VStack(spacing: 0) {
                                                 Text("\(pct)%")
-                                                    .font(MedxFont.monospacedDigits(22, weight: .heavy))
+                                                    .font(MedxFont.mono(22, weight: .heavy))
                                                 Text("score")
-                                                    .font(MedxFont.rounded(10, weight: .bold))
+                                                    .font(MedxFont.label(10))
                                                     .foregroundColor(.secondary)
                                             }
                                         )
@@ -86,21 +86,21 @@ public struct SittingReviewView: View {
 
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text("\(scoreCount) / \(totalCount)")
-                                            .font(MedxFont.monospacedDigits(26, weight: .black))
+                                            .font(MedxFont.mono(26, weight: .bold))
 
                                         HStack(spacing: 12) {
                                             Label("\(scoreCount) correct", systemImage: "checkmark.circle.fill")
-                                                .font(MedxFont.rounded(12, weight: .bold))
+                                                .font(MedxFont.label(12))
                                                 .foregroundColor(MedxTheme.successGreen)
 
                                             Label("\(wrongCount) wrong", systemImage: "xmark.circle.fill")
-                                                .font(MedxFont.rounded(12, weight: .bold))
+                                                .font(MedxFont.label(12))
                                                 .foregroundColor(MedxTheme.destructiveRed)
                                         }
 
                                         if skippedCount > 0 {
                                             Text("\(skippedCount) unattempted")
-                                                .font(MedxFont.rounded(12, weight: .medium))
+                                                .font(MedxFont.caption(12))
                                                 .foregroundColor(.secondary)
                                         }
                                     }
@@ -110,9 +110,9 @@ public struct SittingReviewView: View {
                             } else {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("Practice Complete")
-                                        .font(MedxFont.rounded(22, weight: .bold))
+                                        .font(MedxFont.title(22))
                                     Text("This paper has no official answer key and is not graded. You completed \(attemptedCount) of \(totalCount) questions.")
-                                        .font(MedxFont.rounded(14, weight: .regular))
+                                        .font(MedxFont.body(14))
                                         .foregroundColor(.secondary)
                                 }
                             }
@@ -157,7 +157,7 @@ public struct SittingReviewView: View {
                         HapticManager.medium()
                         onDone()
                     }
-                    .font(MedxFont.rounded(16, weight: .bold))
+                    .font(MedxFont.headline(16))
                 }
             }
         }
@@ -175,29 +175,29 @@ private struct QuestionReviewCard: View {
             // Header status
             HStack {
                 Text("Question \(questionNumber)")
-                    .font(MedxFont.rounded(15, weight: .bold))
+                    .font(MedxFont.headline(15))
 
                 Spacer()
 
                 if let r = response, r.chosenId != nil {
                     if r.correct {
                         Label("Correct", systemImage: "checkmark.circle.fill")
-                            .font(MedxFont.rounded(12, weight: .bold))
+                            .font(MedxFont.label(12))
                             .foregroundColor(MedxTheme.successGreen)
                     } else {
                         Label("Incorrect", systemImage: "xmark.circle.fill")
-                            .font(MedxFont.rounded(12, weight: .bold))
+                            .font(MedxFont.label(12))
                             .foregroundColor(MedxTheme.destructiveRed)
                     }
                 } else {
                     Label("Unattempted", systemImage: "minus.circle.fill")
-                        .font(MedxFont.rounded(12, weight: .bold))
+                        .font(MedxFont.label(12))
                         .foregroundColor(MedxTheme.warningOrange)
                 }
             }
 
             // Question text
-            HTMLRichTextView(html: question.displayText, font: MedxFont.rounded(15, weight: .medium))
+            HTMLRichTextView(html: question.displayText, fontSize: 15, weight: .semibold)
 
             // Images if any
             if let imgs = question.images, !imgs.isEmpty {
@@ -216,13 +216,13 @@ private struct QuestionReviewCard: View {
 
                     HStack(spacing: 12) {
                         Text(opt.label)
-                            .font(MedxFont.rounded(13, weight: .bold))
+                            .font(MedxFont.mono(13, weight: .bold))
                             .foregroundColor(isCorrect || isChosen ? .white : .primary)
                             .frame(width: 28, height: 28)
                             .background(isCorrect ? MedxTheme.successGreen : (isChosen ? MedxTheme.destructiveRed : Color.primary.opacity(0.08)))
                             .clipShape(Circle())
 
-                        HTMLRichTextView(html: opt.text, font: MedxFont.rounded(14, weight: .regular))
+                        HTMLRichTextView(html: opt.text, fontSize: 14, weight: .regular)
 
                         Spacer()
 
@@ -252,7 +252,7 @@ private struct QuestionReviewCard: View {
                     } label: {
                         HStack {
                             Text("Explanation")
-                                .font(MedxFont.rounded(14, weight: .bold))
+                                .font(MedxFont.headline(14))
                                 .foregroundColor(.primary)
                             Spacer()
                             Image(systemName: isExplanationExpanded ? "chevron.up" : "chevron.down")
@@ -262,7 +262,7 @@ private struct QuestionReviewCard: View {
                     }
 
                     if isExplanationExpanded {
-                        HTMLRichTextView(html: expl, font: MedxFont.rounded(14, weight: .regular), textColor: .secondary)
+                        HTMLRichTextView(html: expl, fontSize: 14, weight: .regular, textColor: .secondary)
                             .padding(.top, 2)
                     }
                 }

@@ -65,7 +65,7 @@ public struct QuizRunnerView: View {
 
                         // Question Index Indicator
                         Text("\(currentIndex + 1) / \(questions.count)")
-                            .font(MedxFont.monospacedDigits(16, weight: .bold))
+                            .font(MedxFont.mono(16, weight: .bold))
                             .foregroundColor(.primary)
 
                         Spacer()
@@ -75,7 +75,7 @@ public struct QuizRunnerView: View {
                             Image(systemName: "timer")
                                 .font(.caption)
                             Text(formatTime(remainingSeconds))
-                                .font(MedxFont.monospacedDigits(14, weight: .bold))
+                                .font(MedxFont.mono(14, weight: .bold))
                         }
                         .foregroundColor(remainingSeconds <= 10 ? MedxTheme.destructiveRed : .primary)
                         .padding(.horizontal, 10)
@@ -108,7 +108,7 @@ public struct QuizRunnerView: View {
                             // Mode & Subject Tags
                             HStack(spacing: 8) {
                                 Text(payload.mode.displayName)
-                                    .font(MedxFont.rounded(11, weight: .bold))
+                                    .font(MedxFont.label(11))
                                     .foregroundColor(payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
@@ -117,7 +117,7 @@ public struct QuizRunnerView: View {
 
                                 if !payload.subject.isEmpty {
                                     Text(payload.subject)
-                                        .font(MedxFont.rounded(11, weight: .medium))
+                                        .font(MedxFont.caption(11))
                                         .foregroundColor(.secondary)
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 4)
@@ -127,7 +127,7 @@ public struct QuizRunnerView: View {
 
                                 if !payload.gradable {
                                     Text("Practice Only")
-                                        .font(MedxFont.rounded(11, weight: .bold))
+                                        .font(MedxFont.label(11))
                                         .foregroundColor(MedxTheme.warningOrange)
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 4)
@@ -138,7 +138,7 @@ public struct QuizRunnerView: View {
                             .padding(.top, 12)
 
                             // Question Text
-                            HTMLRichTextView(html: question.displayText, font: MedxFont.rounded(17, weight: .semibold))
+                            HTMLRichTextView(html: question.displayText, fontSize: 17, weight: .semibold)
 
                             // Question Images
                             if let imgs = question.images, !imgs.isEmpty {
@@ -173,24 +173,24 @@ public struct QuizRunnerView: View {
                                     HStack {
                                         if currentResp?.timedOut == true {
                                             Label("Time Up · Unattempted", systemImage: "clock.badge.xmark")
-                                                .font(MedxFont.rounded(12, weight: .bold))
+                                                .font(MedxFont.label(12))
                                                 .foregroundColor(MedxTheme.warningOrange)
                                         } else if currentResp?.correct == true {
                                             Label("Correct Answer", systemImage: "checkmark.circle.fill")
-                                                .font(MedxFont.rounded(12, weight: .bold))
+                                                .font(MedxFont.label(12))
                                                 .foregroundColor(MedxTheme.successGreen)
                                         } else {
                                             Label("Incorrect Answer", systemImage: "xmark.circle.fill")
-                                                .font(MedxFont.rounded(12, weight: .bold))
+                                                .font(MedxFont.label(12))
                                                 .foregroundColor(MedxTheme.destructiveRed)
                                         }
                                     }
 
                                     if let expl = question.explanation, !expl.isEmpty {
-                                        HTMLRichTextView(html: expl, font: MedxFont.rounded(14, weight: .regular), textColor: .secondary)
+                                        HTMLRichTextView(html: expl, fontSize: 14, weight: .regular, textColor: .secondary)
                                     } else {
                                         Text("No explanation provided.")
-                                            .font(MedxFont.rounded(13, weight: .regular))
+                                            .font(MedxFont.caption(13))
                                             .foregroundColor(.secondary)
                                     }
                                 }
@@ -214,7 +214,7 @@ public struct QuizRunnerView: View {
                             }
                         } label: {
                             Text("Back")
-                                .font(MedxFont.rounded(15, weight: .bold))
+                                .font(MedxFont.headline(15))
                                 .foregroundColor(currentIndex > 0 ? .primary : .secondary.opacity(0.4))
                                 .frame(height: 50)
                                 .padding(.horizontal, 20)
@@ -230,7 +230,7 @@ public struct QuizRunnerView: View {
                                 nextQuestion()
                             } label: {
                                 Text("Skip")
-                                    .font(MedxFont.rounded(15, weight: .bold))
+                                    .font(MedxFont.headline(15))
                                     .foregroundColor(.secondary)
                                     .frame(height: 50)
                                     .padding(.horizontal, 20)
@@ -252,7 +252,7 @@ public struct QuizRunnerView: View {
                             }
                         } label: {
                             Text(isLast ? "Finish Sitting" : "Next")
-                                .font(MedxFont.rounded(16, weight: .bold))
+                                .font(MedxFont.headline(16))
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 50)
@@ -278,7 +278,6 @@ public struct QuizRunnerView: View {
         .onReceive(timer) { _ in
             guard !isLoading, !isFinished else { return }
             if payload.mode == .revision, let q = currentQuestion, responses[q.id] != nil {
-                // In revision mode, stop countdown once answered
                 return
             }
             if remainingSeconds > 0 {

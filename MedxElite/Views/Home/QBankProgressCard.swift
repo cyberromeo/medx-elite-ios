@@ -34,7 +34,7 @@ public struct QBankProgressCard: View {
         VStack(spacing: 18) {
             HStack {
                 Text("Question Bank")
-                    .font(MedxFont.rounded(16, weight: .bold))
+                    .font(MedxFont.headline(16))
 
                 Spacer()
 
@@ -44,7 +44,7 @@ public struct QBankProgressCard: View {
                 }) {
                     HStack(spacing: 4) {
                         Text("Open")
-                            .font(MedxFont.rounded(14, weight: .bold))
+                            .font(MedxFont.headline(14))
                         Image(systemName: "arrow.right")
                             .font(.caption)
                     }
@@ -68,9 +68,9 @@ public struct QBankProgressCard: View {
                     centerContent: AnyView(
                         VStack(spacing: 0) {
                             Text("\(Int(percentage * 100))%")
-                                .font(MedxFont.monospacedDigits(18, weight: .black))
+                                .font(MedxFont.mono(18, weight: .heavy))
                             Text("coverage")
-                                .font(MedxFont.rounded(9, weight: .medium))
+                                .font(MedxFont.label(9))
                                 .foregroundColor(.secondary)
                         }
                     )
@@ -80,32 +80,32 @@ public struct QBankProgressCard: View {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(alignment: .lastTextBaseline, spacing: 4) {
                             Text("\(stats.unique.formatted())")
-                                .font(MedxFont.monospacedDigits(20, weight: .bold))
+                                .font(MedxFont.mono(20, weight: .bold))
                             Text("/ \(totalQuestions.formatted())")
-                                .font(MedxFont.rounded(13, weight: .medium))
+                                .font(MedxFont.caption(13))
                                 .foregroundColor(.secondary)
                         }
                         Text("questions attempted")
-                            .font(MedxFont.rounded(12, weight: .medium))
+                            .font(MedxFont.caption(12))
                             .foregroundColor(.secondary)
                     }
 
                     HStack(spacing: 16) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("\(accuracy)%")
-                                .font(MedxFont.monospacedDigits(16, weight: .bold))
+                                .font(MedxFont.mono(16, weight: .bold))
                                 .foregroundColor(MedxTheme.successGreen)
                             Text("accuracy")
-                                .font(MedxFont.rounded(11, weight: .medium))
+                                .font(MedxFont.label(11))
                                 .foregroundColor(.secondary)
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text("\(stats.sittings)")
-                                .font(MedxFont.monospacedDigits(16, weight: .bold))
+                                .font(MedxFont.mono(16, weight: .bold))
                                 .foregroundColor(MedxTheme.primaryBlue)
                             Text("sittings")
-                                .font(MedxFont.rounded(11, weight: .medium))
+                                .font(MedxFont.label(11))
                                 .foregroundColor(.secondary)
                         }
                     }

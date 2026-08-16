@@ -36,7 +36,7 @@ public struct QBankChapterView: View {
                 // Header Info
                 VStack(spacing: 6) {
                     Text("\(subject.moduleCount) modules · \((subject.questionCount ?? 0).formatted()) questions")
-                        .font(MedxFont.rounded(14, weight: .medium))
+                        .font(MedxFont.caption(14))
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -48,7 +48,7 @@ public struct QBankChapterView: View {
                 ForEach(chapters) { chapter in
                     VStack(alignment: .leading, spacing: 12) {
                         Text(chapter.name)
-                            .font(MedxFont.rounded(16, weight: .bold))
+                            .font(MedxFont.headline(16))
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 20)
 
@@ -63,17 +63,17 @@ public struct QBankChapterView: View {
                                     HStack(spacing: 14) {
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text(module.name)
-                                                .font(MedxFont.rounded(15, weight: .bold))
+                                                .font(MedxFont.headline(15))
                                                 .foregroundColor(.primary)
                                                 .multilineTextAlignment(.leading)
 
                                             if let info = attemptInfo {
                                                 Text("\(module.questionCount) questions · best \(info.best)/\(info.total) · \(info.count) sitting\(info.count == 1 ? "" : "s")")
-                                                    .font(MedxFont.rounded(12, weight: .medium))
+                                                    .font(MedxFont.mono(12, weight: .semibold))
                                                     .foregroundColor(MedxTheme.successGreen)
                                             } else {
                                                 Text("\(module.questionCount) questions")
-                                                    .font(MedxFont.rounded(12, weight: .medium))
+                                                    .font(MedxFont.caption(12))
                                                     .foregroundColor(.secondary)
                                             }
                                         }

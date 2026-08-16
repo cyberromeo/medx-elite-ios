@@ -22,11 +22,11 @@ public struct StartSessionSheet: View {
                 VStack(spacing: 24) {
                     VStack(spacing: 8) {
                         Text(title)
-                            .font(MedxFont.rounded(22, weight: .bold))
+                            .font(MedxFont.title(22))
                             .multilineTextAlignment(.center)
 
                         Text("\(subtitle) · \(questionCount) questions")
-                            .font(MedxFont.rounded(14, weight: .medium))
+                            .font(MedxFont.caption(14))
                             .foregroundColor(.secondary)
                     }
                     .padding(.top, 16)
@@ -96,18 +96,18 @@ private struct ModeCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(mode.displayName)
-                            .font(MedxFont.rounded(17, weight: .bold))
+                            .font(MedxFont.headline(17))
                             .foregroundColor(.primary)
 
                         Spacer()
 
                         Text(durationText)
-                            .font(MedxFont.monospacedDigits(12, weight: .semibold))
+                            .font(MedxFont.mono(12, weight: .semibold))
                             .foregroundColor(accentColor)
                     }
 
                     Text(mode.description)
-                        .font(MedxFont.rounded(13, weight: .regular))
+                        .font(MedxFont.caption(13))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.leading)
                 }

@@ -28,11 +28,11 @@ public struct TestDetailCard: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(test.name)
-                        .font(MedxFont.rounded(17, weight: .bold))
+                        .font(MedxFont.headline(17))
                         .foregroundColor(.primary)
 
                     Text("\(test.subject) · \(test.questionCount) questions · \(test.officialTimeMins) mins")
-                        .font(MedxFont.rounded(13, weight: .medium))
+                        .font(MedxFont.caption(13))
                         .foregroundColor(.secondary)
                 }
 
@@ -49,7 +49,7 @@ public struct TestDetailCard: View {
             HStack(spacing: 8) {
                 if let mode = test.mode {
                     Text(mode)
-                        .font(MedxFont.rounded(11, weight: .bold))
+                        .font(MedxFont.label(11))
                         .foregroundColor(MedxTheme.primaryBlue)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -58,7 +58,7 @@ public struct TestDetailCard: View {
                 }
 
                 Text(test.gradable ? "Answer Key" : "Practice Only")
-                    .font(MedxFont.rounded(11, weight: .bold))
+                    .font(MedxFont.label(11))
                     .foregroundColor(test.gradable ? MedxTheme.successGreen : MedxTheme.warningOrange)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
@@ -68,7 +68,7 @@ public struct TestDetailCard: View {
 
             if !test.gradable {
                 Text("The source app withheld the official answer key for this test, so it can be answered for practice but isn't scored.")
-                    .font(MedxFont.rounded(12, weight: .regular))
+                    .font(MedxFont.caption(12))
                     .foregroundColor(.secondary)
             }
 
@@ -77,7 +77,7 @@ public struct TestDetailCard: View {
                     Image(systemName: "clock.arrow.circlepath")
                         .font(.caption)
                     Text("On Arise: \(prior.correct ?? 0)/\(prior.questionCount ?? 0)\(prior.testRank != nil ? " · rank \(prior.testRank!)" : "")")
-                        .font(MedxFont.rounded(12, weight: .medium))
+                        .font(MedxFont.label(12))
                 }
                 .foregroundColor(.secondary)
             }
@@ -89,7 +89,7 @@ public struct TestDetailCard: View {
                         ForEach(Array(testAttempts.enumerated()), id: \.offset) { idx, a in
                             let isBest = a.score == bestScore && test.gradable
                             Text("attempt#\(idx + 1) \(test.gradable ? "\(a.score)/\(a.total)" : "\(a.attempted)/\(a.total) answered")")
-                                .font(MedxFont.monospacedDigits(11, weight: .bold))
+                                .font(MedxFont.mono(11, weight: .bold))
                                 .foregroundColor(isBest ? MedxTheme.successGreen : .secondary)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
@@ -108,7 +108,7 @@ public struct TestDetailCard: View {
                     showStartSheet = true
                 } label: {
                     Text(testAttempts.isEmpty ? "Begin Test" : "Reattempt")
-                        .font(MedxFont.rounded(14, weight: .bold))
+                        .font(MedxFont.headline(14))
                         .foregroundColor(.white)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 10)

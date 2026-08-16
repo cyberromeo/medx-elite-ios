@@ -20,7 +20,7 @@ public struct FlashcardStudyView: View {
                 // Header & Layout Switcher Bar
                 HStack {
                     Text("\(subject.cardCount) cards")
-                        .font(MedxFont.rounded(13, weight: .medium))
+                        .font(MedxFont.label(13))
                         .foregroundColor(.secondary)
 
                     Spacer()
@@ -62,7 +62,7 @@ public struct FlashcardStudyView: View {
                                   ? (selectedOrientation == .portrait ? "iphone" : "iphone.landscape")
                                   : (selectedOrientation == .portrait ? "ipad" : "ipad.landscape"))
                             Text("\(selectedDevice.rawValue) \(selectedOrientation.rawValue)")
-                                .font(MedxFont.rounded(12, weight: .bold))
+                                .font(MedxFont.label(12))
                         }
                         .foregroundColor(MedxTheme.primaryPurple)
                         .padding(.horizontal, 12)
@@ -91,7 +91,7 @@ public struct FlashcardStudyView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                                 Text(card.name)
-                                    .font(MedxFont.rounded(13, weight: .bold))
+                                    .font(MedxFont.headline(13))
                                     .foregroundColor(.primary)
                                     .lineLimit(2)
                                     .multilineTextAlignment(.leading)

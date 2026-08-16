@@ -29,7 +29,7 @@ public struct TestsListView: View {
                         VStack(spacing: 24) {
                             HStack {
                                 Text("\(tests.count) batch tests · ARISE")
-                                    .font(MedxFont.rounded(13, weight: .medium))
+                                    .font(MedxFont.label(13))
                                     .foregroundColor(.secondary)
                                 Spacer()
                             }
@@ -40,7 +40,7 @@ public struct TestsListView: View {
                             if !gradableTests.isEmpty {
                                 VStack(alignment: .leading, spacing: 14) {
                                     Text("Scored Tests")
-                                        .font(MedxFont.rounded(16, weight: .bold))
+                                        .font(MedxFont.headline(16))
                                         .foregroundColor(.secondary)
                                         .padding(.horizontal, 20)
 
@@ -60,7 +60,7 @@ public struct TestsListView: View {
                             if !practiceTests.isEmpty {
                                 VStack(alignment: .leading, spacing: 14) {
                                     Text("Practice · No Official Key")
-                                        .font(MedxFont.rounded(16, weight: .bold))
+                                        .font(MedxFont.headline(16))
                                         .foregroundColor(.secondary)
                                         .padding(.horizontal, 20)
 

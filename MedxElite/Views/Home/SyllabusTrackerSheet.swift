@@ -43,10 +43,10 @@ public struct SyllabusTrackerSheet: View {
                         VStack(spacing: 14) {
                             HStack {
                                 Text("Syllabus Progress")
-                                    .font(MedxFont.rounded(16, weight: .bold))
+                                    .font(MedxFont.headline(16))
                                 Spacer()
                                 Text("\(totals.done) of \(totals.total) done")
-                                    .font(MedxFont.monospacedDigits(14, weight: .bold))
+                                    .font(MedxFont.mono(14, weight: .bold))
                                     .foregroundColor(MedxTheme.primaryBlue)
                             }
 
@@ -72,7 +72,7 @@ public struct SyllabusTrackerSheet: View {
                             .frame(height: 8)
 
                             Text("\(totals.total - totals.done) items left across \(subjectsList.count) subjects")
-                                .font(MedxFont.rounded(13, weight: .regular))
+                                .font(MedxFont.caption(13))
                                 .foregroundColor(.secondary)
                         }
                         .padding(20)
@@ -81,7 +81,7 @@ public struct SyllabusTrackerSheet: View {
 
                         if let err = errorMessage {
                             Text(err)
-                                .font(MedxFont.rounded(13, weight: .medium))
+                                .font(MedxFont.caption(13))
                                 .foregroundColor(MedxTheme.destructiveRed)
                                 .padding(.horizontal, 20)
                         }
@@ -111,7 +111,7 @@ public struct SyllabusTrackerSheet: View {
                     Button("Done") {
                         dismiss()
                     }
-                    .font(MedxFont.rounded(16, weight: .bold))
+                    .font(MedxFont.headline(16))
                 }
             }
         }
@@ -160,7 +160,7 @@ private struct SubjectTrackerRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(subjectName)
-                .font(MedxFont.rounded(15, weight: .bold))
+                .font(MedxFont.headline(15))
                 .foregroundColor(.primary)
 
             HStack(spacing: 8) {
@@ -175,7 +175,7 @@ private struct SubjectTrackerRow: View {
                     } label: {
                         VStack(spacing: 4) {
                             Text(field.label)
-                                .font(MedxFont.rounded(11, weight: .semibold))
+                                .font(MedxFont.label(11))
                                 .foregroundColor(isChecked ? .white : (hasValue ? .primary : .secondary.opacity(0.4)))
 
                             Image(systemName: isChecked ? "checkmark" : (hasValue ? "circle" : "minus"))
