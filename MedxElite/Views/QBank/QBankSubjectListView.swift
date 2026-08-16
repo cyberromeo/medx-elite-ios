@@ -87,7 +87,7 @@ public struct QBankSubjectListView: View {
         .task {
             await loadData()
         }
-        .fullScreenCover(item: $activeRunnerPayload) { payload in
+        .fullScreenCover(item: $activeRunnerPayload) { (payload: RunnerPayload) in
             QuizRunnerView(payload: payload) {
                 Task { await loadData() }
             }

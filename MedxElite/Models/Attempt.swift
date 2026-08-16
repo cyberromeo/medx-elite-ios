@@ -1,5 +1,23 @@
 import Foundation
 
+public struct RunnerPayload: Identifiable, Hashable, Sendable {
+    public let kind: String // "qbank" or "test"
+    public let id: String
+    public let name: String
+    public let subject: String
+    public let mode: SittingMode
+    public let gradable: Bool
+
+    public init(kind: String, id: String, name: String, subject: String, mode: SittingMode, gradable: Bool = true) {
+        self.kind = kind
+        self.id = id
+        self.name = name
+        self.subject = subject
+        self.mode = mode
+        self.gradable = gradable
+    }
+}
+
 public struct SittingAttempt: Identifiable, Hashable, Codable, Sendable {
     public let id: String?
     public let uid: String

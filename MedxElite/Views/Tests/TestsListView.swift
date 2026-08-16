@@ -98,7 +98,7 @@ public struct TestsListView: View {
         .task {
             await loadTestsData()
         }
-        .fullScreenCover(item: $activeRunnerPayload) { payload in
+        .fullScreenCover(item: $activeRunnerPayload) { (payload: RunnerPayload) in
             QuizRunnerView(payload: payload) {
                 Task { await loadTestsData() }
             }
