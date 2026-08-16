@@ -1,45 +1,77 @@
 import SwiftUI
 
-// MARK: - Modern iOS Card & Container Modifiers
-// Uses real iOS materials (.ultraThinMaterial, .regularMaterial) and proper shadow hierarchy.
+// MARK: - Pure iOS Native Liquid Glass Design System
+// Multi-layer materials (.ultraThinMaterial, .regularMaterial), specular refractive borders,
+// dynamic dark/light vibrancy, and ambient chromatic glow shadows.
 
-/// Material-based glass card with optional tint
-public struct MaterialCardModifier: ViewModifier {
+/// Multi-layered Liquid Glass Card with specular refraction and ambient glow
+public struct LiquidGlassCardModifier: ViewModifier {
     public var cornerRadius: CGFloat
     public var material: Material
-    public var shadowLevel: Int // 0 = none, 1 = subtle, 2 = medium, 3 = prominent
+    public var glowColor: Color?
+    public var shadowLevel: Int
 
-    public init(cornerRadius: CGFloat = 16, material: Material = .ultraThinMaterial, shadowLevel: Int = 1) {
+    public init(
+        cornerRadius: CGFloat = 20,
+        material: Material = .ultraThinMaterial,
+        glowColor: Color? = nil,
+        shadowLevel: Int = 1
+    ) {
         self.cornerRadius = cornerRadius
         self.material = material
+        self.glowColor = glowColor
         self.shadowLevel = shadowLevel
     }
 
     public func body(content: Content) -> some View {
         content
             .background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(material)
+                ZStack {
+                    // 1. Dynamic material foundation
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(material)
+
+                    // 2. Adaptive grouped background tint
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.65))
+
+                    // 3. Subtle ambient chromatic tint
+                    if let glow = glowColor {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [glow.opacity(0.06), glow.opacity(0.01), .clear],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    }
+                }
             )
+            // 4. Specular inner highlight border (Apple Liquid Glass refraction)
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.35),
+                                Color.white.opacity(0.10),
+                                Color.white.opacity(0.02),
+                                (glowColor ?? Color.white).opacity(0.12)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
             )
+            // 5. Chromatic ambient glow + elevation drop shadow
             .shadow(
-                color: shadowColor,
-                radius: shadowRadius,
+                color: glowColor.map { $0.opacity(0.16) } ?? MedxTheme.Shadow.subtle.color,
+                radius: glowColor != nil ? 14 : shadowRadius,
                 x: 0,
-                y: shadowY
+                y: glowColor != nil ? 6 : shadowY
             )
-    }
-
-    private var shadowColor: Color {
-        switch shadowLevel {
-        case 0: return .clear
-        case 1: return MedxTheme.Shadow.subtle.color
-        case 2: return MedxTheme.Shadow.medium.color
-        default: return MedxTheme.Shadow.prominent.color
-        }
     }
 
     private var shadowRadius: CGFloat {
@@ -61,105 +93,128 @@ public struct MaterialCardModifier: ViewModifier {
     }
 }
 
-/// Native iOS card background using system grouped colors
-public struct NativeCardModifier: ViewModifier {
+/// Compact Liquid Glass Tile for row items, option buttons, and pills
+public struct LiquidGlassTileModifier: ViewModifier {
     public var cornerRadius: CGFloat
     public var accentColor: Color?
+    public var isSelected: Bool
 
-    public init(cornerRadius: CGFloat = 16, accentColor: Color? = nil) {
+    public init(cornerRadius: CGFloat = 16, accentColor: Color? = nil, isSelected: Bool = false) {
         self.cornerRadius = cornerRadius
         self.accentColor = accentColor
+        self.isSelected = isSelected
     }
 
     public func body(content: Content) -> some View {
         content
             .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(.ultraThinMaterial)
+
+                    if let color = accentColor, isSelected {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(color.opacity(0.12))
+                    } else {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(Color.primary.opacity(0.03))
+                    }
+                }
+            )
+            .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                    .strokeBorder(
+                        isSelected && accentColor != nil
+                            ? (accentColor!.opacity(0.5))
+                            : Color.white.opacity(0.15),
+                        lineWidth: isSelected ? 1.5 : 0.8
+                    )
             )
             .shadow(
-                color: MedxTheme.Shadow.subtle.color,
-                radius: MedxTheme.Shadow.subtle.radius,
+                color: isSelected && accentColor != nil ? accentColor!.opacity(0.2) : Color.black.opacity(0.04),
+                radius: isSelected ? 8 : 4,
                 x: 0,
-                y: MedxTheme.Shadow.subtle.y
+                y: isSelected ? 4 : 2
             )
     }
 }
 
-/// Interactive card with press state
-public struct InteractiveCardStyle: ButtonStyle {
-    var cornerRadius: CGFloat = 16
-
-    public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
-            )
-            .shadow(
-                color: configuration.isPressed ? .clear : MedxTheme.Shadow.subtle.color,
-                radius: configuration.isPressed ? 0 : MedxTheme.Shadow.subtle.radius,
-                x: 0,
-                y: configuration.isPressed ? 0 : MedxTheme.Shadow.subtle.y
-            )
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .opacity(configuration.isPressed ? 0.92 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
-    }
-}
-
-// MARK: - View Extensions
+// MARK: - View Modifiers Extension
 
 public extension View {
-    /// Glass card with material background
-    func glassCard(cornerRadius: CGFloat = 16, shadowLevel: Int = 1) -> some View {
-        self.modifier(MaterialCardModifier(cornerRadius: cornerRadius, material: .ultraThinMaterial, shadowLevel: shadowLevel))
+    /// Pure iOS Native Liquid Glass Card
+    func liquidGlassCard(
+        cornerRadius: CGFloat = 20,
+        glowColor: Color? = nil,
+        shadowLevel: Int = 1
+    ) -> some View {
+        self.modifier(LiquidGlassCardModifier(
+            cornerRadius: cornerRadius,
+            material: .ultraThinMaterial,
+            glowColor: glowColor,
+            shadowLevel: shadowLevel
+        ))
     }
 
-    /// Prominent card with thicker material
-    func prominentCard(cornerRadius: CGFloat = 16) -> some View {
-        self.modifier(MaterialCardModifier(cornerRadius: cornerRadius, material: .regularMaterial, shadowLevel: 2))
+    /// Glass card with material background (alias)
+    func glassCard(cornerRadius: CGFloat = 20, shadowLevel: Int = 1) -> some View {
+        self.modifier(LiquidGlassCardModifier(cornerRadius: cornerRadius, material: .ultraThinMaterial, shadowLevel: shadowLevel))
     }
 
-    /// Native iOS card background — system grouped cell style
-    /// Backward-compatible API name
-    func liquidGlassCard(cornerRadius: CGFloat = 16, borderWidth: CGFloat = 1, glowColor: Color? = nil) -> some View {
-        self.modifier(NativeCardModifier(cornerRadius: cornerRadius, accentColor: glowColor))
+    /// Prominent card with thicker material and stronger specular highlight
+    func prominentCard(cornerRadius: CGFloat = 20, glowColor: Color? = nil) -> some View {
+        self.modifier(LiquidGlassCardModifier(cornerRadius: cornerRadius, material: .regularMaterial, glowColor: glowColor, shadowLevel: 2))
     }
 
-    /// Floating bar with material background
+    /// Compact Liquid Glass Tile for row items, option buttons, and pills
+    func liquidGlassTile(cornerRadius: CGFloat = 16, accentColor: Color? = nil, isSelected: Bool = false) -> some View {
+        self.modifier(LiquidGlassTileModifier(cornerRadius: cornerRadius, accentColor: accentColor, isSelected: isSelected))
+    }
+
+    /// Floating bar with ultra-thin glass and refractive borders
     func liquidGlassFloating(cornerRadius: CGFloat = 28) -> some View {
         self
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(.regularMaterial)
+                    .shadow(color: Color.black.opacity(0.16), radius: 20, y: 8)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
-            )
-            .shadow(
-                color: MedxTheme.Shadow.medium.color,
-                radius: MedxTheme.Shadow.medium.radius,
-                x: 0,
-                y: MedxTheme.Shadow.medium.y
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.4), Color.white.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.8
+                    )
             )
     }
 
-    /// Capsule with material
+    /// Capsule pill with frosted glass
     func liquidGlassCapsule(tintColor: Color? = nil) -> some View {
         self
-            .background(Capsule().fill(.regularMaterial))
+            .background(
+                Capsule()
+                    .fill(.ultraThinMaterial)
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(
+                        tintColor?.opacity(0.3) ?? Color.white.opacity(0.18),
+                        lineWidth: 0.8
+                    )
+            )
             .shadow(
-                color: MedxTheme.Shadow.subtle.color,
-                radius: MedxTheme.Shadow.subtle.radius,
-                x: 0,
-                y: MedxTheme.Shadow.subtle.y
+                color: tintColor?.opacity(0.15) ?? Color.black.opacity(0.04),
+                radius: 6,
+                y: 2
             )
     }
 
-    /// Elevated material card for overlays
-    func elevatedCard(cornerRadius: CGFloat = 20) -> some View {
-        self.modifier(MaterialCardModifier(cornerRadius: cornerRadius, material: .thickMaterial, shadowLevel: 3))
+    /// Elevated material card for overlays & sheets
+    func elevatedCard(cornerRadius: CGFloat = 24) -> some View {
+        self.modifier(LiquidGlassCardModifier(cornerRadius: cornerRadius, material: .thickMaterial, shadowLevel: 3))
     }
 }

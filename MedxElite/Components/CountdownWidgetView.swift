@@ -18,7 +18,7 @@ public struct CountdownWidgetView: View {
                         Circle()
                             .fill(MedxTheme.primaryPink)
                             .frame(width: 7, height: 7)
-                            .shadow(color: MedxTheme.primaryPink.opacity(0.6), radius: 3)
+                            .shadow(color: MedxTheme.primaryPink.opacity(0.8), radius: 4)
 
                         Text("FMGE · 9 JAN 2027")
                             .font(MedxFont.mono(11, weight: .bold))
@@ -31,10 +31,10 @@ public struct CountdownWidgetView: View {
                     Text("\(remaining.weeks) weeks left")
                         .font(MedxFont.mono(11, weight: .semibold))
                         .foregroundColor(.secondary)
-                        .padding(.horizontal, 8)
+                        .padding(.horizontal, 9)
                         .padding(.vertical, 3)
-                        .background(Color.primary.opacity(0.04))
-                        .clipShape(Capsule())
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5))
                 }
 
                 // Countdown Cards Grid (4 responsive columns)
@@ -64,31 +64,8 @@ public struct CountdownWidgetView: View {
                     )
                 }
             }
-            .padding(16)
-            .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(Color(uiColor: .secondarySystemGroupedBackground))
-
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [MedxTheme.primaryPink.opacity(0.05), .clear],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                }
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(MedxTheme.primaryPink.opacity(0.12), lineWidth: 0.8)
-            )
-            .shadow(
-                color: MedxTheme.Shadow.subtle.color,
-                radius: MedxTheme.Shadow.subtle.radius,
-                y: MedxTheme.Shadow.subtle.y
-            )
+            .padding(18)
+            .liquidGlassCard(cornerRadius: 22, glowColor: MedxTheme.primaryPink)
         }
     }
 
@@ -135,14 +112,17 @@ private struct CountdownUnitCard: View {
                 .tracking(0.5)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(isPrimary ? MedxTheme.primaryPink.opacity(0.08) : Color.primary.opacity(0.03))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isPrimary ? MedxTheme.primaryPink.opacity(0.1) : Color.primary.opacity(0.03))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(isPrimary ? MedxTheme.primaryPink.opacity(0.2) : Color.clear, lineWidth: 1)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(
+                    isPrimary ? MedxTheme.primaryPink.opacity(0.3) : Color.white.opacity(0.1),
+                    lineWidth: 0.8
+                )
         )
     }
 }

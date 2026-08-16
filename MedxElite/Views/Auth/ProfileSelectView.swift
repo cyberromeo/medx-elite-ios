@@ -11,7 +11,6 @@ public struct ProfileSelectView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                // Mesh-style gradient background
                 meshBackground
                     .ignoresSafeArea()
 
@@ -23,12 +22,12 @@ public struct ProfileSelectView: View {
                         ZStack {
                             Circle()
                                 .fill(MedxTheme.auroraGradient)
-                                .frame(width: 80, height: 80)
-                                .blur(radius: 20)
-                                .opacity(0.5)
+                                .frame(width: 84, height: 84)
+                                .blur(radius: 24)
+                                .opacity(0.6)
 
                             Image(systemName: "heart.text.clipboard.fill")
-                                .font(.system(size: 36, weight: .semibold))
+                                .font(.system(size: 38, weight: .semibold))
                                 .foregroundStyle(MedxTheme.auroraGradient)
                                 .symbolEffect(.pulse.byLayer, options: .repeating.speed(0.3))
                         }
@@ -36,7 +35,7 @@ public struct ProfileSelectView: View {
                         .scaleEffect(hasAppeared ? 1 : 0.8)
 
                         Text("MedX Elite")
-                            .font(MedxFont.hero(28))
+                            .font(MedxFont.hero(30))
                             .foregroundColor(.primary)
                             .opacity(hasAppeared ? 1 : 0)
                             .offset(y: hasAppeared ? 0 : 10)
@@ -47,7 +46,7 @@ public struct ProfileSelectView: View {
                             .opacity(hasAppeared ? 1 : 0)
                             .offset(y: hasAppeared ? 0 : 10)
                     }
-                    .padding(.bottom, 40)
+                    .padding(.bottom, 36)
 
                     // Profile Cards
                     VStack(spacing: 16) {
@@ -75,10 +74,14 @@ public struct ProfileSelectView: View {
                     Spacer()
 
                     // Footer
-                    Text("Passwords are stored securely in the iOS Keychain")
-                        .font(MedxFont.caption(11))
-                        .foregroundColor(Color(uiColor: .quaternaryLabel))
-                        .padding(.bottom, 20)
+                    HStack(spacing: 6) {
+                        Image(systemName: "lock.shield.fill")
+                            .font(.system(size: 11))
+                        Text("Credentials secured with iOS Keychain")
+                            .font(MedxFont.caption(12))
+                    }
+                    .foregroundColor(Color(uiColor: .tertiaryLabel))
+                    .padding(.bottom, 20)
                 }
             }
             .sheet(item: $selectedProfile) { profile in
@@ -138,11 +141,11 @@ public struct ProfileSelectView: View {
                 } else {
                     Image(systemName: "arrow.right.circle.fill")
                         .font(.system(size: 20))
-                        .foregroundColor(.secondary.opacity(0.4))
+                        .foregroundColor(Color(uiColor: .tertiaryLabel))
                 }
             }
             .padding(18)
-            .glassCard(cornerRadius: 22, shadowLevel: 2)
+            .liquidGlassCard(cornerRadius: 22, glowColor: profile.accentColor)
         }
         .buttonStyle(BouncyButtonStyle())
         .opacity(hasAppeared ? 1 : 0)
@@ -156,23 +159,20 @@ public struct ProfileSelectView: View {
         ZStack {
             Color(uiColor: .systemBackground)
 
-            // Top-left glow
             Circle()
-                .fill(MedxTheme.primaryBlue.opacity(0.08))
-                .frame(width: 300, height: 300)
+                .fill(MedxTheme.primaryBlue.opacity(0.09))
+                .frame(width: 320, height: 320)
                 .blur(radius: 80)
                 .offset(x: -100, y: -200)
 
-            // Bottom-right glow
             Circle()
-                .fill(MedxTheme.primaryPurple.opacity(0.06))
+                .fill(MedxTheme.primaryPurple.opacity(0.07))
                 .frame(width: 400, height: 400)
                 .blur(radius: 100)
                 .offset(x: 120, y: 300)
 
-            // Center-right accent
             Circle()
-                .fill(MedxTheme.primaryPink.opacity(0.04))
+                .fill(MedxTheme.primaryPink.opacity(0.05))
                 .frame(width: 250, height: 250)
                 .blur(radius: 60)
                 .offset(x: 80, y: 50)

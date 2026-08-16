@@ -18,82 +18,129 @@ public struct TestsListView: View {
     }
 
     public var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+        ZStack {
+            ambientBackground
 
-                if isLoading {
-                    ProgressView("Loading Batch Tests...")
-                } else {
-                    ScrollView {
-                        VStack(spacing: 24) {
-                            HStack {
-                                Text("\(tests.count) batch tests · ARISE")
-                                    .font(MedxFont.label(13))
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.top, 6)
+            if isLoading {
+                ProgressView("Loading Batch Tests…")
+                    .controlSize(.large)
+            } else {
+                ScrollView {
+                    VStack(spacing: 22) {
+                        // Header summary
+                        HStack(spacing: 12) {
+                            statPill(icon: "checkmark.seal.fill", value: "\(gradableTests.count)", label: "scored tests", color: MedxTheme.successGreen)
+                            statPill(icon: "doc.text.fill", value: "\(practiceTests.count)", label: "practice", color: MedxTheme.warningOrange)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 6)
 
-                            // Scored Tests Section
-                            if !gradableTests.isEmpty {
-                                VStack(alignment: .leading, spacing: 14) {
+                        // Scored Tests Section
+                        if !gradableTests.isEmpty {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
                                     Text("Scored Tests")
                                         .font(MedxFont.headline(16))
-                                        .foregroundColor(.secondary)
-                                        .padding(.horizontal, 20)
-
-                                    ForEach(gradableTests) { test in
-                                        TestDetailCard(
-                                            test: test,
-                                            attempts: attempts
-                                        ) { mode in
-                                            startTestSitting(test: test, mode: mode)
-                                        }
-                                        .padding(.horizontal, 20)
-                                    }
+                                    Spacer()
+                                    Text("Official Answer Key")
+                                        .font(MedxFont.mono(10, weight: .bold))
+                                        .foregroundColor(MedxTheme.successGreen)
                                 }
-                            }
+                                .padding(.horizontal, 20)
 
-                            // Practice Tests Section
-                            if !practiceTests.isEmpty {
-                                VStack(alignment: .leading, spacing: 14) {
-                                    Text("Practice · No Official Key")
-                                        .font(MedxFont.headline(16))
-                                        .foregroundColor(.secondary)
-                                        .padding(.horizontal, 20)
-
-                                    ForEach(practiceTests) { test in
-                                        TestDetailCard(
-                                            test: test,
-                                            attempts: attempts
-                                        ) { mode in
-                                            startTestSitting(test: test, mode: mode)
-                                        }
-                                        .padding(.horizontal, 20)
+                                ForEach(gradableTests) { test in
+                                    TestDetailCard(
+                                        test: test,
+                                        attempts: attempts
+                                    ) { mode in
+                                        startTestSitting(test: test, mode: mode)
                                     }
+                                    .padding(.horizontal, 20)
                                 }
                             }
                         }
-                        .padding(.bottom, 90)
+
+                        // Practice Tests Section
+                        if !practiceTests.isEmpty {
+                            VStack(alignment: .leading, spacing: 14) {
+                                HStack {
+                                    Text("Practice Papers")
+                                        .font(MedxFont.headline(16))
+                                    Spacer()
+                                    Text("No Official Key")
+                                        .font(MedxFont.mono(10, weight: .bold))
+                                        .foregroundColor(MedxTheme.warningOrange)
+                                }
+                                .padding(.horizontal, 20)
+
+                                ForEach(practiceTests) { test in
+                                    TestDetailCard(
+                                        test: test,
+                                        attempts: attempts
+                                    ) { mode in
+                                        startTestSitting(test: test, mode: mode)
+                                    }
+                                    .padding(.horizontal, 20)
+                                }
+                            }
+                        }
                     }
-                    .refreshable {
-                        await loadTestsData()
-                    }
+                    .padding(.bottom, 90)
                 }
-            }
-            .navigationTitle("Tests")
-            .navigationBarTitleDisplayMode(.large)
-            .task {
-                await loadTestsData()
-            }
-            .fullScreenCover(item: $activeRunnerPayload) { payload in
-                QuizRunnerView(payload: payload) {
-                    Task { await loadTestsData() }
+                .refreshable {
+                    await loadTestsData()
                 }
             }
         }
+        .navigationTitle("Tests")
+        .navigationBarTitleDisplayMode(.large)
+        .task {
+            await loadTestsData()
+        }
+        .fullScreenCover(item: $activeRunnerPayload) { payload in
+            QuizRunnerView(payload: payload) {
+                Task { await loadTestsData() }
+            }
+        }
+    }
+
+    private func statPill(icon: String, value: String, label: String, color: Color) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(color)
+
+            Text(value)
+                .font(MedxFont.mono(12, weight: .bold))
+                .foregroundColor(.primary)
+
+            Text(label)
+                .font(MedxFont.caption(11))
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.08), in: Capsule())
+    }
+
+    private var ambientBackground: some View {
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+
+            Circle()
+                .fill(MedxTheme.successGreen.opacity(0.06))
+                .frame(width: 320, height: 320)
+                .blur(radius: 80)
+                .offset(x: 100, y: -200)
+
+            Circle()
+                .fill(MedxTheme.primaryBlue.opacity(0.06))
+                .frame(width: 350, height: 350)
+                .blur(radius: 90)
+                .offset(x: -120, y: 300)
+        }
+        .ignoresSafeArea()
     }
 
     private func loadTestsData() async {

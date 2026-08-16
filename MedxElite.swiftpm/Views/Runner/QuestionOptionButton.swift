@@ -39,6 +39,7 @@ public struct QuestionOptionButton: View {
                     .frame(width: 32, height: 32)
                     .background(letterBgColor)
                     .clipShape(Circle())
+                    .shadow(color: (isRevealed ? (isCorrect ? MedxTheme.successGreen : MedxTheme.destructiveRed) : (isChosen ? MedxTheme.primaryBlue : Color.clear)).opacity(0.4), radius: 4)
 
                 // Option HTML Text
                 HTMLRichTextView(html: option.text, fontSize: 15, weight: .regular)
@@ -52,6 +53,7 @@ public struct QuestionOptionButton: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.title3)
                             .foregroundColor(MedxTheme.successGreen)
+                            .symbolEffect(.pulse)
                     } else if isChosen {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title3)
@@ -64,16 +66,24 @@ public struct QuestionOptionButton: View {
                 }
             }
             .padding(16)
-            .background(cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(cardBorderColor, lineWidth: 1.5)
+            .liquidGlassTile(
+                cornerRadius: 18,
+                accentColor: activeAccentColor,
+                isSelected: isChosen || (isRevealed && isCorrect)
             )
-            .shadow(color: isChosen ? MedxTheme.primaryBlue.opacity(0.15) : Color.clear, radius: 8, x: 0, y: 4)
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(BouncyButtonStyle())
         .disabled(isLocked)
+    }
+
+    private var activeAccentColor: Color? {
+        if isRevealed {
+            if isCorrect { return MedxTheme.successGreen }
+            if isChosen { return MedxTheme.destructiveRed }
+        } else if isChosen {
+            return MedxTheme.primaryBlue
+        }
+        return nil
     }
 
     private var letterTextColor: Color {
@@ -93,25 +103,5 @@ public struct QuestionOptionButton: View {
             return MedxTheme.primaryBlue
         }
         return Color.primary.opacity(0.08)
-    }
-
-    private var cardBackground: Color {
-        if isRevealed {
-            if isCorrect { return MedxTheme.successGreen.opacity(0.12) }
-            if isChosen { return MedxTheme.destructiveRed.opacity(0.12) }
-        } else if isChosen {
-            return MedxTheme.primaryBlue.opacity(0.1)
-        }
-        return Color.primary.opacity(0.03)
-    }
-
-    private var cardBorderColor: Color {
-        if isRevealed {
-            if isCorrect { return MedxTheme.successGreen.opacity(0.6) }
-            if isChosen { return MedxTheme.destructiveRed.opacity(0.6) }
-        } else if isChosen {
-            return MedxTheme.primaryBlue.opacity(0.6)
-        }
-        return Color.primary.opacity(0.06)
     }
 }

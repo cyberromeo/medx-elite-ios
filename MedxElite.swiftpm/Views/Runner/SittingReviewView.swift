@@ -1,16 +1,8 @@
 import SwiftUI
 
-public enum ReviewFilter: String, CaseIterable, Identifiable {
-    case all = "All"
-    case wrong = "Wrong"
-    case skipped = "Skipped"
-
-    public var id: String { rawValue }
-}
-
 public struct SittingReviewView: View {
     public let name: String
-    public let subject: String?
+    public let subject: String
     public let questions: [Question]
     public let responses: [Int: QuestionResponse]
     public let gradable: Bool
@@ -18,12 +10,16 @@ public struct SittingReviewView: View {
 
     @State private var filter: ReviewFilter = .all
 
+    public enum ReviewFilter {
+        case all, wrong, skipped
+    }
+
     public init(
         name: String,
-        subject: String?,
+        subject: String,
         questions: [Question],
         responses: [Int: QuestionResponse],
-        gradable: Bool,
+        gradable: Bool = true,
         onDone: @escaping () -> Void
     ) {
         self.name = name
@@ -37,16 +33,22 @@ public struct SittingReviewView: View {
     private var totalCount: Int { questions.count }
     private var scoreCount: Int { responses.values.filter { $0.correct }.count }
     private var attemptedCount: Int { responses.values.filter { $0.chosenId != nil }.count }
-    private var wrongCount: Int { attemptedCount - scoreCount }
+    private var wrongCount: Int { responses.values.filter { $0.chosenId != nil && !$0.correct }.count }
     private var skippedCount: Int { totalCount - attemptedCount }
 
     private var filteredQuestions: [Question] {
-        questions.filter { q in
-            let r = responses[q.id]
-            switch filter {
-            case .all: return true
-            case .wrong: return r?.chosenId != nil && r?.correct == false
-            case .skipped: return r == nil || r?.chosenId == nil
+        switch filter {
+        case .all:
+            return questions
+        case .wrong:
+            return questions.filter { q in
+                if let r = responses[q.id], r.chosenId != nil, !r.correct { return true }
+                return false
+            }
+        case .skipped:
+            return questions.filter { q in
+                if let r = responses[q.id], r.chosenId == nil { return true }
+                return responses[q.id] == nil
             }
         }
     }
@@ -54,11 +56,11 @@ public struct SittingReviewView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+                ambientBackground
 
                 ScrollView {
                     VStack(spacing: 20) {
-                        // Score Summary Card
+                        // Score Summary Hero Card (Liquid Glass)
                         VStack(spacing: 16) {
                             if gradable {
                                 let pct = totalCount > 0 ? Int(round(Double(scoreCount) / Double(totalCount) * 100.0)) : 0
@@ -162,6 +164,25 @@ public struct SittingReviewView: View {
             }
         }
     }
+
+    private var ambientBackground: some View {
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+
+            Circle()
+                .fill(MedxTheme.successGreen.opacity(0.07))
+                .frame(width: 320, height: 320)
+                .blur(radius: 80)
+                .offset(x: -100, y: -150)
+
+            Circle()
+                .fill(MedxTheme.cyanAccent.opacity(0.05))
+                .frame(width: 350, height: 350)
+                .blur(radius: 90)
+                .offset(x: 120, y: 300)
+        }
+        .ignoresSafeArea()
+    }
 }
 
 private struct QuestionReviewCard: View {
@@ -204,7 +225,7 @@ private struct QuestionReviewCard: View {
                 ForEach(imgs, id: \.self) { imgUrl in
                     CachedAsyncImage(url: URL(string: imgUrl))
                         .frame(maxHeight: 220)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
             }
 
@@ -238,7 +259,7 @@ private struct QuestionReviewCard: View {
                     }
                     .padding(12)
                     .background(isCorrect ? MedxTheme.successGreen.opacity(0.1) : (isChosen ? MedxTheme.destructiveRed.opacity(0.1) : Color.primary.opacity(0.02)))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
             }
 

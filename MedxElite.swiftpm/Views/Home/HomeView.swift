@@ -20,50 +20,54 @@ public struct HomeView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 18) {
-                // MARK: - iOS Native Date & Greeting Hero Header
-                greetingHeroHeader
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                    .padding(.bottom, 2)
-                    .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 8)
+        ZStack {
+            // Ambient Fluid Background Mesh Canvas
+            ambientBackgroundCanvas
 
-                // MARK: - Countdown Widget
-                CountdownWidgetView()
-                    .padding(.horizontal, 20)
-                    .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 12)
+            ScrollView {
+                LazyVStack(spacing: 18) {
+                    // MARK: - iOS Native Date & Greeting Hero Header
+                    greetingHeroHeader
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                        .padding(.bottom, 2)
+                        .opacity(hasAppeared ? 1 : 0)
+                        .offset(y: hasAppeared ? 0 : 8)
 
-                // MARK: - Syllabus Tracker
-                syllabusTrackerCard
-                    .padding(.horizontal, 20)
-                    .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 16)
+                    // MARK: - Countdown Widget (Liquid Glass)
+                    CountdownWidgetView()
+                        .padding(.horizontal, 20)
+                        .opacity(hasAppeared ? 1 : 0)
+                        .offset(y: hasAppeared ? 0 : 12)
 
-                // MARK: - Performance Analytics (Swift Charts)
-                AnalyticsCard(attempts: attempts)
-                    .padding(.horizontal, 20)
-                    .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 20)
+                    // MARK: - Syllabus Tracker (Liquid Glass Card)
+                    syllabusTrackerCard
+                        .padding(.horizontal, 20)
+                        .opacity(hasAppeared ? 1 : 0)
+                        .offset(y: hasAppeared ? 0 : 16)
 
-                // MARK: - QBank Progress
-                QBankProgressCard(attempts: attempts) {}
-                    .padding(.horizontal, 20)
-                    .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 24)
+                    // MARK: - Performance Analytics (Swift Charts + Liquid Glass)
+                    AnalyticsCard(attempts: attempts)
+                        .padding(.horizontal, 20)
+                        .opacity(hasAppeared ? 1 : 0)
+                        .offset(y: hasAppeared ? 0 : 20)
 
-                // MARK: - Question of the Day
-                QuestionOfTheDayCard()
-                    .padding(.horizontal, 20)
-                    .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 28)
+                    // MARK: - QBank Progress (Liquid Glass Card)
+                    QBankProgressCard(attempts: attempts) {}
+                        .padding(.horizontal, 20)
+                        .opacity(hasAppeared ? 1 : 0)
+                        .offset(y: hasAppeared ? 0 : 24)
 
-                Spacer(minLength: 40)
+                    // MARK: - Question of the Day (Liquid Glass Card)
+                    QuestionOfTheDayCard()
+                        .padding(.horizontal, 20)
+                        .opacity(hasAppeared ? 1 : 0)
+                        .offset(y: hasAppeared ? 0 : 28)
+
+                    Spacer(minLength: 40)
+                }
             }
         }
-        .background(Color(uiColor: .systemGroupedBackground))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -94,18 +98,43 @@ public struct HomeView: View {
         }
     }
 
+    // MARK: - Ambient Fluid Background Canvas
+
+    private var ambientBackgroundCanvas: some View {
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+
+            Circle()
+                .fill(MedxTheme.primaryBlue.opacity(0.09))
+                .frame(width: 320, height: 320)
+                .blur(radius: 80)
+                .offset(x: -120, y: -200)
+
+            Circle()
+                .fill(MedxTheme.primaryPurple.opacity(0.07))
+                .frame(width: 380, height: 380)
+                .blur(radius: 90)
+                .offset(x: 140, y: 100)
+
+            Circle()
+                .fill(MedxTheme.cyanAccent.opacity(0.06))
+                .frame(width: 300, height: 300)
+                .blur(radius: 70)
+                .offset(x: -100, y: 450)
+        }
+        .ignoresSafeArea()
+    }
+
     // MARK: - Greeting Hero Header (Native iOS Style)
 
     private var greetingHeroHeader: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 3) {
-                // Uppercase Date Label
                 Text(Date.now.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()).uppercased())
                     .font(MedxFont.mono(11, weight: .bold))
                     .foregroundColor(.secondary)
                     .tracking(0.8)
 
-                // Single Line Greeting + Name
                 HStack(spacing: 6) {
                     Text(greetingText + ",")
                         .font(MedxFont.title(24))
@@ -160,11 +189,11 @@ public struct HomeView: View {
         } label: {
             HStack(spacing: 14) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(MedxTheme.primaryBlue.opacity(0.12))
-                        .frame(width: 44, height: 44)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(MedxTheme.primaryBlue.opacity(0.14))
+                        .frame(width: 46, height: 46)
                     Image(systemName: "list.clipboard.fill")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 19, weight: .semibold))
                         .foregroundColor(MedxTheme.primaryBlue)
                 }
 
@@ -184,7 +213,7 @@ public struct HomeView: View {
                     .foregroundColor(Color(uiColor: .tertiaryLabel))
             }
             .padding(16)
-            .liquidGlassCard(cornerRadius: 18)
+            .liquidGlassCard(cornerRadius: 20, glowColor: MedxTheme.primaryBlue)
         }
         .buttonStyle(BouncyButtonStyle())
     }

@@ -16,69 +16,135 @@ public struct FlashcardsSubjectListView: View {
     }
 
     public var body: some View {
-        List {
+        ZStack {
+            ambientBackground
+
             if isLoading {
-                Section {
-                    HStack {
-                        Spacer()
-                        ProgressView("Loading Flashcards...")
-                        Spacer()
-                    }
-                    .listRowBackground(Color.clear)
-                }
+                ProgressView("Loading Flashcards…")
+                    .controlSize(.large)
             } else {
-                Section {
-                    let totalCards = subjects.reduce(0) { $0 + $1.cardCount }
-                    Text("\(totalCards.formatted()) cards · \(subjects.count) subjects")
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                }
-
-                Section {
-                    ForEach(filteredSubjects) { subject in
-                        NavigationLink {
-                            FlashcardStudyView(subject: subject)
-                        } label: {
-                            HStack(spacing: 14) {
-                                Image(systemName: "sparkles.rectangle.stack.fill")
-                                    .font(.title3)
-                                    .foregroundColor(.purple)
-                                    .frame(width: 32)
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(subject.name)
-                                        .font(.headline)
-
-                                    Text("\(subject.cardCount) cards")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-
-                                Spacer()
-
-                                Text("\(subject.cardCount)")
-                                    .font(.caption.bold())
-                                    .foregroundColor(.purple)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(Color.purple.opacity(0.12))
-                                    .clipShape(Capsule())
-                            }
-                            .padding(.vertical, 4)
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // Summary stat pill
+                        let totalCards = subjects.reduce(0) { $0 + $1.cardCount }
+                        HStack(spacing: 12) {
+                            statPill(icon: "sparkles.rectangle.stack.fill", value: totalCards.formatted(), label: "cards", color: MedxTheme.primaryPurple)
+                            statPill(icon: "books.vertical.fill", value: "\(subjects.count)", label: "subjects", color: MedxTheme.primaryPink)
+                            Spacer()
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 6)
+
+                        // Subject List
+                        LazyVStack(spacing: 12) {
+                            ForEach(filteredSubjects) { subject in
+                                NavigationLink {
+                                    FlashcardStudyView(subject: subject)
+                                } label: {
+                                    subjectRow(subject)
+                                }
+                                .buttonStyle(BouncyButtonStyle())
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 90)
                     }
+                }
+                .refreshable {
+                    await loadFlashcards()
                 }
             }
         }
-        .listStyle(.insetGrouped)
         .navigationTitle("Flashcards")
-        .searchable(text: $searchText, prompt: "Search subjects")
-        .refreshable {
-            await loadFlashcards()
-        }
+        .navigationBarTitleDisplayMode(.large)
+        .searchable(text: $searchText, prompt: "Search flashcard subjects…")
         .task {
             await loadFlashcards()
         }
+    }
+
+    private func subjectRow(_ subject: FlashcardSubject) -> some View {
+        HStack(spacing: 16) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [MedxTheme.primaryPurple.opacity(0.2), MedxTheme.primaryPink.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 48, height: 48)
+
+                Image(systemName: "sparkles.rectangle.stack.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(MedxTheme.primaryPurple)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(subject.name)
+                    .font(MedxFont.headline(16))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+
+                Text("\(subject.cardCount) visual flashcards")
+                    .font(MedxFont.caption(12))
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            Text("\(subject.cardCount)")
+                .font(MedxFont.mono(12, weight: .bold))
+                .foregroundColor(MedxTheme.primaryPurple)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(MedxTheme.primaryPurple.opacity(0.12), in: Capsule())
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(Color(uiColor: .tertiaryLabel))
+        }
+        .padding(16)
+        .liquidGlassCard(cornerRadius: 20, glowColor: MedxTheme.primaryPurple)
+    }
+
+    private func statPill(icon: String, value: String, label: String, color: Color) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(color)
+
+            Text(value)
+                .font(MedxFont.mono(12, weight: .bold))
+                .foregroundColor(.primary)
+
+            Text(label)
+                .font(MedxFont.caption(11))
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.08), in: Capsule())
+    }
+
+    private var ambientBackground: some View {
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+
+            Circle()
+                .fill(MedxTheme.primaryPurple.opacity(0.07))
+                .frame(width: 320, height: 320)
+                .blur(radius: 80)
+                .offset(x: -100, y: -150)
+
+            Circle()
+                .fill(MedxTheme.primaryPink.opacity(0.05))
+                .frame(width: 350, height: 350)
+                .blur(radius: 90)
+                .offset(x: 120, y: 280)
+        }
+        .ignoresSafeArea()
     }
 
     private func loadFlashcards() async {

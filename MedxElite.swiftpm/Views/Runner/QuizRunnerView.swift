@@ -30,10 +30,11 @@ public struct QuizRunnerView: View {
 
     public var body: some View {
         ZStack {
-            Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+            ambientBackground
 
             if isLoading {
-                ProgressView("Loading sitting...")
+                ProgressView("Loading sitting…")
+                    .controlSize(.large)
             } else if isFinished {
                 SittingReviewView(
                     name: payload.name,
@@ -51,56 +52,36 @@ public struct QuizRunnerView: View {
                 let isRevealed = payload.mode == .revision && revealedQuestions[question.id] == true
 
                 VStack(spacing: 0) {
-                    // Top Progress & Timer Bar
-                    HStack {
-                        Button {
-                            showExitAlert = true
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.title2)
-                                .foregroundColor(.secondary)
-                        }
-
-                        Spacer()
-
-                        // Question Index Indicator
-                        Text("\(currentIndex + 1) / \(questions.count)")
-                            .font(MedxFont.mono(16, weight: .bold))
-                            .foregroundColor(.primary)
-
-                        Spacer()
-
-                        // Timer Badge
-                        HStack(spacing: 4) {
-                            Image(systemName: "timer")
-                                .font(.caption)
-                            Text(formatTime(remainingSeconds))
-                                .font(MedxFont.mono(14, weight: .bold))
-                        }
-                        .foregroundColor(remainingSeconds <= 10 ? MedxTheme.destructiveRed : .primary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(remainingSeconds <= 10 ? MedxTheme.destructiveRed.opacity(0.15) : Color.primary.opacity(0.08))
-                        .clipShape(Capsule())
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .padding(.bottom, 12)
+                    // MARK: - Floating Liquid Glass Top HUD
+                    topHUD(question: question)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, 8)
 
                     // Linear Progress Bar
                     GeometryReader { geo in
                         let progress = Double(currentIndex + 1) / Double(max(questions.count, 1))
                         ZStack(alignment: .leading) {
-                            Rectangle()
-                                .fill(Color.primary.opacity(0.06))
+                            Capsule()
+                                .fill(Color.primary.opacity(0.08))
                                 .frame(height: 4)
-                            Rectangle()
-                                .fill(payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple)
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple,
+                                            MedxTheme.cyanAccent
+                                        ],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
                                 .frame(width: geo.size.width * CGFloat(progress), height: 4)
                                 .animation(.spring(), value: progress)
                         }
                     }
                     .frame(height: 4)
+                    .padding(.horizontal, 20)
 
                     // Main Scrollable Question Content
                     ScrollView {
@@ -108,36 +89,33 @@ public struct QuizRunnerView: View {
                             // Mode & Subject Tags
                             HStack(spacing: 8) {
                                 Text(payload.mode.displayName)
-                                    .font(MedxFont.label(11))
+                                    .font(MedxFont.mono(11, weight: .bold))
                                     .foregroundColor(payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple)
-                                    .padding(.horizontal, 8)
+                                    .padding(.horizontal, 9)
                                     .padding(.vertical, 4)
-                                    .background((payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple).opacity(0.12))
-                                    .clipShape(Capsule())
+                                    .background((payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple).opacity(0.12), in: Capsule())
 
                                 if !payload.subject.isEmpty {
                                     Text(payload.subject)
                                         .font(MedxFont.caption(11))
                                         .foregroundColor(.secondary)
-                                        .padding(.horizontal, 8)
+                                        .padding(.horizontal, 9)
                                         .padding(.vertical, 4)
-                                        .background(Color.primary.opacity(0.06))
-                                        .clipShape(Capsule())
+                                        .background(Color.primary.opacity(0.05), in: Capsule())
                                 }
 
                                 if !payload.gradable {
                                     Text("Practice Only")
-                                        .font(MedxFont.label(11))
+                                        .font(MedxFont.mono(10, weight: .bold))
                                         .foregroundColor(MedxTheme.warningOrange)
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 4)
-                                        .background(MedxTheme.warningOrange.opacity(0.12))
-                                        .clipShape(Capsule())
+                                        .background(MedxTheme.warningOrange.opacity(0.12), in: Capsule())
                                 }
                             }
                             .padding(.top, 12)
 
-                            // Question Text
+                            // Question Text (Native SF Pro via HTMLRichTextView)
                             HTMLRichTextView(html: question.displayText, fontSize: 17, weight: .semibold)
 
                             // Question Images
@@ -145,7 +123,7 @@ public struct QuizRunnerView: View {
                                 ForEach(imgs, id: \.self) { imgUrl in
                                     CachedAsyncImage(url: URL(string: imgUrl))
                                         .frame(maxHeight: 240)
-                                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                                 }
                             }
 
@@ -167,7 +145,7 @@ public struct QuizRunnerView: View {
                                 }
                             }
 
-                            // Revision Instant Explanation Card
+                            // Revision Instant Explanation Card (Liquid Glass)
                             if isRevealed {
                                 VStack(alignment: .leading, spacing: 10) {
                                     HStack {
@@ -194,76 +172,17 @@ public struct QuizRunnerView: View {
                                             .foregroundColor(.secondary)
                                     }
                                 }
-                                .padding(16)
-                                .liquidGlassCard(cornerRadius: 18, glowColor: currentResp?.correct == true ? MedxTheme.successGreen : MedxTheme.destructiveRed)
+                                .padding(18)
+                                .liquidGlassCard(cornerRadius: 20, glowColor: currentResp?.correct == true ? MedxTheme.successGreen : MedxTheme.destructiveRed)
                                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                             }
                         }
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 100)
+                        .padding(.bottom, 110)
                     }
 
-                    // Bottom Navigation Bar
-                    HStack(spacing: 16) {
-                        // Back Button
-                        Button {
-                            if currentIndex > 0 {
-                                HapticManager.light()
-                                currentIndex -= 1
-                                resetTimerForQuestion()
-                            }
-                        } label: {
-                            Text("Back")
-                                .font(MedxFont.headline(15))
-                                .foregroundColor(currentIndex > 0 ? .primary : .secondary.opacity(0.4))
-                                .frame(height: 50)
-                                .padding(.horizontal, 20)
-                                .background(Color.primary.opacity(0.06))
-                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
-                        .disabled(currentIndex == 0)
-
-                        // Exam Skip Button
-                        if payload.mode == .exam && responses[question.id] == nil {
-                            Button {
-                                HapticManager.light()
-                                nextQuestion()
-                            } label: {
-                                Text("Skip")
-                                    .font(MedxFont.headline(15))
-                                    .foregroundColor(.secondary)
-                                    .frame(height: 50)
-                                    .padding(.horizontal, 20)
-                                    .background(Color.primary.opacity(0.06))
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            }
-                        }
-
-                        // Next / Finish Button
-                        let isLast = currentIndex + 1 >= questions.count
-                        let canAdvance = payload.mode == .exam || isRevealed
-
-                        Button {
-                            HapticManager.medium()
-                            if isLast {
-                                finishSitting()
-                            } else {
-                                nextQuestion()
-                            }
-                        } label: {
-                            Text(isLast ? "Finish Sitting" : "Next")
-                                .font(MedxFont.headline(16))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                                .background(canAdvance ? (payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple) : Color.gray.opacity(0.5))
-                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
-                        .disabled(!canAdvance)
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(.ultraThinMaterial)
+                    // MARK: - Bottom Liquid Glass Floating Bar
+                    bottomBar(question: question, isRevealed: isRevealed)
                 }
             }
         }
@@ -289,6 +208,169 @@ public struct QuizRunnerView: View {
         .task {
             await loadSittingQuestions()
         }
+    }
+
+    // MARK: - Top Glass HUD
+
+    private func topHUD(question: Question) -> some View {
+        HStack(alignment: .center) {
+            Button {
+                showExitAlert = true
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.secondary)
+                    .frame(width: 36, height: 36)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8))
+            }
+
+            Spacer()
+
+            Text("\(currentIndex + 1) / \(questions.count)")
+                .font(MedxFont.mono(15, weight: .bold))
+                .foregroundColor(.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8))
+
+            Spacer()
+
+            HStack(spacing: 4) {
+                Image(systemName: "timer")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(formatTime(remainingSeconds))
+                    .font(MedxFont.mono(13, weight: .bold))
+            }
+            .foregroundColor(remainingSeconds <= 10 ? MedxTheme.destructiveRed : .primary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                (remainingSeconds <= 10 ? MedxTheme.destructiveRed.opacity(0.15) : Color.primary.opacity(0.06)),
+                in: Capsule()
+            )
+            .overlay(
+                Capsule().strokeBorder(
+                    remainingSeconds <= 10 ? MedxTheme.destructiveRed.opacity(0.4) : Color.white.opacity(0.12),
+                    lineWidth: 0.8
+                )
+            )
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .shadow(color: Color.black.opacity(0.06), radius: 10, y: 3)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.15), lineWidth: 0.8)
+        )
+    }
+
+    // MARK: - Bottom Floating Bar
+
+    private func bottomBar(question: Question, isRevealed: Bool) -> some View {
+        HStack(spacing: 14) {
+            // Back Button
+            Button {
+                if currentIndex > 0 {
+                    HapticManager.light()
+                    currentIndex -= 1
+                    resetTimerForQuestion()
+                }
+            } label: {
+                Text("Back")
+                    .font(MedxFont.headline(15))
+                    .foregroundColor(currentIndex > 0 ? .primary : .secondary.opacity(0.4))
+                    .frame(height: 48)
+                    .padding(.horizontal, 18)
+                    .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .disabled(currentIndex == 0)
+
+            // Exam Skip Button
+            if payload.mode == .exam && responses[question.id] == nil {
+                Button {
+                    HapticManager.light()
+                    nextQuestion()
+                } label: {
+                    Text("Skip")
+                        .font(MedxFont.headline(15))
+                        .foregroundColor(.secondary)
+                        .frame(height: 48)
+                        .padding(.horizontal, 18)
+                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+            }
+
+            // Next / Finish Button
+            let isLast = currentIndex + 1 >= questions.count
+            let canAdvance = payload.mode == .exam || isRevealed
+
+            Button {
+                HapticManager.medium()
+                if isLast {
+                    finishSitting()
+                } else {
+                    nextQuestion()
+                }
+            } label: {
+                Text(isLast ? "Finish Sitting" : "Next")
+                    .font(MedxFont.headline(15))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(
+                        canAdvance
+                            ? (payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple)
+                            : Color.gray.opacity(0.4),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+                    .shadow(
+                        color: canAdvance
+                            ? (payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple).opacity(0.3)
+                            : Color.clear,
+                        radius: 8,
+                        y: 3
+                    )
+            }
+            .disabled(!canAdvance)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .shadow(color: Color.black.opacity(0.12), radius: 16, y: -4)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8)
+        )
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
+    }
+
+    private var ambientBackground: some View {
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+
+            Circle()
+                .fill((payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple).opacity(0.08))
+                .frame(width: 320, height: 320)
+                .blur(radius: 80)
+                .offset(x: -120, y: -200)
+
+            Circle()
+                .fill(MedxTheme.cyanAccent.opacity(0.05))
+                .frame(width: 350, height: 350)
+                .blur(radius: 90)
+                .offset(x: 120, y: 300)
+        }
+        .ignoresSafeArea()
     }
 
     private func handlePickOption(question: Question, chosenId: Int) {
@@ -365,7 +447,7 @@ public struct QuizRunnerView: View {
                 let token = try await AuthService.shared.getValidIdToken()
                 try await FirestoreService.shared.saveAttempt(attempt, idToken: token)
             } catch {
-                // Saved locally if network fails
+                // Saved locally
             }
         }
     }

@@ -33,76 +33,57 @@ public struct QBankSubjectListView: View {
     }
 
     public var body: some View {
-        List {
+        ZStack {
+            // Ambient Canvas
+            ambientBackground
+
             if isLoading {
-                Section {
-                    HStack {
-                        Spacer()
-                        ProgressView("Loading Question Bank...")
-                        Spacer()
-                    }
-                    .listRowBackground(Color.clear)
-                }
+                ProgressView("Loading Question Bank…")
+                    .controlSize(.large)
             } else {
-                // Summary
-                Section {
-                    let totalQ = subjects.reduce(0) { $0 + ($1.questionCount ?? 0) }
-                    Text("\(totalQ.formatted()) questions · \(subjects.count) subjects")
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                }
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // Summary Stats Card
+                        let totalQ = subjects.reduce(0) { $0 + ($1.questionCount ?? 0) }
+                        let totalModules = subjects.reduce(0) { $0 + $1.moduleCount }
 
-                // Subject List
-                Section {
-                    ForEach(filteredSubjects) { subject in
-                        NavigationLink {
-                            QBankChapterView(
-                                subject: subject,
-                                attempts: attempts
-                            ) { module, mode in
-                                startSession(moduleId: module.id, subjectName: subject.name, moduleName: module.name, mode: mode)
-                            }
-                        } label: {
-                            HStack(spacing: 14) {
-                                Image(systemName: "book.closed.fill")
-                                    .font(.title3)
-                                    .foregroundColor(.accentColor)
-                                    .frame(width: 32)
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(subject.name)
-                                        .font(.headline)
-
-                                    Text("\(subject.moduleCount) modules · \((subject.questionCount ?? 0).formatted()) questions")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-
-                                Spacer()
-
-                                let attempted = attemptedSubjectsCount[subject.subjectId] ?? 0
-                                if attempted > 0 {
-                                    Text("\(attempted)")
-                                        .font(.caption.bold())
-                                        .foregroundColor(.green)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 3)
-                                        .background(Color.green.opacity(0.12))
-                                        .clipShape(Capsule())
-                                }
-                            }
-                            .padding(.vertical, 4)
+                        HStack(spacing: 14) {
+                            statPill(icon: "books.vertical.fill", value: "\(subjects.count)", label: "subjects", color: MedxTheme.primaryBlue)
+                            statPill(icon: "square.grid.2x2.fill", value: "\(totalModules)", label: "modules", color: MedxTheme.primaryPurple)
+                            statPill(icon: "questionmark.circle.fill", value: totalQ.formatted(), label: "questions", color: MedxTheme.cyanAccent)
+                            Spacer()
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 6)
+
+                        // Subjects List
+                        LazyVStack(spacing: 12) {
+                            ForEach(filteredSubjects) { subject in
+                                NavigationLink {
+                                    QBankChapterView(
+                                        subject: subject,
+                                        attempts: attempts
+                                    ) { module, mode in
+                                        startSession(moduleId: module.id, subjectName: subject.name, moduleName: module.name, mode: mode)
+                                    }
+                                } label: {
+                                    subjectRow(subject)
+                                }
+                                .buttonStyle(BouncyButtonStyle())
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 90)
                     }
+                }
+                .refreshable {
+                    await loadData()
                 }
             }
         }
-        .listStyle(.insetGrouped)
         .navigationTitle("Question Bank")
-        .searchable(text: $searchText, prompt: "Search subjects")
-        .refreshable {
-            await loadData()
-        }
+        .navigationBarTitleDisplayMode(.large)
+        .searchable(text: $searchText, prompt: "Search subjects…")
         .task {
             await loadData()
         }
@@ -112,6 +93,101 @@ public struct QBankSubjectListView: View {
             }
         }
     }
+
+    // MARK: - Subject Row
+
+    private func subjectRow(_ subject: QBankSubject) -> some View {
+        HStack(spacing: 16) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [MedxTheme.primaryBlue.opacity(0.18), MedxTheme.cyanAccent.opacity(0.08)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 48, height: 48)
+
+                Image(systemName: "book.closed.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(MedxTheme.primaryBlue)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(subject.name)
+                    .font(MedxFont.headline(16))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+
+                Text("\(subject.moduleCount) modules · \((subject.questionCount ?? 0).formatted()) questions")
+                    .font(MedxFont.caption(12))
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            let attempted = attemptedSubjectsCount[subject.subjectId] ?? 0
+            if attempted > 0 {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 11))
+                    Text("\(attempted) done")
+                        .font(MedxFont.mono(11, weight: .bold))
+                }
+                .foregroundColor(MedxTheme.successGreen)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(MedxTheme.successGreen.opacity(0.12), in: Capsule())
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(Color(uiColor: .tertiaryLabel))
+        }
+        .padding(16)
+        .liquidGlassCard(cornerRadius: 20)
+    }
+
+    private func statPill(icon: String, value: String, label: String, color: Color) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(color)
+
+            Text(value)
+                .font(MedxFont.mono(12, weight: .bold))
+                .foregroundColor(.primary)
+
+            Text(label)
+                .font(MedxFont.caption(11))
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.08), in: Capsule())
+    }
+
+    private var ambientBackground: some View {
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+
+            Circle()
+                .fill(MedxTheme.primaryBlue.opacity(0.07))
+                .frame(width: 320, height: 320)
+                .blur(radius: 80)
+                .offset(x: 100, y: -200)
+
+            Circle()
+                .fill(MedxTheme.primaryPurple.opacity(0.06))
+                .frame(width: 360, height: 360)
+                .blur(radius: 90)
+                .offset(x: -120, y: 300)
+        }
+        .ignoresSafeArea()
+    }
+
+    // MARK: - Actions & Data
 
     private func loadData() async {
         guard let uid = authService.currentSession?.uid else { return }
@@ -138,23 +214,5 @@ public struct QBankSubjectListView: View {
             mode: mode,
             gradable: true
         )
-    }
-}
-
-public struct RunnerPayload: Identifiable, Hashable, Sendable {
-    public let id: String
-    public let kind: String // "qbank" or "test"
-    public let name: String
-    public let subject: String
-    public let mode: SittingMode
-    public let gradable: Bool
-
-    public init(kind: String, id: String, name: String, subject: String, mode: SittingMode, gradable: Bool = true) {
-        self.kind = kind
-        self.id = id
-        self.name = name
-        self.subject = subject
-        self.mode = mode
-        self.gradable = gradable
     }
 }

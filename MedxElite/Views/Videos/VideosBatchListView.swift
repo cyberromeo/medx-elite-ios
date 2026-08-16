@@ -60,10 +60,9 @@ public struct VideosBatchListView: View {
 
     public var body: some View {
         ZStack {
-            Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+            ambientBackground
 
             if isLoading {
-                // Skeleton loading
                 ScrollView {
                     VStack(spacing: 16) {
                         ForEach(0..<4, id: \.self) { _ in
@@ -146,7 +145,7 @@ public struct VideosBatchListView: View {
                     } label: {
                         subjectRow(subject)
                     }
-                    .buttonStyle(PlainButtonStyle())
+                    .buttonStyle(BouncyButtonStyle())
                 }
             }
             .padding(.horizontal, 20)
@@ -157,14 +156,19 @@ public struct VideosBatchListView: View {
 
     private func subjectRow(_ subject: VideoSubjectGroup) -> some View {
         HStack(spacing: 14) {
-            // Subject icon with gradient tint
             ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(MedxTheme.primaryBlue.opacity(0.1))
-                    .frame(width: 46, height: 46)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [MedxTheme.primaryBlue.opacity(0.2), MedxTheme.cyanAccent.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 48, height: 48)
 
                 Image(systemName: "play.rectangle.fill")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(MedxTheme.primaryBlue)
             }
 
@@ -195,10 +199,8 @@ public struct VideosBatchListView: View {
                 .foregroundColor(Color(uiColor: .tertiaryLabel))
         }
         .padding(14)
-        .liquidGlassCard(cornerRadius: 16)
+        .liquidGlassCard(cornerRadius: 18, glowColor: MedxTheme.primaryBlue)
     }
-
-    // MARK: - Stat Pill
 
     private func statPill(icon: String, value: String, label: String, color: Color) -> some View {
         HStack(spacing: 6) {
@@ -207,15 +209,13 @@ public struct VideosBatchListView: View {
                 .foregroundColor(color)
 
             Text("\(value) \(label)")
-                .font(MedxFont.label(12))
+                .font(MedxFont.mono(12, weight: .bold))
                 .foregroundColor(.secondary)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(color.opacity(0.08), in: Capsule())
     }
-
-    // MARK: - Skeleton
 
     private var skeletonCard: some View {
         HStack(spacing: 14) {
@@ -237,11 +237,28 @@ public struct VideosBatchListView: View {
             Spacer()
         }
         .padding(16)
-        .liquidGlassCard(cornerRadius: 16)
+        .liquidGlassCard(cornerRadius: 18)
         .redacted(reason: .placeholder)
     }
 
-    // MARK: - Computed
+    private var ambientBackground: some View {
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+
+            Circle()
+                .fill(MedxTheme.primaryBlue.opacity(0.07))
+                .frame(width: 320, height: 320)
+                .blur(radius: 80)
+                .offset(x: -120, y: -200)
+
+            Circle()
+                .fill(MedxTheme.cyanAccent.opacity(0.05))
+                .frame(width: 350, height: 350)
+                .blur(radius: 90)
+                .offset(x: 100, y: 350)
+        }
+        .ignoresSafeArea()
+    }
 
     private var totalDurationFormatted: String {
         let total = videos.compactMap { $0.durationSeconds }.reduce(0, +)
@@ -250,8 +267,6 @@ public struct VideosBatchListView: View {
         if hours > 0 { return "\(hours)h \(minutes)m" }
         return "\(minutes)m"
     }
-
-    // MARK: - Data
 
     private func loadVideos() async {
         do {
