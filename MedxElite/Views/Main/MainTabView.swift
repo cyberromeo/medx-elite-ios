@@ -7,45 +7,36 @@ public struct MainTabView: View {
 
     public var body: some View {
         TabView(selection: $selectedTab) {
-            NavigationStack {
-                HomeView()
+            Tab(TabItem.home.rawValue, systemImage: "house.fill", value: .home) {
+                NavigationStack {
+                    HomeView()
+                }
             }
-            .tabItem {
-                Label(TabItem.home.rawValue, systemImage: "house.fill")
-            }
-            .tag(TabItem.home)
 
-            NavigationStack {
-                QBankSubjectListView()
+            Tab(TabItem.qbank.rawValue, systemImage: "books.vertical.fill", value: .qbank) {
+                NavigationStack {
+                    QBankSubjectListView()
+                }
             }
-            .tabItem {
-                Label(TabItem.qbank.rawValue, systemImage: "books.vertical.fill")
-            }
-            .tag(TabItem.qbank)
 
-            NavigationStack {
-                TestsListView()
+            Tab(TabItem.tests.rawValue, systemImage: "checkmark.seal.fill", value: .tests) {
+                NavigationStack {
+                    TestsListView()
+                }
             }
-            .tabItem {
-                Label(TabItem.tests.rawValue, systemImage: "checkmark.seal.fill")
-            }
-            .tag(TabItem.tests)
 
-            NavigationStack {
-                FlashcardsSubjectListView()
+            Tab(TabItem.flashcards.rawValue, systemImage: "sparkles.rectangle.stack.fill", value: .flashcards) {
+                NavigationStack {
+                    FlashcardsSubjectListView()
+                }
             }
-            .tabItem {
-                Label(TabItem.flashcards.rawValue, systemImage: "sparkles.rectangle.stack.fill")
-            }
-            .tag(TabItem.flashcards)
 
-            NavigationStack {
-                VideosBatchListView()
+            Tab(TabItem.videos.rawValue, systemImage: "play.tv.fill", value: .videos) {
+                NavigationStack {
+                    VideosBatchListView()
+                }
             }
-            .tabItem {
-                Label(TabItem.videos.rawValue, systemImage: "play.tv.fill")
-            }
-            .tag(TabItem.videos)
         }
+        .tabViewStyle(.sidebarAdaptable)
     }
 }

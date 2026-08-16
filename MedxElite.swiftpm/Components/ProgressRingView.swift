@@ -11,6 +11,8 @@ public struct ProgressRingView: View {
     )
     public var centerContent: AnyView?
 
+    @State private var animatedProgress: Double = 0
+
     public init(
         progress: Double,
         strokeWidth: CGFloat = 10,
@@ -34,24 +36,46 @@ public struct ProgressRingView: View {
             // Background track
             Circle()
                 .stroke(
-                    Color.primary.opacity(0.08),
+                    Color.primary.opacity(0.06),
                     style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round)
                 )
 
-            // Animated progress
+            // Animated progress arc
             Circle()
-                .trim(from: 0, to: CGFloat(progress))
+                .trim(from: 0, to: CGFloat(animatedProgress))
                 .stroke(
                     gradient,
                     style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-                .animation(.spring(response: 0.8, dampingFraction: 0.7), value: progress)
+
+            // Glow effect at the leading edge
+            if animatedProgress > 0.02 {
+                Circle()
+                    .trim(from: max(0, CGFloat(animatedProgress) - 0.01), to: CGFloat(animatedProgress))
+                    .stroke(
+                        gradient,
+                        style: StrokeStyle(lineWidth: strokeWidth + 4, lineCap: .round)
+                    )
+                    .blur(radius: 4)
+                    .opacity(0.4)
+                    .rotationEffect(.degrees(-90))
+            }
 
             if let center = centerContent {
                 center
             }
         }
         .frame(width: size, height: size)
+        .onAppear {
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.75).delay(0.2)) {
+                animatedProgress = progress
+            }
+        }
+        .onChange(of: progress) { _, newValue in
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                animatedProgress = newValue
+            }
+        }
     }
 }

@@ -27,7 +27,7 @@ public extension Color {
 }
 
 public enum MedxTheme {
-    // Dynamic brand accents
+    // MARK: - Brand Accents (iOS Dynamic Colors)
     public static let primaryBlue = Color(hex: "#0A84FF")
     public static let primaryPurple = Color(hex: "#BF5AF2")
     public static let primaryPink = Color(hex: "#FF375F")
@@ -36,20 +36,59 @@ public enum MedxTheme {
     public static let destructiveRed = Color(hex: "#FF453A")
     public static let cyanAccent = Color(hex: "#64D2FF")
     public static let indigoAccent = Color(hex: "#5E5CE6")
+    public static let mintAccent = Color(hex: "#63E6BE")
+    public static let tealAccent = Color(hex: "#5AC8FA")
 
-    // Dynamic backgrounds
+    // MARK: - Semantic Backgrounds (System Dynamic)
     public static let background = Color(uiColor: .systemBackground)
     public static let secondaryBackground = Color(uiColor: .secondarySystemBackground)
     public static let tertiaryBackground = Color(uiColor: .tertiarySystemBackground)
     public static let groupedBackground = Color(uiColor: .systemGroupedBackground)
 
-    // Glass gradients
+    // MARK: - Semantic Card Fills
+    /// Adaptive card fill for grouped content
+    public static let cardFill = Color(uiColor: .secondarySystemGroupedBackground)
+    /// Elevated card fill for floating elements
+    public static let elevatedFill = Color(uiColor: .tertiarySystemBackground)
+    /// Subtle separator
+    public static let separator = Color(uiColor: .separator)
+
+    // MARK: - Vibrant Label Colors
+    public static let vibrancyPrimary = Color(uiColor: .label)
+    public static let vibrancySecondary = Color(uiColor: .secondaryLabel)
+    public static let vibrancyTertiary = Color(uiColor: .tertiaryLabel)
+    public static let vibrancyQuaternary = Color(uiColor: .quaternaryLabel)
+
+    // MARK: - Premium Gradients
     public static let auroraGradient = LinearGradient(
-        colors: [Color(hex: "#0A84FF").opacity(0.8), Color(hex: "#BF5AF2").opacity(0.8), Color(hex: "#FF375F").opacity(0.8)],
+        colors: [
+            Color(hex: "#0A84FF").opacity(0.85),
+            Color(hex: "#BF5AF2").opacity(0.85),
+            Color(hex: "#FF375F").opacity(0.85)
+        ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
+    public static let oceanGradient = LinearGradient(
+        colors: [Color(hex: "#0A84FF"), Color(hex: "#5AC8FA"), Color(hex: "#64D2FF")],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    public static let sunsetGradient = LinearGradient(
+        colors: [Color(hex: "#FF9F0A"), Color(hex: "#FF375F"), Color(hex: "#BF5AF2")],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    public static let emeraldGradient = LinearGradient(
+        colors: [Color(hex: "#30D158"), Color(hex: "#63E6BE"), Color(hex: "#5AC8FA")],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    // MARK: - Card Glass Gradients
     public static let cardGlassGradient = LinearGradient(
         colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
         startPoint: .topLeading,
@@ -61,4 +100,18 @@ public enum MedxTheme {
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
+
+    // MARK: - Shadow Presets
+    public enum Shadow {
+        /// Subtle shadow — elevation 1
+        public static let subtle = (color: Color.black.opacity(0.06), radius: CGFloat(4), y: CGFloat(2))
+        /// Medium shadow — elevation 2
+        public static let medium = (color: Color.black.opacity(0.10), radius: CGFloat(10), y: CGFloat(4))
+        /// Prominent shadow — elevation 3
+        public static let prominent = (color: Color.black.opacity(0.16), radius: CGFloat(20), y: CGFloat(8))
+        /// Colored shadow for accented elements
+        public static func colored(_ color: Color) -> (color: Color, radius: CGFloat, y: CGFloat) {
+            (color: color.opacity(0.35), radius: 16, y: 6)
+        }
+    }
 }

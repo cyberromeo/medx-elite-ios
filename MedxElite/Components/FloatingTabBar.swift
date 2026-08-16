@@ -42,22 +42,24 @@ public struct FloatingTabBar: View {
                         ZStack {
                             if isSelected {
                                 Capsule()
-                                    .fill(MedxTheme.primaryBlue.opacity(0.18))
+                                    .fill(MedxTheme.primaryBlue.opacity(0.15))
                                     .matchedGeometryEffect(id: "TabPill", in: animationNamespace)
                                     .frame(height: 36)
                             }
                             Image(systemName: tab.icon)
                                 .font(.system(size: 18, weight: isSelected ? .bold : .medium))
                                 .foregroundColor(isSelected ? MedxTheme.primaryBlue : .secondary)
+                                .symbolEffect(.bounce.down, value: isSelected)
                         }
                         .frame(maxWidth: .infinity)
 
                         Text(tab.rawValue)
-                            .font(MedxFont.rounded(10, weight: isSelected ? .bold : .medium))
+                            .font(MedxFont.label(10))
                             .foregroundColor(isSelected ? MedxTheme.primaryBlue : .secondary)
                     }
                 }
                 .buttonStyle(PlainButtonStyle())
+                .sensoryFeedback(.selection, trigger: selectedTab)
             }
         }
         .padding(.horizontal, 14)

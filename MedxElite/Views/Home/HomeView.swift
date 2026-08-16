@@ -7,6 +7,7 @@ public struct HomeView: View {
     @State private var isLoading = true
     @State private var showSettings = false
     @State private var showTrackerSheet = false
+    @State private var hasAppeared = false
 
     public init() {}
 
@@ -19,90 +20,43 @@ public struct HomeView: View {
     }
 
     public var body: some View {
-        List {
-            // Greeting header
-            Section {
-                HStack(alignment: .center) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(greetingText),")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+        ScrollView {
+            LazyVStack(spacing: 20) {
+                // MARK: - Greeting Header
+                greetingHeader
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .opacity(hasAppeared ? 1 : 0)
+                    .offset(y: hasAppeared ? 0 : 10)
 
-                        if let profile = authService.currentProfile {
-                            Text(profile.displayName)
-                                .font(.system(.title, design: .rounded, weight: .bold))
-                                .foregroundStyle(profile.gradient)
-                        }
-                    }
-
-                    Spacer()
-
-                    Button {
-                        showSettings = true
-                    } label: {
-                        if let profile = authService.currentProfile {
-                            ZStack {
-                                Circle()
-                                    .fill(profile.gradient)
-                                    .frame(width: 40, height: 40)
-                                Text(String(profile.displayName.prefix(1)))
-                                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white)
-                            }
-                        } else {
-                            Image(systemName: "person.crop.circle.fill")
-                                .font(.title)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
-            }
-
-            // Countdown
-            Section {
+                // MARK: - Countdown Widget
                 CountdownWidgetView()
-                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                    .listRowBackground(Color.clear)
-            }
+                    .padding(.horizontal, 20)
+                    .opacity(hasAppeared ? 1 : 0)
+                    .offset(y: hasAppeared ? 0 : 15)
 
-            // Syllabus Tracker
-            Section {
-                Button {
-                    showTrackerSheet = true
-                } label: {
-                    Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Syllabus Checklist Matrix")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            Text("Track videos, revision cycles & PYQs")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    } icon: {
-                        Image(systemName: "list.clipboard.fill")
-                            .foregroundColor(.accentColor)
-                    }
-                }
-            }
+                // MARK: - Syllabus Tracker
+                syllabusTrackerCard
+                    .padding(.horizontal, 20)
+                    .opacity(hasAppeared ? 1 : 0)
+                    .offset(y: hasAppeared ? 0 : 20)
 
-            // QBank Progress
-            Section {
+                // MARK: - QBank Progress
                 QBankProgressCard(attempts: attempts) {}
-                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                    .listRowBackground(Color.clear)
-            }
+                    .padding(.horizontal, 20)
+                    .opacity(hasAppeared ? 1 : 0)
+                    .offset(y: hasAppeared ? 0 : 25)
 
-            // Question of the Day
-            Section {
+                // MARK: - Question of the Day
                 QuestionOfTheDayCard()
-                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                    .listRowBackground(Color.clear)
+                    .padding(.horizontal, 20)
+                    .opacity(hasAppeared ? 1 : 0)
+                    .offset(y: hasAppeared ? 0 : 30)
+
+                Spacer(minLength: 40)
             }
         }
-        .listStyle(.insetGrouped)
+        .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle("Home")
         .refreshable {
             await loadHomeData()
@@ -115,10 +69,98 @@ public struct HomeView: View {
                 SyllabusTrackerSheet(uid: uid, trackerDoc: $trackerDoc)
             }
         }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                profileButton
+            }
+        }
         .task {
             await loadHomeData()
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                hasAppeared = true
+            }
         }
     }
+
+    // MARK: - Greeting Header
+
+    private var greetingHeader: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(greetingText),")
+                .font(MedxFont.body(16))
+                .foregroundColor(.secondary)
+
+            if let profile = authService.currentProfile {
+                Text(profile.displayName)
+                    .font(MedxFont.hero(32))
+                    .foregroundStyle(profile.gradient)
+                    .contentTransition(.numericText())
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Profile Button
+
+    private var profileButton: some View {
+        Button {
+            showSettings = true
+        } label: {
+            if let profile = authService.currentProfile {
+                ZStack {
+                    Circle()
+                        .fill(profile.gradient)
+                        .frame(width: 34, height: 34)
+                    Text(String(profile.displayName.prefix(1)))
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+            } else {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.title3)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    // MARK: - Syllabus Tracker Card
+
+    private var syllabusTrackerCard: some View {
+        Button {
+            showTrackerSheet = true
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(MedxTheme.primaryBlue.opacity(0.12))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "list.clipboard.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(MedxTheme.primaryBlue)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Syllabus Checklist Matrix")
+                        .font(MedxFont.headline(16))
+                        .foregroundColor(.primary)
+                    Text("Track videos, revision cycles & PYQs")
+                        .font(MedxFont.caption(13))
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondary.opacity(0.5))
+            }
+            .padding(16)
+            .liquidGlassCard(cornerRadius: 18)
+        }
+        .buttonStyle(BouncyButtonStyle())
+    }
+
+    // MARK: - Data Loading
 
     private func loadHomeData() async {
         guard let uid = authService.currentSession?.uid else { return }

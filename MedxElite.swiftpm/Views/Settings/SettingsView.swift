@@ -5,6 +5,7 @@ public struct SettingsView: View {
     @State private var showSignOutConfirm = false
     @State private var showForgetCachedConfirm = false
     @State private var cacheCleared = false
+    @State private var cacheSize: String = "Calculating…"
     @Environment(\.dismiss) private var dismiss
 
     public init() {}
@@ -12,90 +13,154 @@ public struct SettingsView: View {
     public var body: some View {
         NavigationStack {
             List {
-                // Current Profile
+                // MARK: - Current Profile
                 if let profile = authService.currentProfile {
                     Section {
-                        HStack(spacing: 14) {
+                        HStack(spacing: 16) {
                             ZStack {
+                                Circle()
+                                    .strokeBorder(profile.gradient, lineWidth: 2)
+                                    .frame(width: 64, height: 64)
+
                                 Circle()
                                     .fill(profile.gradient)
                                     .frame(width: 56, height: 56)
+
                                 Text(String(profile.displayName.prefix(1)))
                                     .font(.system(size: 24, weight: .bold, design: .rounded))
                                     .foregroundColor(.white)
                             }
 
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: 3) {
                                 Text(profile.displayName)
-                                    .font(.headline)
+                                    .font(MedxFont.headline(18))
                                 Text("@\(profile.handle)")
-                                    .font(.subheadline)
+                                    .font(MedxFont.caption(14))
                                     .foregroundColor(.secondary)
                                 Text(profile.email)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .font(MedxFont.caption(12))
+                                    .foregroundColor(.tertiaryLabel)
                             }
                         }
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 6)
                     }
                 }
 
-                // Actions
-                Section {
+                // MARK: - Storage
+                Section("Storage") {
+                    HStack {
+                        Label {
+                            Text("Offline Cache")
+                                .font(MedxFont.body(15))
+                        } icon: {
+                            Image(systemName: "internaldrive.fill")
+                                .foregroundColor(MedxTheme.primaryBlue)
+                        }
+                        Spacer()
+                        Text(cacheSize)
+                            .font(MedxFont.mono(13))
+                            .foregroundColor(.secondary)
+                    }
+
                     Button {
                         Task {
                             await CacheManager.shared.clearAll()
                             HapticManager.success()
                             withAnimation {
                                 cacheCleared = true
+                                cacheSize = "0 KB"
                             }
                         }
                     } label: {
                         HStack {
-                            Label("Clear Offline Cache", systemImage: "trash")
+                            Label {
+                                Text("Clear Cache")
+                                    .font(MedxFont.body(15))
+                            } icon: {
+                                Image(systemName: "trash")
+                                    .foregroundColor(MedxTheme.warningOrange)
+                            }
                             Spacer()
                             if cacheCleared {
-                                Text("Cleared")
-                                    .font(.caption.bold())
-                                    .foregroundColor(.green)
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(MedxTheme.successGreen)
+                                    .transition(.scale.combined(with: .opacity))
                             }
                         }
                     }
+                }
 
+                // MARK: - Account Actions
+                Section("Account") {
                     Button(role: .destructive) {
                         showSignOutConfirm = true
                     } label: {
-                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                        Label {
+                            Text("Sign Out")
+                                .font(MedxFont.body(15))
+                        } icon: {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .foregroundColor(MedxTheme.destructiveRed)
+                        }
                     }
 
                     if let profile = authService.currentProfile, authService.hasSavedPassword(for: profile.id) {
                         Button(role: .destructive) {
                             showForgetCachedConfirm = true
                         } label: {
-                            Label("Sign Out & Forget Password", systemImage: "key.slash")
+                            Label {
+                                Text("Sign Out & Forget Password")
+                                    .font(MedxFont.body(15))
+                            } icon: {
+                                Image(systemName: "key.slash")
+                                    .foregroundColor(MedxTheme.destructiveRed)
+                            }
                         }
                     }
                 }
 
-                // App Info
+                // MARK: - App Info
                 Section {
                     HStack {
-                        Text("Version")
+                        Label {
+                            Text("Version")
+                                .font(MedxFont.body(15))
+                        } icon: {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundColor(MedxTheme.cyanAccent)
+                        }
                         Spacer()
                         Text("1.0.0")
+                            .font(MedxFont.mono(13))
+                            .foregroundColor(.secondary)
+                    }
+
+                    HStack {
+                        Label {
+                            Text("Platform")
+                                .font(MedxFont.body(15))
+                        } icon: {
+                            Image(systemName: "swift")
+                                .foregroundColor(MedxTheme.warningOrange)
+                        }
+                        Spacer()
+                        Text("Swift Native")
+                            .font(MedxFont.caption(13))
                             .foregroundColor(.secondary)
                     }
                 } footer: {
-                    Text("Medx-elite for iOS · Swift Native")
+                    Text("MedX Elite · Built with SwiftUI")
+                        .font(MedxFont.caption(11))
                 }
             }
             .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
+                    .font(MedxFont.headline(16))
                 }
             }
             .confirmationDialog("Sign Out?", isPresented: $showSignOutConfirm) {
@@ -119,5 +184,8 @@ public struct SettingsView: View {
                 Text("This will remove your saved password from this device's Keychain.")
             }
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(28)
     }
 }

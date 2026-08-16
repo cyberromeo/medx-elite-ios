@@ -44,28 +44,42 @@ public struct ModernButton: View {
                 if isBusy {
                     ProgressView()
                         .tint(.white)
+                        .controlSize(.small)
+                    Text("Loading…")
+                        .font(MedxFont.headline(16))
                 } else {
                     if let ic = icon {
                         Image(systemName: ic)
-                            .font(.headline)
+                            .font(.system(size: 15, weight: .bold))
+                            .symbolEffect(.bounce, value: isBusy)
                     }
                     Text(title)
-                        .font(MedxFont.rounded(16, weight: .bold))
+                        .font(MedxFont.headline(16))
                 }
             }
             .foregroundColor(.white)
             .frame(maxWidth: .infinity)
             .frame(height: height)
-            .background(gradient)
+            .background(
+                isBusy ? AnyShapeStyle(Color.secondary.opacity(0.4)) : AnyShapeStyle(gradient)
+            )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .shadow(color: Color.blue.opacity(0.35), radius: 12, x: 0, y: 6)
+            .shadow(
+                color: isBusy ? .clear : MedxTheme.primaryBlue.opacity(0.3),
+                radius: 12,
+                x: 0,
+                y: 6
+            )
         }
         .disabled(isBusy)
         .buttonStyle(BouncyButtonStyle())
+        .sensoryFeedback(.impact(weight: .medium), trigger: isBusy)
     }
 }
 
 public struct BouncyButtonStyle: ButtonStyle {
+    public init() {}
+
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
