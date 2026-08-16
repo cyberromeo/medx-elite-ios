@@ -11,75 +11,78 @@ public struct CountdownWidgetView: View {
         TimelineView(.periodic(from: Date(), by: 1.0)) { context in
             let remaining = computeRemaining(at: context.date)
 
-            VStack(alignment: .leading, spacing: 14) {
-                // Header
-                HStack {
+            VStack(spacing: 14) {
+                // Header Bar
+                HStack(alignment: .center) {
                     HStack(spacing: 6) {
                         Circle()
                             .fill(MedxTheme.primaryPink)
-                            .frame(width: 8, height: 8)
-                            .shadow(color: MedxTheme.primaryPink.opacity(0.5), radius: 4)
+                            .frame(width: 7, height: 7)
+                            .shadow(color: MedxTheme.primaryPink.opacity(0.6), radius: 3)
 
-                        Text("FMGE · 9 JANUARY 2027")
-                            .font(MedxFont.condensed(12, weight: .bold))
+                        Text("FMGE · 9 JAN 2027")
+                            .font(MedxFont.mono(11, weight: .bold))
                             .foregroundColor(MedxTheme.primaryPink)
-                            .tracking(1.2)
+                            .tracking(0.8)
                     }
+
                     Spacer()
+
                     Text("\(remaining.weeks) weeks left")
-                        .font(MedxFont.label(13))
+                        .font(MedxFont.mono(11, weight: .semibold))
                         .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.primary.opacity(0.04))
+                        .clipShape(Capsule())
                 }
 
-                // Main countdown
-                HStack(alignment: .lastTextBaseline, spacing: 8) {
-                    Text("\(remaining.days)")
-                        .font(MedxFont.hero(48))
-                        .monospacedDigit()
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.primary, .primary.opacity(0.75)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .contentTransition(.numericText())
-                        .animation(.snappy, value: remaining.days)
+                // Countdown Cards Grid (4 responsive columns)
+                HStack(spacing: 8) {
+                    CountdownUnitCard(
+                        value: remaining.days,
+                        unit: "DAYS",
+                        isPrimary: true
+                    )
 
-                    Text("days to go")
-                        .font(MedxFont.headline(16))
-                        .foregroundColor(.secondary)
-                        .padding(.bottom, 6)
+                    CountdownUnitCard(
+                        value: remaining.hours,
+                        unit: "HRS",
+                        isPrimary: false
+                    )
 
-                    Spacer()
+                    CountdownUnitCard(
+                        value: remaining.minutes,
+                        unit: "MINS",
+                        isPrimary: false
+                    )
 
-                    // Live clock pills
-                    HStack(spacing: 4) {
-                        ClockPill(value: remaining.hours, unit: "h")
-                        Text(":").font(.system(size: 14, weight: .bold)).foregroundColor(Color(uiColor: .quaternaryLabel))
-                        ClockPill(value: remaining.minutes, unit: "m")
-                        Text(":").font(.system(size: 14, weight: .bold)).foregroundColor(Color(uiColor: .quaternaryLabel))
-                        ClockPill(value: remaining.seconds, unit: "s")
-                    }
-                    .padding(.bottom, 6)
+                    CountdownUnitCard(
+                        value: remaining.seconds,
+                        unit: "SECS",
+                        isPrimary: false
+                    )
                 }
             }
-            .padding(20)
+            .padding(16)
             .background(
                 ZStack {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .fill(Color(uiColor: .secondarySystemGroupedBackground))
 
-                    // Subtle gradient accent
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .fill(
                             LinearGradient(
-                                colors: [MedxTheme.primaryPink.opacity(0.04), .clear],
+                                colors: [MedxTheme.primaryPink.opacity(0.05), .clear],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
                 }
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(MedxTheme.primaryPink.opacity(0.12), lineWidth: 0.8)
             )
             .shadow(
                 color: MedxTheme.Shadow.subtle.color,
@@ -111,27 +114,35 @@ private struct TimeRemaining: Equatable {
     static let zero = TimeRemaining(days: 0, hours: 0, minutes: 0, seconds: 0, weeks: 0)
 }
 
-private struct ClockPill: View {
+private struct CountdownUnitCard: View {
     let value: Int
     let unit: String
+    let isPrimary: Bool
 
     var body: some View {
-        HStack(spacing: 2) {
-            Text(String(format: "%02d", value))
-                .font(MedxFont.mono(14, weight: .bold))
-                .foregroundColor(.primary)
+        VStack(spacing: 3) {
+            Text(isPrimary ? "\(value)" : String(format: "%02d", value))
+                .font(isPrimary ? MedxFont.mono(24, weight: .bold) : MedxFont.mono(20, weight: .bold))
+                .foregroundColor(isPrimary ? .primary : .secondary)
                 .contentTransition(.numericText())
                 .animation(.snappy, value: value)
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
 
             Text(unit)
-                .font(MedxFont.label(11))
-                .foregroundColor(.secondary)
+                .font(MedxFont.mono(9, weight: .bold))
+                .foregroundColor(isPrimary ? MedxTheme.primaryPink : .secondary.opacity(0.7))
+                .tracking(0.5)
         }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(Color.primary.opacity(0.05))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(isPrimary ? MedxTheme.primaryPink.opacity(0.08) : Color.primary.opacity(0.03))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(isPrimary ? MedxTheme.primaryPink.opacity(0.2) : Color.clear, lineWidth: 1)
         )
     }
 }
