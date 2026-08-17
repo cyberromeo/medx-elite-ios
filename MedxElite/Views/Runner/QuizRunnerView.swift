@@ -213,102 +213,75 @@ public struct QuizRunnerView: View {
     // MARK: - Top Glass HUD
 
     private func topHUD(question: Question) -> some View {
-        HStack(alignment: .center) {
+        HStack(spacing: 12) {
             Button {
                 showExitAlert = true
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.secondary)
-                    .frame(width: 36, height: 36)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8))
+                    .font(.subheadline.weight(.bold))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close sitting")
+            .accessibilityHint("Shows options to leave this sitting")
 
-            Spacer()
-
-            Text("\(currentIndex + 1) / \(questions.count)")
-                .font(MedxFont.mono(15, weight: .bold))
-                .foregroundColor(.primary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8))
-
-            Spacer()
-
-            HStack(spacing: 4) {
-                Image(systemName: "timer")
-                    .font(.system(size: 11, weight: .semibold))
-                Text(formatTime(remainingSeconds))
-                    .font(MedxFont.mono(13, weight: .bold))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(payload.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                Text("Question \(currentIndex + 1) of \(questions.count)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-            .foregroundColor(remainingSeconds <= 10 ? MedxTheme.destructiveRed : .primary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                (remainingSeconds <= 10 ? MedxTheme.destructiveRed.opacity(0.15) : Color.primary.opacity(0.06)),
-                in: Capsule()
-            )
-            .overlay(
-                Capsule().strokeBorder(
-                    remainingSeconds <= 10 ? MedxTheme.destructiveRed.opacity(0.4) : Color.white.opacity(0.12),
-                    lineWidth: 0.8
-                )
-            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Label(formatTime(remainingSeconds), systemImage: "timer")
+                .font(.subheadline.monospacedDigit().weight(.semibold))
+                .foregroundStyle(remainingSeconds <= 10 ? MedxTheme.destructiveRed : .primary)
+                .padding(.horizontal, 10)
+                .frame(minHeight: 36)
+                .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
+                .accessibilityLabel("Time remaining")
+                .accessibilityValue(formatTime(remainingSeconds))
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .shadow(color: Color.black.opacity(0.06), radius: 10, y: 3)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.15), lineWidth: 0.8)
-        )
+        .padding(.vertical, 6)
+        .background(.bar)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
     }
 
     // MARK: - Bottom Floating Bar
 
     private func bottomBar(question: Question, isRevealed: Bool) -> some View {
-        HStack(spacing: 14) {
-            // Back Button
+        let isLast = currentIndex + 1 >= questions.count
+        let canAdvance = payload.mode == .exam || isRevealed
+
+        HStack(spacing: 12) {
             Button {
-                if currentIndex > 0 {
-                    HapticManager.light()
-                    currentIndex -= 1
-                    resetTimerForQuestion()
-                }
+                HapticManager.light()
+                currentIndex -= 1
+                resetTimerForQuestion()
             } label: {
-                Text("Back")
-                    .font(MedxFont.headline(15))
-                    .foregroundColor(currentIndex > 0 ? .primary : .secondary.opacity(0.4))
-                    .frame(height: 48)
-                    .padding(.horizontal, 18)
-                    .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                Label("Back", systemImage: "chevron.left")
+                    .labelStyle(.titleAndIcon)
+                    .frame(minHeight: 44)
             }
+            .buttonStyle(.bordered)
             .disabled(currentIndex == 0)
 
-            // Exam Skip Button
             if payload.mode == .exam && responses[question.id] == nil {
                 Button {
                     HapticManager.light()
                     nextQuestion()
                 } label: {
                     Text("Skip")
-                        .font(MedxFont.headline(15))
-                        .foregroundColor(.secondary)
-                        .frame(height: 48)
-                        .padding(.horizontal, 18)
-                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .frame(minHeight: 44)
                 }
+                .buttonStyle(.bordered)
             }
-
-            // Next / Finish Button
-            let isLast = currentIndex + 1 >= questions.count
-            let canAdvance = payload.mode == .exam || isRevealed
 
             Button {
                 HapticManager.medium()
@@ -318,59 +291,26 @@ public struct QuizRunnerView: View {
                     nextQuestion()
                 }
             } label: {
-                Text(isLast ? "Finish Sitting" : "Next")
-                    .font(MedxFont.headline(15))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .background(
-                        canAdvance
-                            ? (payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple)
-                            : Color.gray.opacity(0.4),
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    )
-                    .shadow(
-                        color: canAdvance
-                            ? (payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple).opacity(0.3)
-                            : Color.clear,
-                        radius: 8,
-                        y: 3
-                    )
+                Text(isLast ? "Finish" : "Next")
+                    .frame(maxWidth: .infinity, minHeight: 44)
             }
+            .buttonStyle(.borderedProminent)
+            .tint(payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple)
             .disabled(!canAdvance)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .shadow(color: Color.black.opacity(0.12), radius: 16, y: -4)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.8)
-        )
         .padding(.horizontal, 16)
-        .padding(.bottom, 10)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .background(.bar)
+        .overlay(alignment: .top) {
+            Divider()
+        }
+        .safeAreaPadding(.bottom, 4)
     }
 
     private var ambientBackground: some View {
-        ZStack {
-            Color(uiColor: .systemGroupedBackground)
-
-            Circle()
-                .fill((payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple).opacity(0.08))
-                .frame(width: 320, height: 320)
-                .blur(radius: 80)
-                .offset(x: -120, y: -200)
-
-            Circle()
-                .fill(MedxTheme.cyanAccent.opacity(0.05))
-                .frame(width: 350, height: 350)
-                .blur(radius: 90)
-                .offset(x: 120, y: 300)
-        }
-        .ignoresSafeArea()
+        Color(uiColor: .systemGroupedBackground)
+            .ignoresSafeArea()
     }
 
     private func handlePickOption(question: Question, chosenId: Int) {

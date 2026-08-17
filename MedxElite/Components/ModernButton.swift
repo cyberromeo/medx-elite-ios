@@ -3,14 +3,10 @@ import SwiftUI
 public struct ModernButton: View {
     public let title: String
     public var icon: String?
-    public var gradient: LinearGradient = LinearGradient(
-        colors: [MedxTheme.primaryBlue, MedxTheme.cyanAccent],
-        startPoint: .leading,
-        endPoint: .trailing
-    )
-    public var height: CGFloat = 54
-    public var cornerRadius: CGFloat = 18
-    public var isBusy: Bool = false
+    public var gradient: LinearGradient
+    public var height: CGFloat
+    public var cornerRadius: CGFloat
+    public var isBusy: Bool
     public var action: () -> Void
 
     public init(
@@ -21,8 +17,8 @@ public struct ModernButton: View {
             startPoint: .leading,
             endPoint: .trailing
         ),
-        height: CGFloat = 54,
-        cornerRadius: CGFloat = 18,
+        height: CGFloat = 52,
+        cornerRadius: CGFloat = 14,
         isBusy: Bool = false,
         action: @escaping () -> Void
     ) {
@@ -36,54 +32,40 @@ public struct ModernButton: View {
     }
 
     public var body: some View {
-        Button(action: {
+        Button {
             HapticManager.medium()
             action()
-        }) {
-            HStack(spacing: 10) {
+        } label: {
+            Group {
                 if isBusy {
                     ProgressView()
-                        .tint(.white)
                         .controlSize(.small)
                     Text("Loading…")
-                        .font(MedxFont.headline(16))
+                } else if let icon {
+                    Label(title, systemImage: icon)
                 } else {
-                    if let ic = icon {
-                        Image(systemName: ic)
-                            .font(.system(size: 15, weight: .bold))
-                            .symbolEffect(.bounce, value: isBusy)
-                    }
                     Text(title)
-                        .font(MedxFont.headline(16))
                 }
             }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .frame(height: height)
-            .background(
-                isBusy ? AnyShapeStyle(Color.secondary.opacity(0.4)) : AnyShapeStyle(gradient)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .shadow(
-                color: isBusy ? .clear : MedxTheme.primaryBlue.opacity(0.3),
-                radius: 12,
-                x: 0,
-                y: 6
-            )
+            .font(.body.weight(.semibold))
+            .frame(maxWidth: .infinity, minHeight: max(height, 44))
         }
+        .buttonStyle(.borderedProminent)
+        .tint(MedxTheme.primaryBlue)
+        .controlSize(.large)
         .disabled(isBusy)
-        .buttonStyle(BouncyButtonStyle())
-        .sensoryFeedback(.impact(weight: .medium), trigger: isBusy)
+        .accessibilityHint(isBusy ? "Please wait" : "Activates this action")
     }
 }
 
+/// Compatibility style for existing call sites. It now uses a restrained
+/// native press response rather than a springy game-like animation.
 public struct BouncyButtonStyle: ButtonStyle {
     public init() {}
 
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
-            .opacity(configuration.isPressed ? 0.88 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+            .opacity(configuration.isPressed ? 0.72 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }

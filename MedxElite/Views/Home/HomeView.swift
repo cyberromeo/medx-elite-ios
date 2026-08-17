@@ -21,8 +21,8 @@ public struct HomeView: View {
 
     public var body: some View {
         ZStack {
-            // Ambient Fluid Background Mesh Canvas
-            ambientBackgroundCanvas
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea()
 
             ScrollView {
                 LazyVStack(spacing: 18) {
@@ -68,13 +68,9 @@ public struct HomeView: View {
                 }
             }
         }
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("Home")
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text("MedX Elite")
-                    .font(MedxFont.headline(16))
-                    .foregroundColor(.secondary.opacity(0.8))
-            }
             ToolbarItem(placement: .topBarTrailing) {
                 profileButton
             }
@@ -101,28 +97,8 @@ public struct HomeView: View {
     // MARK: - Ambient Fluid Background Canvas
 
     private var ambientBackgroundCanvas: some View {
-        ZStack {
-            Color(uiColor: .systemGroupedBackground)
-
-            Circle()
-                .fill(MedxTheme.primaryBlue.opacity(0.09))
-                .frame(width: 320, height: 320)
-                .blur(radius: 80)
-                .offset(x: -120, y: -200)
-
-            Circle()
-                .fill(MedxTheme.primaryPurple.opacity(0.07))
-                .frame(width: 380, height: 380)
-                .blur(radius: 90)
-                .offset(x: 140, y: 100)
-
-            Circle()
-                .fill(MedxTheme.cyanAccent.opacity(0.06))
-                .frame(width: 300, height: 300)
-                .blur(radius: 70)
-                .offset(x: -100, y: 450)
-        }
-        .ignoresSafeArea()
+        Color(uiColor: .systemGroupedBackground)
+            .ignoresSafeArea()
     }
 
     // MARK: - Greeting Hero Header (Native iOS Style)
@@ -137,13 +113,13 @@ public struct HomeView: View {
 
                 HStack(spacing: 6) {
                     Text(greetingText + ",")
-                        .font(MedxFont.title(24))
-                        .foregroundColor(.primary)
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.primary)
 
                     if let profile = authService.currentProfile {
                         Text(profile.displayName)
-                            .font(MedxFont.title(24))
-                            .foregroundStyle(profile.gradient)
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -160,25 +136,25 @@ public struct HomeView: View {
             showSettings = true
         } label: {
             if let profile = authService.currentProfile {
-                ZStack {
-                    Circle()
-                        .strokeBorder(profile.gradient, lineWidth: 1.5)
-                        .frame(width: 32, height: 32)
+                    ZStack {
+                        Circle()
+                            .fill(Color(uiColor: .tertiarySystemFill))
+                            .frame(width: 36, height: 36)
+                            .overlay(Circle().strokeBorder(Color(uiColor: .separator), lineWidth: 0.6))
 
-                    Circle()
-                        .fill(profile.gradient)
-                        .frame(width: 26, height: 26)
-
-                    Text(String(profile.displayName.prefix(1)))
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                }
+                        Text(String(profile.displayName.prefix(1)).uppercased())
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(profile.accentColor)
+                    }
             } else {
                 Image(systemName: "person.crop.circle.fill")
                     .font(.title3)
                     .foregroundColor(.secondary)
             }
         }
+        .frame(minWidth: 44, minHeight: 44)
+        .accessibilityLabel("Profile settings")
+        .accessibilityHint("Opens account and app settings")
     }
 
     // MARK: - Syllabus Tracker Card
@@ -215,7 +191,10 @@ public struct HomeView: View {
             .padding(16)
             .liquidGlassCard(cornerRadius: 20, glowColor: MedxTheme.primaryBlue)
         }
-        .buttonStyle(BouncyButtonStyle())
+        .buttonStyle(.plain)
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .accessibilityLabel("Open syllabus checklist")
+        .accessibilityHint("Tracks videos, revision cycles, and previous-year questions")
     }
 
     // MARK: - Data Loading

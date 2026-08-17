@@ -43,7 +43,7 @@ public struct FlashcardsSubjectListView: View {
                                 } label: {
                                     subjectRow(subject)
                                 }
-                                .buttonStyle(BouncyButtonStyle())
+                                .buttonStyle(.plain)
                             }
                         }
                         .padding(.horizontal, 20)
@@ -136,22 +136,8 @@ public struct FlashcardsSubjectListView: View {
     }
 
     private var ambientBackground: some View {
-        ZStack {
-            Color(uiColor: .systemGroupedBackground)
-
-            Circle()
-                .fill(MedxTheme.primaryPurple.opacity(0.07))
-                .frame(width: 320, height: 320)
-                .blur(radius: 80)
-                .offset(x: -100, y: -150)
-
-            Circle()
-                .fill(MedxTheme.primaryPink.opacity(0.05))
-                .frame(width: 350, height: 350)
-                .blur(radius: 90)
-                .offset(x: 120, y: 280)
-        }
-        .ignoresSafeArea()
+        Color(uiColor: .systemGroupedBackground)
+            .ignoresSafeArea()
     }
 
     private func loadFlashcards() async {

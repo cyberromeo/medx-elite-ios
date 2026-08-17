@@ -145,7 +145,7 @@ public struct VideosBatchListView: View {
                     } label: {
                         subjectRow(subject)
                     }
-                    .buttonStyle(BouncyButtonStyle())
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 20)
@@ -199,7 +199,8 @@ public struct VideosBatchListView: View {
                 .foregroundColor(Color(uiColor: .tertiaryLabel))
         }
         .padding(14)
-        .liquidGlassCard(cornerRadius: 18, glowColor: MedxTheme.primaryBlue)
+        .frame(minHeight: 68)
+        .liquidGlassCard(cornerRadius: 18)
     }
 
         private func statPill(icon: String, value: String, label: String, color: Color) -> some View {
@@ -253,22 +254,8 @@ public struct VideosBatchListView: View {
     }
 
     private var ambientBackground: some View {
-        ZStack {
-            Color(uiColor: .systemGroupedBackground)
-
-            Circle()
-                .fill(MedxTheme.primaryBlue.opacity(0.07))
-                .frame(width: 320, height: 320)
-                .blur(radius: 80)
-                .offset(x: -120, y: -200)
-
-            Circle()
-                .fill(MedxTheme.cyanAccent.opacity(0.05))
-                .frame(width: 350, height: 350)
-                .blur(radius: 90)
-                .offset(x: 100, y: 350)
-        }
-        .ignoresSafeArea()
+        Color(uiColor: .systemGroupedBackground)
+            .ignoresSafeArea()
     }
 
     private var totalDurationFormatted: String {

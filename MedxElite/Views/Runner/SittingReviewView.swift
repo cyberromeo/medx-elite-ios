@@ -159,29 +159,15 @@ public struct SittingReviewView: View {
                         HapticManager.medium()
                         onDone()
                     }
-                    .font(MedxFont.headline(16))
+                    .font(.body.weight(.semibold))
                 }
             }
         }
     }
 
     private var ambientBackground: some View {
-        ZStack {
-            Color(uiColor: .systemGroupedBackground)
-
-            Circle()
-                .fill(MedxTheme.successGreen.opacity(0.07))
-                .frame(width: 320, height: 320)
-                .blur(radius: 80)
-                .offset(x: -100, y: -150)
-
-            Circle()
-                .fill(MedxTheme.cyanAccent.opacity(0.05))
-                .frame(width: 350, height: 350)
-                .blur(radius: 90)
-                .offset(x: 120, y: 300)
-        }
-        .ignoresSafeArea()
+        Color(uiColor: .systemGroupedBackground)
+            .ignoresSafeArea()
     }
 }
 

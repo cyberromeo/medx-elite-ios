@@ -11,7 +11,7 @@ public struct ProfileSelectView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                meshBackground
+                Color(uiColor: .systemBackground)
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
@@ -21,27 +21,25 @@ public struct ProfileSelectView: View {
                     VStack(spacing: 12) {
                         ZStack {
                             Circle()
-                                .fill(MedxTheme.auroraGradient)
+                                .fill(Color.accentColor.opacity(0.12))
                                 .frame(width: 84, height: 84)
-                                .blur(radius: 24)
-                                .opacity(0.6)
+                                .overlay(Circle().strokeBorder(Color.accentColor.opacity(0.24), lineWidth: 1))
 
                             Image(systemName: "heart.text.clipboard.fill")
-                                .font(.system(size: 38, weight: .semibold))
-                                .foregroundStyle(MedxTheme.auroraGradient)
-                                .symbolEffect(.pulse.byLayer, options: .repeating.speed(0.3))
+                                .font(.system(size: 36, weight: .semibold))
+                                .foregroundStyle(Color.accentColor)
                         }
                         .opacity(hasAppeared ? 1 : 0)
                         .scaleEffect(hasAppeared ? 1 : 0.8)
 
                         Text("MedX Elite")
-                            .font(MedxFont.hero(30))
+                            .font(.largeTitle.weight(.bold))
                             .foregroundColor(.primary)
                             .opacity(hasAppeared ? 1 : 0)
                             .offset(y: hasAppeared ? 0 : 10)
 
                         Text("Choose your profile to continue")
-                            .font(MedxFont.body(15))
+                            .font(.body)
                             .foregroundColor(.secondary)
                             .opacity(hasAppeared ? 1 : 0)
                             .offset(y: hasAppeared ? 0 : 10)
@@ -105,16 +103,13 @@ public struct ProfileSelectView: View {
                 // Avatar with gradient ring
                 ZStack {
                     Circle()
-                        .strokeBorder(profile.gradient, lineWidth: 2.5)
+                        .fill(profile.accentColor.opacity(0.14))
                         .frame(width: 56, height: 56)
+                        .overlay(Circle().strokeBorder(profile.accentColor.opacity(0.36), lineWidth: 1))
 
-                    Circle()
-                        .fill(profile.gradient)
-                        .frame(width: 48, height: 48)
-
-                    Text(String(profile.displayName.prefix(1)))
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                    Text(String(profile.displayName.prefix(1)).uppercased())
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(profile.accentColor)
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
@@ -145,9 +140,14 @@ public struct ProfileSelectView: View {
                 }
             }
             .padding(18)
-            .liquidGlassCard(cornerRadius: 22, glowColor: profile.accentColor)
+            .frame(minHeight: 76)
+            .liquidGlassCard(cornerRadius: 18)
         }
-        .buttonStyle(BouncyButtonStyle())
+        .buttonStyle(.plain)
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Choose profile \(profile.displayName)")
+        .accessibilityHint("Opens this profile")
         .opacity(hasAppeared ? 1 : 0)
         .offset(y: hasAppeared ? 0 : 20)
         .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.2 + delay), value: hasAppeared)
@@ -156,27 +156,8 @@ public struct ProfileSelectView: View {
     // MARK: - Background
 
     private var meshBackground: some View {
-        ZStack {
-            Color(uiColor: .systemBackground)
-
-            Circle()
-                .fill(MedxTheme.primaryBlue.opacity(0.09))
-                .frame(width: 320, height: 320)
-                .blur(radius: 80)
-                .offset(x: -100, y: -200)
-
-            Circle()
-                .fill(MedxTheme.primaryPurple.opacity(0.07))
-                .frame(width: 400, height: 400)
-                .blur(radius: 100)
-                .offset(x: 120, y: 300)
-
-            Circle()
-                .fill(MedxTheme.primaryPink.opacity(0.05))
-                .frame(width: 250, height: 250)
-                .blur(radius: 60)
-                .offset(x: 80, y: 50)
-        }
+        Color(uiColor: .systemBackground)
+            .ignoresSafeArea()
     }
 
     // MARK: - Actions

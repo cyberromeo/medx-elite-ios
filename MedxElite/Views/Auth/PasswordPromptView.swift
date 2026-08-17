@@ -18,21 +18,15 @@ public struct PasswordPromptView: View {
             VStack(spacing: 0) {
                 // MARK: - Profile Header
                 VStack(spacing: 16) {
-                    // Avatar with glow
                     ZStack {
                         Circle()
-                            .fill(profile.gradient)
-                            .frame(width: 88, height: 88)
-                            .blur(radius: 30)
-                            .opacity(0.4)
-
-                        Circle()
-                            .fill(profile.gradient)
+                            .fill(profile.accentColor.opacity(0.14))
                             .frame(width: 80, height: 80)
+                            .overlay(Circle().strokeBorder(profile.accentColor.opacity(0.34), lineWidth: 1))
 
-                        Text(String(profile.displayName.prefix(1)))
-                            .font(.system(size: 34, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
+                        Text(String(profile.displayName.prefix(1)).uppercased())
+                            .font(.largeTitle.weight(.semibold))
+                            .foregroundStyle(profile.accentColor)
                     }
                     .scaleEffect(hasAppeared ? 1 : 0.8)
                     .opacity(hasAppeared ? 1 : 0)
@@ -102,35 +96,21 @@ public struct PasswordPromptView: View {
                 // MARK: - Sign In Button
                 VStack(spacing: 12) {
                     Button(action: handleSignIn) {
-                        HStack(spacing: 10) {
+                        Group {
                             if authService.isBusy {
                                 ProgressView()
-                                    .tint(.white)
                                     .controlSize(.small)
                                 Text("Signing In…")
-                                    .font(MedxFont.headline(16))
                             } else {
-                                Image(systemName: "arrow.right")
-                                    .font(.system(size: 14, weight: .bold))
-                                Text("Sign In")
-                                    .font(MedxFont.headline(16))
+                                Label("Sign In", systemImage: "arrow.right")
                             }
                         }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 54)
-                        .background(
-                            password.isEmpty ? AnyShapeStyle(Color.secondary.opacity(0.3)) : AnyShapeStyle(profile.gradient)
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .shadow(
-                            color: password.isEmpty ? .clear : profile.accentColor.opacity(0.3),
-                            radius: 12,
-                            y: 6
-                        )
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 44)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .tint(profile.accentColor)
                     .disabled(password.isEmpty || authService.isBusy)
-                    .buttonStyle(BouncyButtonStyle())
                     .padding(.horizontal, 28)
                     .opacity(hasAppeared ? 1 : 0)
                     .offset(y: hasAppeared ? 0 : 16)
@@ -145,6 +125,7 @@ public struct PasswordPromptView: View {
                 .padding(.bottom, 32)
             }
             .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle("Sign In")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

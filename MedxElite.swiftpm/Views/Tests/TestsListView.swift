@@ -132,22 +132,8 @@ public struct TestsListView: View {
     }
 
     private var ambientBackground: some View {
-        ZStack {
-            Color(uiColor: .systemGroupedBackground)
-
-            Circle()
-                .fill(MedxTheme.successGreen.opacity(0.06))
-                .frame(width: 320, height: 320)
-                .blur(radius: 80)
-                .offset(x: 100, y: -200)
-
-            Circle()
-                .fill(MedxTheme.primaryBlue.opacity(0.06))
-                .frame(width: 350, height: 350)
-                .blur(radius: 90)
-                .offset(x: -120, y: 300)
-        }
-        .ignoresSafeArea()
+        Color(uiColor: .systemGroupedBackground)
+            .ignoresSafeArea()
     }
 
     private func loadTestsData() async {

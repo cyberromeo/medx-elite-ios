@@ -69,7 +69,7 @@ public struct QBankSubjectListView: View {
                                 } label: {
                                     subjectRow(subject)
                                 }
-                                .buttonStyle(BouncyButtonStyle())
+                                .buttonStyle(.plain)
                                 .simultaneousGesture(
                                     TapGesture().onEnded {
                                         HapticManager.light()
@@ -181,22 +181,8 @@ public struct QBankSubjectListView: View {
     }
 
     private var ambientBackground: some View {
-        ZStack {
-            Color(uiColor: .systemGroupedBackground)
-
-            Circle()
-                .fill(MedxTheme.primaryBlue.opacity(0.07))
-                .frame(width: 320, height: 320)
-                .blur(radius: 80)
-                .offset(x: 100, y: -200)
-
-            Circle()
-                .fill(MedxTheme.primaryPurple.opacity(0.06))
-                .frame(width: 360, height: 360)
-                .blur(radius: 90)
-                .offset(x: -120, y: 300)
-        }
-        .ignoresSafeArea()
+        Color(uiColor: .systemGroupedBackground)
+            .ignoresSafeArea()
     }
 
     // MARK: - Actions & Data

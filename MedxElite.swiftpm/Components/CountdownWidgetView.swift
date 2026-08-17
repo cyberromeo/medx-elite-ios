@@ -18,23 +18,20 @@ public struct CountdownWidgetView: View {
                         Circle()
                             .fill(MedxTheme.primaryPink)
                             .frame(width: 7, height: 7)
-                            .shadow(color: MedxTheme.primaryPink.opacity(0.8), radius: 4)
 
                         Text("FMGE · 9 JAN 2027")
-                            .font(MedxFont.mono(11, weight: .bold))
-                            .foregroundColor(MedxTheme.primaryPink)
-                            .tracking(0.8)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(MedxTheme.primaryPink)
                     }
 
                     Spacer()
 
                     Text("\(remaining.weeks) weeks left")
-                        .font(MedxFont.mono(11, weight: .semibold))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 3)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5))
+                        .font(.caption.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
                 }
 
                 // Countdown Cards Grid (4 responsive columns)
@@ -106,22 +103,21 @@ private struct CountdownUnitCard: View {
                 .minimumScaleFactor(0.7)
                 .lineLimit(1)
 
-            Text(unit)
-                .font(MedxFont.mono(9, weight: .bold))
-                .foregroundColor(isPrimary ? MedxTheme.primaryPink : .secondary.opacity(0.7))
-                .tracking(0.5)
+                Text(unit)
+                    .font(.caption2.monospaced().weight(.semibold))
+                    .foregroundStyle(isPrimary ? MedxTheme.primaryPink : .secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isPrimary ? MedxTheme.primaryPink.opacity(0.1) : Color.primary.opacity(0.03))
+                .fill(isPrimary ? MedxTheme.primaryPink.opacity(0.10) : Color(uiColor: .tertiarySystemFill))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(
-                    isPrimary ? MedxTheme.primaryPink.opacity(0.3) : Color.white.opacity(0.1),
-                    lineWidth: 0.8
+                    isPrimary ? MedxTheme.primaryPink.opacity(0.36) : Color(uiColor: .separator).opacity(0.4),
+                    lineWidth: 0.7
                 )
         )
     }

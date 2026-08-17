@@ -47,6 +47,9 @@ public struct MainTabView: View {
             }
             .tag(TabItem.videos)
         }
+        .tint(.accentColor)
+        .toolbarBackground(.visible, for: .tabBar)
+        .toolbarBackground(.bar, for: .tabBar)
         .onChange(of: selectedTab) { _, _ in
             HapticManager.selection()
         }
