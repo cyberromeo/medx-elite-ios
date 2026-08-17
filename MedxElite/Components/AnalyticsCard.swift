@@ -160,22 +160,29 @@ public struct AnalyticsCard: View {
         .liquidGlassCard(cornerRadius: 22, glowColor: MedxTheme.primaryBlue)
     }
 
-    private func statPill(icon: String, value: String, label: String, color: Color) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(color)
-
-            Text(value)
-                .font(MedxFont.mono(13, weight: .bold))
-                .foregroundColor(.primary)
-
-            Text(label)
-                .font(MedxFont.caption(11))
+        private func statPill(icon: String, value: String, label: String, color: Color) -> some View {
+        VStack(spacing: 3) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(color)
+                Text(value)
+                    .font(.subheadline.monospacedDigit().weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .allowsTightening(true)
+            }
+            Text(label.capitalized)
+                .font(.caption2)
                 .foregroundColor(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, minHeight: 50)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
         .background(color.opacity(0.08), in: Capsule())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(value) \(label)")
     }
 }

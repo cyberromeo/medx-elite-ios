@@ -235,7 +235,7 @@ private struct QuestionReviewCard: View {
                     let isChosen = response?.chosenId == opt.id
                     let isCorrect = opt.correct == true || question.correctIds.contains(opt.id)
 
-                    HStack(spacing: 12) {
+                    HStack(alignment: .center, spacing: 12) {
                         Text(opt.label)
                             .font(MedxFont.mono(13, weight: .bold))
                             .foregroundColor(isCorrect || isChosen ? .white : .primary)
@@ -244,8 +244,9 @@ private struct QuestionReviewCard: View {
                             .clipShape(Circle())
 
                         HTMLRichTextView(html: opt.text, fontSize: 14, weight: .regular)
-
-                        Spacer()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .layoutPriority(1)
+                        Spacer(minLength: 0)
 
                         if isCorrect {
                             Image(systemName: "checkmark")
@@ -257,7 +258,9 @@ private struct QuestionReviewCard: View {
                                 .foregroundColor(MedxTheme.destructiveRed)
                         }
                     }
-                    .padding(12)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .center)
                     .background(isCorrect ? MedxTheme.successGreen.opacity(0.1) : (isChosen ? MedxTheme.destructiveRed.opacity(0.1) : Color.primary.opacity(0.02)))
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }

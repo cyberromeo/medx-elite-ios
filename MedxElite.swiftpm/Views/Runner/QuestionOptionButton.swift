@@ -31,7 +31,7 @@ public struct QuestionOptionButton: View {
                 onSelect()
             }
         } label: {
-            HStack(alignment: .top, spacing: 14) {
+            HStack(alignment: .center, spacing: 14) {
                 // Option Letter Badge
                 Text(option.label)
                     .font(MedxFont.mono(14, weight: .bold))
@@ -44,8 +44,10 @@ public struct QuestionOptionButton: View {
                 // Option HTML Text
                 HTMLRichTextView(html: option.text, fontSize: 15, weight: .regular)
                     .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
 
-                Spacer()
+                Spacer(minLength: 0)
 
                 // State indicator icon
                 if isRevealed {
@@ -65,7 +67,9 @@ public struct QuestionOptionButton: View {
                         .foregroundColor(MedxTheme.primaryBlue)
                 }
             }
-            .padding(16)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(minHeight: 56, alignment: .center)
             .liquidGlassTile(
                 cornerRadius: 18,
                 accentColor: activeAccentColor,

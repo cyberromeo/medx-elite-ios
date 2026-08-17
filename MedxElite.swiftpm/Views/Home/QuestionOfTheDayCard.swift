@@ -69,7 +69,7 @@ public struct QuestionOfTheDayCard: View {
                                 }
                             }
                         } label: {
-                            HStack(alignment: .top, spacing: 12) {
+                            HStack(alignment: .center, spacing: 12) {
                                 Text(letter)
                                     .font(MedxFont.mono(14, weight: .bold))
                                     .foregroundColor(optionLetterColor(isAnswered: isAnswered, isCorrect: isCorrect, isChosen: isChosen))
@@ -80,9 +80,11 @@ public struct QuestionOfTheDayCard: View {
                                 if let ansText = ans.answer {
                                     HTMLRichTextView(html: ansText, fontSize: 15, weight: .regular)
                                         .multilineTextAlignment(.leading)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .layoutPriority(1)
                                 }
 
-                                Spacer()
+                                Spacer(minLength: 0)
 
                                 if isAnswered {
                                     if isCorrect {
@@ -94,7 +96,9 @@ public struct QuestionOfTheDayCard: View {
                                     }
                                 }
                             }
-                            .padding(14)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .frame(maxWidth: .infinity, minHeight: 56, alignment: .center)
                             .background(optionRowBackground(isAnswered: isAnswered, isCorrect: isCorrect, isChosen: isChosen))
                             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                             .overlay(
