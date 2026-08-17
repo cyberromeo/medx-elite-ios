@@ -1,8 +1,8 @@
 import SwiftUI
 import AVKit
 
-/// Modern, immersive iOS video player with HLS proxy integration for header spoofing.
-/// Features: PiP, AirPlay, speed control menu, background playback, and non-intrusive floating glass controls.
+/// Full-screen video playback with the native AVPlayer controls and a small,
+/// safe-area-aware header for dismissal, title context, speed, and AirPlay.
 public struct VideoPlayerView: View {
     public let streamUrl: String
     public let title: String
@@ -15,7 +15,6 @@ public struct VideoPlayerView: View {
     @State private var hasError = false
     @State private var errorMessage = ""
     @State private var selectedSpeed: Float = 1.0
-    @State private var showControls = true
     @Environment(\.dismiss) private var dismiss
 
     private let speeds: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
@@ -34,26 +33,17 @@ public struct VideoPlayerView: View {
 
     public var body: some View {
         ZStack {
-            // Immersive black canvas
             Color.black.ignoresSafeArea()
 
             if hasError {
                 errorView
             } else if let p = player {
-                // Native AVPlayerViewController
                 ProxiedVideoPlayerController(player: p)
                     .ignoresSafeArea()
 
-                // Floating glass top bar
-                if showControls {
-                    VStack {
-                        floatingTopBar
-                            .padding(.horizontal, 16)
-                            .padding(.top, 12)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-
-                        Spacer()
-                    }
+                VStack(spacing: 0) {
+                    playerHeader
+                    Spacer(minLength: 0)
                 }
             } else {
                 loadingView
@@ -66,49 +56,41 @@ public struct VideoPlayerView: View {
             teardownPlayer()
         }
         .statusBarHidden(true)
-        .persistentSystemOverlays(.hidden)
     }
 
-    // MARK: - Floating Glass Top Bar
+    // MARK: - Native Player Header
 
-    private var floatingTopBar: some View {
-        HStack(alignment: .center, spacing: 12) {
-            // Dismiss Button
+    private var playerHeader: some View {
+        HStack(spacing: 12) {
             Button {
                 HapticManager.light()
-                if let onDismiss = onDismiss {
-                    onDismiss()
-                } else {
-                    dismiss()
-                }
+                closePlayer()
             } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 38, height: 38)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5))
+                Image(systemName: "chevron.down")
+                    .font(.headline.weight(.semibold))
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(PlainButtonStyle())
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close video")
+            .accessibilityHint("Dismisses the video player")
 
-            // Video Title & Subtitle
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(MedxFont.headline(15))
-                    .foregroundColor(.white)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
 
-                if let sub = subtitle, !sub.isEmpty {
-                    Text(sub)
-                        .font(MedxFont.caption(12))
-                        .foregroundColor(.white.opacity(0.7))
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
 
-            Spacer(minLength: 8)
-
-            // Speed Menu
             Menu {
                 Section("Playback Speed") {
                     ForEach(speeds, id: \.self) { speed in
@@ -117,8 +99,9 @@ public struct VideoPlayerView: View {
                             player?.rate = speed
                             HapticManager.selection()
                         } label: {
-                            HStack {
+                            Label {
                                 Text(speedLabel(speed))
+                            } icon: {
                                 if speed == selectedSpeed {
                                     Image(systemName: "checkmark")
                                 }
@@ -127,36 +110,28 @@ public struct VideoPlayerView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "gauge.with.dots.needle.50percent")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text(speedLabel(selectedSpeed))
-                        .font(MedxFont.mono(12, weight: .bold))
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5))
+                Label(speedLabel(selectedSpeed), systemImage: "gauge.with.dots.needle.50percent")
+                    .labelStyle(.titleAndIcon)
+                    .font(.subheadline.monospacedDigit().weight(.semibold))
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Playback speed")
+            .accessibilityValue(speedLabel(selectedSpeed))
 
-            // AirPlay Button
             AirPlayButton()
-                .frame(width: 38, height: 38)
-                .background(.ultraThinMaterial, in: Circle())
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5))
+                .frame(width: 44, height: 44)
+                .accessibilityLabel("AirPlay")
+                .accessibilityHint("Choose an AirPlay playback destination")
         }
+        .foregroundStyle(.primary)
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .shadow(color: Color.black.opacity(0.3), radius: 16, y: 8)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
-        )
+        .padding(.vertical, 6)
+        .background(.bar)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
     }
 
     // MARK: - Loading State
@@ -169,73 +144,65 @@ public struct VideoPlayerView: View {
 
             VStack(spacing: 6) {
                 Text(title)
-                    .font(MedxFont.headline(16))
-                    .foregroundColor(.white)
+                    .font(.headline)
+                    .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 30)
 
                 Text("Loading video stream…")
-                    .font(MedxFont.caption(13))
-                    .foregroundColor(.white.opacity(0.6))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(40)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Loading \(title)")
     }
 
     // MARK: - Error State
 
     private var errorView: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 24) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 44))
+                .font(.system(size: 40))
                 .foregroundStyle(.yellow)
-                .symbolEffect(.pulse)
+                .accessibilityHidden(true)
 
             VStack(spacing: 8) {
                 Text("Playback Error")
-                    .font(MedxFont.title(18))
-                    .foregroundColor(.white)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
 
                 Text(errorMessage)
-                    .font(MedxFont.body(14))
-                    .foregroundColor(.white.opacity(0.7))
+                    .font(.body)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 20)
             }
 
-            HStack(spacing: 16) {
+            VStack(spacing: 12) {
                 Button {
+                    HapticManager.light()
                     hasError = false
                     setupProxyAndPlayer()
                 } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "arrow.clockwise")
-                        Text("Retry")
-                    }
-                    .font(MedxFont.headline(14))
-                    .foregroundColor(.black)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 10)
-                    .background(.white, in: Capsule())
+                    Label("Retry", systemImage: "arrow.clockwise")
+                        .frame(maxWidth: .infinity, minHeight: 44)
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(.white)
+                .foregroundStyle(.black)
 
-                Button {
-                    if let onDismiss = onDismiss {
-                        onDismiss()
-                    } else {
-                        dismiss()
-                    }
-                } label: {
-                    Text("Close")
-                        .font(MedxFont.headline(14))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 10)
-                        .background(.white.opacity(0.2), in: Capsule())
+                Button("Close") {
+                    closePlayer()
                 }
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .buttonStyle(.bordered)
+                .tint(.white)
             }
+            .frame(maxWidth: 320)
         }
-        .padding(40)
+        .padding(24)
     }
 
     // MARK: - Setup & Playback
@@ -244,7 +211,6 @@ public struct VideoPlayerView: View {
         isLoading = true
         hasError = false
 
-        // Configure audio session
         do {
             try AVAudioSession.sharedInstance().setCategory(
                 .playback,
@@ -256,12 +222,10 @@ public struct VideoPlayerView: View {
             print("[VideoPlayer] Audio session error: \(error)")
         }
 
-        // Start proxy if needed
         if !proxy.isRunning {
             proxy.start()
         }
 
-        // Initialize player
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             createPlayer()
         }
@@ -286,7 +250,6 @@ public struct VideoPlayerView: View {
 
         let asset = AVURLAsset(url: url)
         let item = AVPlayerItem(asset: asset)
-
         let p = AVPlayer(playerItem: item)
         p.allowsExternalPlayback = true
         p.preventsDisplaySleepDuringVideoPlayback = true
@@ -303,14 +266,23 @@ public struct VideoPlayerView: View {
             }
         }
 
-        self.player = p
-        self.isLoading = false
+        player = p
+        isLoading = false
     }
 
     private func teardownPlayer() {
         player?.pause()
         player?.replaceCurrentItem(with: nil)
         player = nil
+    }
+
+    private func closePlayer() {
+        player?.pause()
+        if let onDismiss {
+            onDismiss()
+        } else {
+            dismiss()
+        }
     }
 
     private func speedLabel(_ speed: Float) -> String {
@@ -335,6 +307,8 @@ struct ProxiedVideoPlayerController: UIViewControllerRepresentable {
         controller.entersFullScreenWhenPlaybackBegins = false
         controller.exitsFullScreenWhenPlaybackEnds = true
         controller.updatesNowPlayingInfoCenter = true
+        controller.videoGravity = .resizeAspect
+        controller.view.backgroundColor = .black
         return controller
     }
 
@@ -348,7 +322,7 @@ struct ProxiedVideoPlayerController: UIViewControllerRepresentable {
 struct AirPlayButton: UIViewRepresentable {
     func makeUIView(context: Context) -> AVRoutePickerView {
         let picker = AVRoutePickerView()
-        picker.tintColor = .white
+        picker.tintColor = .label
         picker.activeTintColor = UIColor(MedxTheme.primaryBlue)
         picker.prioritizesVideoDevices = true
         return picker
