@@ -134,9 +134,14 @@ public struct VideoSubjectView: View {
                     .foregroundColor(MedxTheme.primaryBlue.opacity(0.6))
             }
             .padding(14)
+            .frame(minHeight: 68)
             .liquidGlassCard(cornerRadius: 16)
         }
-        .buttonStyle(BouncyButtonStyle())
+        .buttonStyle(.plain)
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Play \(video.title)")
+        .accessibilityHint("Opens the video player")
     }
 
     // MARK: - Stat Badge
@@ -152,7 +157,8 @@ public struct VideoSubjectView: View {
                 .foregroundColor(.secondary)
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 5)
+        .padding(.vertical, 6)
         .background(color.opacity(0.08), in: Capsule())
+        .accessibilityElement(children: .combine)
     }
 }
