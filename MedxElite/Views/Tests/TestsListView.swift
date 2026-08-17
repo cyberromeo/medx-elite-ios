@@ -167,6 +167,7 @@ public struct TestsListView: View {
     }
 
     private func startTestSitting(test: BatchTest, mode: SittingMode) {
+        HapticManager.medium()
         self.activeRunnerPayload = RunnerPayload(
             kind: "test",
             id: test.testId,

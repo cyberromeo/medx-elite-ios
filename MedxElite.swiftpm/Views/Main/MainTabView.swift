@@ -47,5 +47,8 @@ public struct MainTabView: View {
             }
             .tag(TabItem.videos)
         }
+        .onChange(of: selectedTab) { _, _ in
+            HapticManager.selection()
+        }
     }
 }

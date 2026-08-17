@@ -70,6 +70,11 @@ public struct QBankSubjectListView: View {
                                     subjectRow(subject)
                                 }
                                 .buttonStyle(BouncyButtonStyle())
+                                .simultaneousGesture(
+                                    TapGesture().onEnded {
+                                        HapticManager.light()
+                                    }
+                                )
                             }
                         }
                         .padding(.horizontal, 20)

@@ -115,6 +115,7 @@ public struct QuestionOfTheDayCard: View {
                 if isAnswered, let expl = data.ansExplanation, !expl.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         Button {
+                            HapticManager.selection()
                             withAnimation(.spring()) {
                                 showExplanation.toggle()
                             }
