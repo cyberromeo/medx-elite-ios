@@ -45,6 +45,7 @@ public struct VideoPlayerView: View {
                     playerHeader
                     Spacer(minLength: 0)
                 }
+                .zIndex(2)
             } else {
                 loadingView
             }
@@ -66,25 +67,32 @@ public struct VideoPlayerView: View {
                 HapticManager.light()
                 closePlayer()
             } label: {
-                Image(systemName: "chevron.down")
-                    .font(.headline.weight(.semibold))
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
+                Image(systemName: "xmark")
+                    .font(.subheadline.weight(.bold))
+                    .frame(width: 44, height: 44)
+                    .background(Color.white.opacity(0.16), in: Circle())
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.24), lineWidth: 0.8))
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Close video")
             .accessibilityHint("Dismisses the video player")
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("NOW PLAYING")
+                    .font(.caption2.weight(.semibold))
+                    .tracking(1.2)
+                    .foregroundStyle(Color.white.opacity(0.68))
+
                 Text(title)
                     .font(.headline)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.white)
                     .lineLimit(1)
 
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.white.opacity(0.72))
                         .lineLimit(1)
                 }
             }
@@ -114,7 +122,10 @@ public struct VideoPlayerView: View {
                     .labelStyle(.titleAndIcon)
                     .font(.subheadline.monospacedDigit().weight(.semibold))
                     .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
+                    .padding(.horizontal, 10)
+                    .background(Color.white.opacity(0.14), in: Capsule())
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.20), lineWidth: 0.8))
+                    .contentShape(Capsule())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Playback speed")
@@ -122,15 +133,32 @@ public struct VideoPlayerView: View {
 
             AirPlayButton()
                 .frame(width: 44, height: 44)
+                .background(Color.white.opacity(0.16), in: Circle())
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.24), lineWidth: 0.8))
                 .accessibilityLabel("AirPlay")
                 .accessibilityHint("Choose an AirPlay playback destination")
         }
-        .foregroundStyle(.primary)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(.bar)
+        .foregroundStyle(.white)
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 14)
+        .background {
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.94),
+                    Color.black.opacity(0.72),
+                    Color.black.opacity(0.18),
+                    Color.clear
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea(edges: .top)
+        }
         .overlay(alignment: .bottom) {
-            Divider()
+            Rectangle()
+                .fill(Color.white.opacity(0.16))
+                .frame(height: 0.5)
         }
     }
 
