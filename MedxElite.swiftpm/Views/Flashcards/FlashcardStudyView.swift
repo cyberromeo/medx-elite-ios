@@ -97,9 +97,12 @@ public struct FlashcardStudyView: View {
                                     .multilineTextAlignment(.leading)
                             }
                             .padding(10)
-                            .liquidGlassCard(cornerRadius: 16)
+                            .glassCard(cornerRadius: 16, shadowLevel: 1)
                         }
-                        .buttonStyle(BouncyButtonStyle())
+                        .buttonStyle(.plain)
+                        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .accessibilityLabel("Open flashcard \(card.name)")
+                        .accessibilityHint("Opens the photo gallery viewer")
                     }
                 }
                 .padding(.horizontal, 20)
