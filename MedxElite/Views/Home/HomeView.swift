@@ -152,7 +152,9 @@ public struct HomeView: View {
                     .foregroundColor(.secondary)
             }
         }
-        .frame(minWidth: 44, minHeight: 44)
+        .frame(width: 44, height: 44)
+        .contentShape(Circle())
+        .buttonStyle(.plain)
         .accessibilityLabel("Profile settings")
         .accessibilityHint("Opens account and app settings")
     }

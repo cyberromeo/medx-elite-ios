@@ -151,7 +151,7 @@ public struct QBankSubjectListView: View {
                 .foregroundColor(Color(uiColor: .tertiaryLabel))
         }
         .padding(16)
-        .medxNavigationGlass(cornerRadius: 20, tint: MedxTheme.primaryBlue)
+        .glassCard(cornerRadius: 20, shadowLevel: 1)
     }
 
         private func statPill(icon: String, value: String, label: String, color: Color) -> some View {
