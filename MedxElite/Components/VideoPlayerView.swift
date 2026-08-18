@@ -197,8 +197,8 @@ struct ProxiedVideoPlayerController: UIViewControllerRepresentable {
         let controller = AVPlayerViewController()
         controller.player = player
         controller.showsPlaybackControls = true
-        controller.allowsPictureInPicturePlayback = true
-        controller.canStartPictureInPictureAutomaticallyFromInline = true
+        controller.allowsPictureInPicturePlayback = AVPictureInPictureController.isPictureInPictureSupported
+        controller.canStartPictureInPictureAutomaticallyFromInline = AVPictureInPictureController.isPictureInPictureSupported
         controller.entersFullScreenWhenPlaybackBegins = false
         controller.exitsFullScreenWhenPlaybackEnds = true
         controller.updatesNowPlayingInfoCenter = true
@@ -209,7 +209,7 @@ struct ProxiedVideoPlayerController: UIViewControllerRepresentable {
 
     func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
         uiViewController.player = player
-        uiViewController.allowsPictureInPicturePlayback = true
-        uiViewController.canStartPictureInPictureAutomaticallyFromInline = true
+        uiViewController.allowsPictureInPicturePlayback = AVPictureInPictureController.isPictureInPictureSupported
+        uiViewController.canStartPictureInPictureAutomaticallyFromInline = AVPictureInPictureController.isPictureInPictureSupported
     }
 }

@@ -191,7 +191,7 @@ public struct HomeView: View {
                     .foregroundColor(Color(uiColor: .tertiaryLabel))
             }
             .padding(16)
-            .medxNavigationGlass(cornerRadius: 20, tint: MedxTheme.primaryBlue)
+            .glassCard(cornerRadius: 20, shadowLevel: 1)
         }
         .buttonStyle(.plain)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
