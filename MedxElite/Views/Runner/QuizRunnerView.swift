@@ -259,7 +259,7 @@ public struct QuizRunnerView: View {
         let isLast = currentIndex + 1 >= questions.count
         let canAdvance = payload.mode == .exam || isRevealed
 
-        HStack(spacing: 12) {
+        return HStack(spacing: 12) {
             Button {
                 HapticManager.light()
                 currentIndex -= 1
