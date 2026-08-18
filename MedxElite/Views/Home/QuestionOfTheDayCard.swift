@@ -105,6 +105,11 @@ public struct QuestionOfTheDayCard: View {
                                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                                     .strokeBorder(optionBorderColor(isAnswered: isAnswered, isCorrect: isCorrect, isChosen: isChosen), lineWidth: 1.5)
                             )
+                            .medxNavigationGlass(
+                                cornerRadius: 14,
+                                tint: isCorrect && isAnswered ? MedxTheme.successGreen : (isChosen ? MedxTheme.destructiveRed : nil),
+                                interactive: true
+                            )
                         }
                         .buttonStyle(PlainButtonStyle())
                         .disabled(isAnswered)
@@ -121,15 +126,20 @@ public struct QuestionOfTheDayCard: View {
                             }
                         } label: {
                             HStack {
-                                Text("Explanation")
-                                    .font(MedxFont.headline(14))
-                                    .foregroundColor(.primary)
+                                Label("Explanation", systemImage: "text.book.closed")
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.primary)
                                 Spacer()
                                 Image(systemName: showExplanation ? "chevron.up" : "chevron.down")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
                             }
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(showExplanation ? "Hide explanation" : "Show explanation")
+                        .accessibilityHint("Reveals the answer explanation")
 
                         if showExplanation {
                             HTMLRichTextView(html: expl, fontSize: 14, weight: .regular, textColor: .secondary)

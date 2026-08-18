@@ -247,7 +247,7 @@ public struct QuizRunnerView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(.bar)
+        .medxNavigationGlass(cornerRadius: 16, tint: payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple)
         .overlay(alignment: .bottom) {
             Divider()
         }
@@ -301,7 +301,7 @@ public struct QuizRunnerView: View {
         .padding(.horizontal, 16)
         .padding(.top, 10)
         .padding(.bottom, 8)
-        .background(.bar)
+        .medxNavigationGlass(cornerRadius: 20, tint: payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple)
         .overlay(alignment: .top) {
             Divider()
         }

@@ -32,6 +32,16 @@ public struct ModernButton: View {
     }
 
     public var body: some View {
+        if #available(iOS 26.0, *) {
+            baseButton
+                .buttonStyle(.glassProminent)
+        } else {
+            baseButton
+                .buttonStyle(.borderedProminent)
+        }
+    }
+
+    private var baseButton: some View {
         Button {
             HapticManager.medium()
             action()
@@ -50,7 +60,6 @@ public struct ModernButton: View {
             .font(.body.weight(.semibold))
             .frame(maxWidth: .infinity, minHeight: max(height, 44))
         }
-        .buttonStyle(.borderedProminent)
         .tint(MedxTheme.primaryBlue)
         .controlSize(.large)
         .disabled(isBusy)

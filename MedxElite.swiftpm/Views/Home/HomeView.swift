@@ -189,7 +189,7 @@ public struct HomeView: View {
                     .foregroundColor(Color(uiColor: .tertiaryLabel))
             }
             .padding(16)
-            .liquidGlassCard(cornerRadius: 20, glowColor: MedxTheme.primaryBlue)
+            .medxNavigationGlass(cornerRadius: 20, tint: MedxTheme.primaryBlue)
         }
         .buttonStyle(.plain)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))

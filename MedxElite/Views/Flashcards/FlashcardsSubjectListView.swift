@@ -106,7 +106,7 @@ public struct FlashcardsSubjectListView: View {
                 .foregroundColor(Color(uiColor: .tertiaryLabel))
         }
         .padding(16)
-        .liquidGlassCard(cornerRadius: 20, glowColor: MedxTheme.primaryPurple)
+        .medxNavigationGlass(cornerRadius: 20, tint: MedxTheme.primaryPurple)
     }
 
         private func statPill(icon: String, value: String, label: String, color: Color) -> some View {

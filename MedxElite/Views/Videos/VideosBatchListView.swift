@@ -200,7 +200,7 @@ public struct VideosBatchListView: View {
         }
         .padding(14)
         .frame(minHeight: 68)
-        .liquidGlassCard(cornerRadius: 18)
+        .medxNavigationGlass(cornerRadius: 18, tint: MedxTheme.primaryBlue)
     }
 
         private func statPill(icon: String, value: String, label: String, color: Color) -> some View {

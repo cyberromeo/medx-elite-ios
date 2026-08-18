@@ -103,19 +103,29 @@ public struct TestDetailCard: View {
             // Action Button
             HStack {
                 Spacer()
-                Button {
-                    HapticManager.light()
-                    showStartSheet = true
-                } label: {
-                    Text(testAttempts.isEmpty ? "Begin Test" : "Reattempt")
-                        .font(MedxFont.headline(14))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(MedxTheme.primaryBlue)
-                        .clipShape(Capsule())
+                if #available(iOS 26.0, *) {
+                    Button {
+                        HapticManager.light()
+                        showStartSheet = true
+                    } label: {
+                        Text(testAttempts.isEmpty ? "Begin Test" : "Reattempt")
+                            .font(.body.weight(.semibold))
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(MedxTheme.primaryBlue)
+                } else {
+                    Button {
+                        HapticManager.light()
+                        showStartSheet = true
+                    } label: {
+                        Text(testAttempts.isEmpty ? "Begin Test" : "Reattempt")
+                            .font(.body.weight(.semibold))
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(MedxTheme.primaryBlue)
                 }
-                .buttonStyle(BouncyButtonStyle())
             }
         }
         .padding(18)

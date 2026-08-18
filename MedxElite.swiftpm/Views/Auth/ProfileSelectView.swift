@@ -141,7 +141,7 @@ public struct ProfileSelectView: View {
             }
             .padding(18)
             .frame(minHeight: 76)
-            .liquidGlassCard(cornerRadius: 18)
+            .medxNavigationGlass(cornerRadius: 18, tint: profile.accentColor)
         }
         .buttonStyle(.plain)
         .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
