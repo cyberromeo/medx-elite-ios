@@ -28,10 +28,9 @@ public struct TestsListView: View {
                 ScrollView {
                     VStack(spacing: 22) {
                         // Header summary
-                        HStack(spacing: 12) {
-                            statPill(icon: "checkmark.seal.fill", value: "\(gradableTests.count)", label: "scored tests", color: MedxTheme.successGreen)
-                            statPill(icon: "doc.text.fill", value: "\(practiceTests.count)", label: "practice", color: MedxTheme.warningOrange)
-                            Spacer()
+                        MedxMetricsRow {
+                            MedxMetric(icon: "checkmark.seal.fill", value: "\(gradableTests.count)", label: "scored tests", color: MedxTheme.successGreen)
+                            MedxMetric(icon: "doc.text.fill", value: "\(practiceTests.count)", label: "practice", color: MedxTheme.warningOrange)
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 6)
@@ -86,7 +85,7 @@ public struct TestsListView: View {
                             }
                         }
                     }
-                    .padding(.bottom, 90)
+                    .padding(.bottom, 24)
                 }
                 .refreshable {
                     await loadTestsData()
@@ -103,32 +102,6 @@ public struct TestsListView: View {
                 Task { await loadTestsData() }
             }
         }
-    }
-
-        private func statPill(icon: String, value: String, label: String, color: Color) -> some View {
-        VStack(spacing: 3) {
-            HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(color)
-                Text(value)
-                    .font(.subheadline.monospacedDigit().weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .allowsTightening(true)
-            }
-            Text(label.capitalized)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity, minHeight: 50)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(color.opacity(0.08), in: Capsule())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(value) \(label)")
     }
 
     private var ambientBackground: some View {

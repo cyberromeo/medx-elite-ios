@@ -47,11 +47,10 @@ public struct QBankSubjectListView: View {
                         let totalQ = subjects.reduce(0) { $0 + ($1.questionCount ?? 0) }
                         let totalModules = subjects.reduce(0) { $0 + $1.moduleCount }
 
-                        HStack(spacing: 14) {
-                            statPill(icon: "books.vertical.fill", value: "\(subjects.count)", label: "subjects", color: MedxTheme.primaryBlue)
-                            statPill(icon: "square.grid.2x2.fill", value: "\(totalModules)", label: "modules", color: MedxTheme.primaryPurple)
-                            statPill(icon: "questionmark.circle.fill", value: totalQ.formatted(), label: "questions", color: MedxTheme.cyanAccent)
-                            Spacer()
+                        MedxMetricsRow {
+                            MedxMetric(icon: "books.vertical.fill", value: "\(subjects.count)", label: "subjects", color: MedxTheme.primaryBlue)
+                            MedxMetric(icon: "square.grid.2x2.fill", value: "\(totalModules)", label: "modules", color: MedxTheme.primaryPurple)
+                            MedxMetric(icon: "questionmark.circle.fill", value: totalQ.formatted(), label: "questions", color: MedxTheme.cyanAccent)
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 6)
@@ -78,7 +77,7 @@ public struct QBankSubjectListView: View {
                             }
                         }
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 90)
+                        .padding(.bottom, 24)
                     }
                 }
                 .refreshable {
@@ -88,7 +87,7 @@ public struct QBankSubjectListView: View {
         }
         .navigationTitle("Question Bank")
         .navigationBarTitleDisplayMode(.large)
-        .searchable(text: $searchText, prompt: "Search subjects…")
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search subjects")
         .task {
             await loadData()
         }
@@ -123,7 +122,7 @@ public struct QBankSubjectListView: View {
                 Text(subject.name)
                     .font(MedxFont.headline(16))
                     .foregroundColor(.primary)
-                    .lineLimit(1)
+                    .lineLimit(2)
 
                 Text("\(subject.moduleCount) modules · \((subject.questionCount ?? 0).formatted()) questions")
                     .font(MedxFont.caption(12))
@@ -152,32 +151,6 @@ public struct QBankSubjectListView: View {
         }
         .padding(16)
         .glassCard(cornerRadius: 20, shadowLevel: 1)
-    }
-
-        private func statPill(icon: String, value: String, label: String, color: Color) -> some View {
-        VStack(spacing: 3) {
-            HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(color)
-                Text(value)
-                    .font(.subheadline.monospacedDigit().weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .allowsTightening(true)
-            }
-            Text(label.capitalized)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity, minHeight: 50)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(color.opacity(0.08), in: Capsule())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(value) \(label)")
     }
 
     private var ambientBackground: some View {

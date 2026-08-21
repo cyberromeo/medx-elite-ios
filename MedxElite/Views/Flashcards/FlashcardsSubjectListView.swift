@@ -27,10 +27,9 @@ public struct FlashcardsSubjectListView: View {
                     VStack(spacing: 16) {
                         // Summary stat pill
                         let totalCards = subjects.reduce(0) { $0 + $1.cardCount }
-                        HStack(spacing: 12) {
-                            statPill(icon: "sparkles.rectangle.stack.fill", value: totalCards.formatted(), label: "cards", color: MedxTheme.primaryPurple)
-                            statPill(icon: "books.vertical.fill", value: "\(subjects.count)", label: "subjects", color: MedxTheme.primaryPink)
-                            Spacer()
+                        MedxMetricsRow {
+                            MedxMetric(icon: "rectangle.stack.fill", value: totalCards.formatted(), label: "cards", color: MedxTheme.primaryPurple)
+                            MedxMetric(icon: "books.vertical.fill", value: "\(subjects.count)", label: "subjects", color: MedxTheme.primaryPink)
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 6)
@@ -47,7 +46,7 @@ public struct FlashcardsSubjectListView: View {
                             }
                         }
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 90)
+                        .padding(.bottom, 24)
                     }
                 }
                 .refreshable {
@@ -57,7 +56,7 @@ public struct FlashcardsSubjectListView: View {
         }
         .navigationTitle("Flashcards")
         .navigationBarTitleDisplayMode(.large)
-        .searchable(text: $searchText, prompt: "Search flashcard subjects…")
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search flashcards")
         .task {
             await loadFlashcards()
         }
@@ -85,7 +84,7 @@ public struct FlashcardsSubjectListView: View {
                 Text(subject.name)
                     .font(MedxFont.headline(16))
                     .foregroundColor(.primary)
-                    .lineLimit(1)
+                    .lineLimit(2)
 
                 Text("\(subject.cardCount) visual flashcards")
                     .font(MedxFont.caption(12))
@@ -107,32 +106,6 @@ public struct FlashcardsSubjectListView: View {
         }
         .padding(16)
         .glassCard(cornerRadius: 20, shadowLevel: 1)
-    }
-
-        private func statPill(icon: String, value: String, label: String, color: Color) -> some View {
-        VStack(spacing: 3) {
-            HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(color)
-                Text(value)
-                    .font(.subheadline.monospacedDigit().weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .allowsTightening(true)
-            }
-            Text(label.capitalized)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity, minHeight: 50)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(color.opacity(0.08), in: Capsule())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(value) \(label)")
     }
 
     private var ambientBackground: some View {

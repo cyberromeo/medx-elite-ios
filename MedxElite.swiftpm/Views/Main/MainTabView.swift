@@ -11,7 +11,7 @@ public struct MainTabView: View {
                 HomeView()
             }
             .tabItem {
-                Label(TabItem.home.rawValue, systemImage: "house.fill")
+                Label(TabItem.home.rawValue, systemImage: selectedTab == .home ? TabItem.home.selectedIcon : TabItem.home.icon)
             }
             .tag(TabItem.home)
 
@@ -19,7 +19,7 @@ public struct MainTabView: View {
                 QBankSubjectListView()
             }
             .tabItem {
-                Label(TabItem.qbank.rawValue, systemImage: "books.vertical.fill")
+                Label(TabItem.qbank.rawValue, systemImage: selectedTab == .qbank ? TabItem.qbank.selectedIcon : TabItem.qbank.icon)
             }
             .tag(TabItem.qbank)
 
@@ -27,7 +27,7 @@ public struct MainTabView: View {
                 TestsListView()
             }
             .tabItem {
-                Label(TabItem.tests.rawValue, systemImage: "checkmark.seal.fill")
+                Label(TabItem.tests.rawValue, systemImage: selectedTab == .tests ? TabItem.tests.selectedIcon : TabItem.tests.icon)
             }
             .tag(TabItem.tests)
 
@@ -35,7 +35,7 @@ public struct MainTabView: View {
                 FlashcardsSubjectListView()
             }
             .tabItem {
-                Label(TabItem.flashcards.rawValue, systemImage: "sparkles.rectangle.stack.fill")
+                Label(TabItem.flashcards.rawValue, systemImage: selectedTab == .flashcards ? TabItem.flashcards.selectedIcon : TabItem.flashcards.icon)
             }
             .tag(TabItem.flashcards)
 
@@ -43,7 +43,7 @@ public struct MainTabView: View {
                 VideosBatchListView()
             }
             .tabItem {
-                Label(TabItem.videos.rawValue, systemImage: "play.tv.fill")
+                Label(TabItem.videos.rawValue, systemImage: selectedTab == .videos ? TabItem.videos.selectedIcon : TabItem.videos.icon)
             }
             .tag(TabItem.videos)
         }

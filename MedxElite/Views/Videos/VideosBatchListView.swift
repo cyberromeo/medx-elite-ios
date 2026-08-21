@@ -81,22 +81,21 @@ public struct VideosBatchListView: View {
                 ScrollView {
                     VStack(spacing: 24) {
                         // Stats header
-                        HStack(spacing: 12) {
-                            statPill(
+                        MedxMetricsRow {
+                            MedxMetric(
                                 icon: "play.rectangle.fill",
                                 value: "\(videos.count)",
                                 label: "classes",
                                 color: MedxTheme.primaryBlue
                             )
 
-                            statPill(
+                            MedxMetric(
                                 icon: "clock.fill",
                                 value: totalDurationFormatted,
                                 label: "total",
                                 color: MedxTheme.primaryPurple
                             )
 
-                            Spacer()
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 6)
@@ -106,7 +105,7 @@ public struct VideosBatchListView: View {
                             batchSection(batch)
                         }
                     }
-                    .padding(.bottom, 90)
+                    .padding(.bottom, 24)
                 }
                 .refreshable {
                     await loadVideos()
@@ -115,7 +114,7 @@ public struct VideosBatchListView: View {
         }
         .navigationTitle("Videos")
         .navigationBarTitleDisplayMode(.large)
-        .searchable(text: $searchText, prompt: "Search videos, subjects, faculty…")
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search videos")
         .task {
             await loadVideos()
         }
@@ -176,7 +175,7 @@ public struct VideosBatchListView: View {
                 Text(subject.name)
                     .font(MedxFont.headline(16))
                     .foregroundColor(.primary)
-                    .lineLimit(1)
+                    .lineLimit(2)
 
                 HStack(spacing: 6) {
                     Text("\(subject.totalClasses) classes")
@@ -201,32 +200,6 @@ public struct VideosBatchListView: View {
         .padding(14)
         .frame(minHeight: 68)
         .glassCard(cornerRadius: 18, shadowLevel: 1)
-    }
-
-        private func statPill(icon: String, value: String, label: String, color: Color) -> some View {
-        VStack(spacing: 3) {
-            HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(color)
-                Text(value)
-                    .font(.subheadline.monospacedDigit().weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .allowsTightening(true)
-            }
-            Text(label.capitalized)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity, minHeight: 50)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(color.opacity(0.08), in: Capsule())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(value) \(label)")
     }
 
     private var skeletonCard: some View {

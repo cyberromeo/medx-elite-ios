@@ -6,18 +6,15 @@ import SwiftUI
 
 public struct LiquidGlassCardModifier: ViewModifier {
     public var cornerRadius: CGFloat
-    public var material: Material
     public var glowColor: Color?
     public var shadowLevel: Int
 
     public init(
         cornerRadius: CGFloat = 16,
-        material: Material = .regularMaterial,
         glowColor: Color? = nil,
         shadowLevel: Int = 1
     ) {
         self.cornerRadius = cornerRadius
-        self.material = material
         self.glowColor = glowColor
         self.shadowLevel = shadowLevel
     }
@@ -26,13 +23,12 @@ public struct LiquidGlassCardModifier: ViewModifier {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
         content
-            .background(material, in: shape)
-            .background(shape.fill(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.72)))
-            .overlay(shape.strokeBorder(Color(uiColor: .separator).opacity(0.52), lineWidth: 0.6))
+            .background(shape.fill(Color(uiColor: .secondarySystemGroupedBackground)))
+            .overlay(shape.strokeBorder(Color(uiColor: .separator).opacity(0.32), lineWidth: 0.5))
             .shadow(
-                color: glowColor?.opacity(0.08) ?? Color.black.opacity(shadowLevel > 1 ? 0.10 : 0.05),
-                radius: shadowLevel > 1 ? 10 : 4,
-                y: shadowLevel > 1 ? 4 : 2
+                color: glowColor?.opacity(0.06) ?? Color.black.opacity(shadowLevel > 1 ? 0.08 : 0.025),
+                radius: shadowLevel > 1 ? 8 : 2,
+                y: shadowLevel > 1 ? 3 : 1
             )
     }
 }
@@ -61,8 +57,7 @@ public struct LiquidGlassTileModifier: ViewModifier {
                     )
             } else {
                 content
-                    .background(.thinMaterial, in: shape)
-                    .background(shape.fill(isSelected ? accent.opacity(0.10) : Color(uiColor: .tertiarySystemGroupedBackground).opacity(0.88)))
+                    .background(shape.fill(isSelected ? accent.opacity(0.12) : Color(uiColor: .tertiarySystemGroupedBackground)))
                     .overlay(
                         shape.strokeBorder(
                             isSelected ? accent.opacity(0.55) : Color(uiColor: .separator).opacity(0.38),
@@ -84,7 +79,7 @@ public extension View {
     }
 
     func prominentCard(cornerRadius: CGFloat = 16, glowColor: Color? = nil) -> some View {
-        modifier(LiquidGlassCardModifier(cornerRadius: cornerRadius, material: .thickMaterial, glowColor: glowColor, shadowLevel: 2))
+        modifier(LiquidGlassCardModifier(cornerRadius: cornerRadius, glowColor: glowColor, shadowLevel: 2))
     }
 
     func liquidGlassTile(cornerRadius: CGFloat = 14, accentColor: Color? = nil, isSelected: Bool = false) -> some View {
@@ -134,7 +129,82 @@ public extension View {
     }
 
     func elevatedCard(cornerRadius: CGFloat = 16) -> some View {
-        modifier(LiquidGlassCardModifier(cornerRadius: cornerRadius, material: .thickMaterial, shadowLevel: 2))
+        modifier(LiquidGlassCardModifier(cornerRadius: cornerRadius, shadowLevel: 2))
+    }
+}
+
+public struct MedxMetric: View {
+    public let icon: String
+    public let value: String
+    public let label: String
+    public let color: Color
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    public init(icon: String, value: String, label: String, color: Color) {
+        self.icon = icon
+        self.value = value
+        self.label = label
+        self.color = color
+    }
+
+    public var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                HStack(spacing: 8) {
+                    Image(systemName: icon)
+                        .foregroundStyle(color)
+                    Text(value)
+                        .font(.body.monospacedDigit().weight(.semibold))
+                    Text(label.capitalized)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                VStack(spacing: 3) {
+                    HStack(spacing: 5) {
+                        Image(systemName: icon)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(color)
+                        Text(value)
+                            .font(.subheadline.monospacedDigit().weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                    }
+                    Text(label.capitalized)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 52)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
+    }
+}
+
+public struct MedxMetricsRow<Content: View>: View {
+    private let content: Content
+
+    public init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    public var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                content
+            }
+
+            VStack(spacing: 8) {
+                content
+            }
+        }
     }
 }
 

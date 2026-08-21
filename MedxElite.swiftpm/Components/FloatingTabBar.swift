@@ -11,11 +11,21 @@ public enum TabItem: String, CaseIterable, Identifiable {
 
     public var icon: String {
         switch self {
+        case .home: return "house"
+        case .qbank: return "books.vertical"
+        case .tests: return "checkmark.seal"
+        case .flashcards: return "rectangle.stack"
+        case .videos: return "play.rectangle"
+        }
+    }
+
+    public var selectedIcon: String {
+        switch self {
         case .home: return "house.fill"
         case .qbank: return "books.vertical.fill"
         case .tests: return "checkmark.seal.fill"
-        case .flashcards: return "sparkles.rectangle.stack.fill"
-        case .videos: return "play.tv.fill"
+        case .flashcards: return "rectangle.stack.fill"
+        case .videos: return "play.rectangle.fill"
         }
     }
 }
@@ -23,6 +33,7 @@ public enum TabItem: String, CaseIterable, Identifiable {
 public struct FloatingTabBar: View {
     @Binding public var selectedTab: TabItem
     @Namespace private var animationNamespace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(selectedTab: Binding<TabItem>) {
         self._selectedTab = selectedTab
@@ -34,7 +45,7 @@ public struct FloatingTabBar: View {
                 let isSelected = selectedTab == tab
                 Button {
                     HapticManager.selection()
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    withAnimation(reduceMotion ? .none : .spring(response: 0.35, dampingFraction: 0.7)) {
                         selectedTab = tab
                     }
                 } label: {
@@ -46,10 +57,9 @@ public struct FloatingTabBar: View {
                                     .matchedGeometryEffect(id: "TabPill", in: animationNamespace)
                                     .frame(height: 36)
                             }
-                            Image(systemName: tab.icon)
+                            Image(systemName: isSelected ? tab.selectedIcon : tab.icon)
                                 .font(.system(size: 18, weight: isSelected ? .bold : .medium))
                                 .foregroundColor(isSelected ? MedxTheme.primaryBlue : .secondary)
-                                .symbolEffect(.bounce.down, value: isSelected)
                         }
                         .frame(maxWidth: .infinity)
 
@@ -59,7 +69,9 @@ public struct FloatingTabBar: View {
                     }
                 }
                 .buttonStyle(PlainButtonStyle())
-                .sensoryFeedback(.selection, trigger: selectedTab)
+                .frame(minHeight: 44)
+                .accessibilityLabel(tab.rawValue)
+                .accessibilityValue(isSelected ? "Selected" : "")
             }
         }
         .padding(.horizontal, 14)

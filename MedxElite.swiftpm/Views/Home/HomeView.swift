@@ -8,6 +8,7 @@ public struct HomeView: View {
     @State private var showSettings = false
     @State private var showTrackerSheet = false
     @State private var hasAppeared = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init() {}
 
@@ -88,7 +89,7 @@ public struct HomeView: View {
         }
         .task {
             await loadHomeData()
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            withAnimation(reduceMotion ? .none : .easeOut(duration: 0.35)) {
                 hasAppeared = true
             }
         }

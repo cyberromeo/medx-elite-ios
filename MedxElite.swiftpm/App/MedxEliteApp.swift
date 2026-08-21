@@ -19,6 +19,7 @@ struct MedxEliteApp: App {
             .animation(.spring(response: 0.5, dampingFraction: 0.8), value: authService.isAuthenticated)
             .environmentObject(authService)
             .environmentObject(appState)
+            .tint(MedxTheme.primaryBlue)
         }
     }
 }
