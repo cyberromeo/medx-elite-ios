@@ -1,0 +1,62 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Bookmarked MCQs: Users can only read, write, and delete their own bookmarks
+    match /medx_bookmarks/{docId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.ownerId == request.auth.uid);
+      allow create, update: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource == null || resource.data.ownerId == request.auth.uid);
+    }
+
+    // Video Watch History: Users can only read, track, and clear their own watch progress
+    match /medx_watch_history/{docId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.ownerId == request.auth.uid);
+      allow create, update: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource == null || resource.data.ownerId == request.auth.uid);
+    }
+
+    // Quiz & Test Attempts: Users can read, create, and delete their own attempts
+    match /medx_attempts/{attemptId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.uid == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource == null || resource.data.uid == request.auth.uid);
+    }
+
+    // Syllabus Matrix Tracker Document
+    match /user_tracker/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Study Content (Read-only for authenticated students)
+    match /medx_videos/{videoId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    match /medx_subjects/{subjectId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    match /medx_qbank/{moduleId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    match /medx_tests/{testId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+  }
+}

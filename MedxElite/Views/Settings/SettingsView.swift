@@ -8,6 +8,7 @@ public struct SettingsView: View {
     @State private var showForgetCachedConfirm = false
     @State private var cacheCleared = false
     @State private var cacheSize: String = "Calculating…"
+    @State private var isManualSyncing = false
     @Environment(\.dismiss) private var dismiss
 
     public init() {}
@@ -48,6 +49,7 @@ public struct SettingsView: View {
                     }
                 }
 
+                // MARK: - Library & Study History
                 Section("Library") {
                     NavigationLink {
                         BookmarkedQuestionsView(uid: authService.currentSession?.uid)
@@ -72,7 +74,10 @@ public struct SettingsView: View {
                     }
 
                     NavigationLink {
-                        ActivityLogView(uid: authService.currentSession?.uid, attempts: attempts)
+                        ActivityLogView(
+                            uid: authService.currentSession?.uid,
+                            attempts: $attempts
+                        )
                     } label: {
                         settingsRow(
                             title: "Activity Log",
@@ -80,6 +85,58 @@ public struct SettingsView: View {
                             color: MedxTheme.cyanAccent,
                             value: "\(activityStore.watchHistory(for: authService.currentSession?.uid).count + attempts.count)"
                         )
+                    }
+                }
+
+                // MARK: - Cloud Sync
+                Section("Cloud Synchronization") {
+                    HStack {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Firebase Cloud Sync")
+                                    .font(MedxFont.body(15))
+                                if let lastSync = activityStore.lastSyncedAt {
+                                    Text("Last synced \(RelativeDateTimeFormatter().localizedString(for: lastSync, relativeTo: Date()))")
+                                        .font(MedxFont.caption(11))
+                                        .foregroundColor(.secondary)
+                                } else {
+                                    Text("Automatic sync on changes")
+                                        .font(MedxFont.caption(11))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        } icon: {
+                            Image(systemName: "cloud.fill")
+                                .foregroundColor(MedxTheme.cyanAccent)
+                        }
+
+                        Spacer()
+
+                        Button {
+                            guard let uid = authService.currentSession?.uid else { return }
+                            isManualSyncing = true
+                            HapticManager.selection()
+                            Task {
+                                await activityStore.syncWithCloud(uid: uid)
+                                await loadAttempts()
+                                isManualSyncing = false
+                                HapticManager.success()
+                            }
+                        } label: {
+                            if isManualSyncing || activityStore.isSyncing {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Text("Sync Now")
+                                    .font(MedxFont.label(12))
+                                    .foregroundColor(MedxTheme.primaryBlue)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 4)
+                                    .background(MedxTheme.primaryBlue.opacity(0.12), in: Capsule())
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isManualSyncing || activityStore.isSyncing)
                     }
                 }
 
@@ -111,7 +168,7 @@ public struct SettingsView: View {
                     } label: {
                         HStack {
                             Label {
-                                Text("Clear Cache")
+                                Text("Clear Offline Cache")
                                     .font(MedxFont.body(15))
                             } icon: {
                                 Image(systemName: "trash")
@@ -181,12 +238,12 @@ public struct SettingsView: View {
                                 .foregroundColor(MedxTheme.warningOrange)
                         }
                         Spacer()
-                        Text("Swift Native")
+                        Text("Swift Native iOS 17")
                             .font(MedxFont.caption(13))
                             .foregroundColor(.secondary)
                     }
                 } footer: {
-                    Text("MedX Elite · Built with SwiftUI")
+                    Text("MedX Elite · Built with SwiftUI & Apple HIG")
                         .font(MedxFont.caption(11))
                 }
             }
@@ -221,6 +278,9 @@ public struct SettingsView: View {
                 Text("This will remove your saved password from this device's Keychain.")
             }
             .task {
+                if let uid = authService.currentSession?.uid {
+                    await activityStore.syncWithCloud(uid: uid)
+                }
                 await loadAttempts()
             }
         }
@@ -257,100 +317,277 @@ public struct SettingsView: View {
     }
 }
 
+// MARK: - Bookmarked Questions View
+
 private struct BookmarkedQuestionsView: View {
     let uid: String?
     @ObservedObject private var activityStore = ActivityStore.shared
+    @State private var searchText = ""
+    @State private var selectedSubject: String = "All"
+    @State private var showClearAllConfirm = false
+    @State private var practicePayload: RunnerPayload?
 
-    private var bookmarks: [BookmarkedQuestion] {
-        activityStore.bookmarks(for: uid).sorted { $0.bookmarkedAt > $1.bookmarkedAt }
+    private var allBookmarks: [BookmarkedQuestion] {
+        activityStore.bookmarks(for: uid)
+    }
+
+    private var availableSubjects: [String] {
+        let list = Set(allBookmarks.map { $0.subject }.filter { !$0.isEmpty })
+        return ["All"] + list.sorted()
+    }
+
+    private var filteredBookmarks: [BookmarkedQuestion] {
+        allBookmarks.filter { bookmark in
+            let matchesSubject = selectedSubject == "All" || bookmark.subject == selectedSubject
+            let matchesSearch = searchText.isEmpty ||
+                bookmark.previewText.localizedCaseInsensitiveContains(searchText) ||
+                bookmark.sourceName.localizedCaseInsensitiveContains(searchText) ||
+                bookmark.subject.localizedCaseInsensitiveContains(searchText)
+            return matchesSubject && matchesSearch
+        }
     }
 
     var body: some View {
         Group {
-            if bookmarks.isEmpty {
+            if allBookmarks.isEmpty {
                 ContentUnavailableView(
                     "No Bookmarks",
                     systemImage: "bookmark",
-                    description: Text("Bookmark an MCQ from the question runner to find it here.")
+                    description: Text("Bookmark MCQs during a sitting session or review to revise them here.")
                 )
             } else {
                 List {
-                    ForEach(bookmarks) { bookmark in
-                        NavigationLink {
-                            BookmarkedQuestionDetailView(bookmark: bookmark)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(bookmark.previewText)
-                                    .font(.body)
-                                    .lineLimit(3)
-                                Text([bookmark.subject, bookmark.sourceName].filter { !$0.isEmpty }.joined(separator: " · "))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.vertical, 5)
-                        }
-                        .swipeActions {
-                            Button(role: .destructive) {
-                                activityStore.removeBookmark(bookmark)
-                            } label: {
-                                Label("Delete", systemImage: "trash")
+                    // Subject Filter Chips
+                    if availableSubjects.count > 2 {
+                        Section {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(availableSubjects, id: \.self) { subj in
+                                        Button {
+                                            HapticManager.selection()
+                                            selectedSubject = subj
+                                        } label: {
+                                            Text(subj)
+                                                .font(MedxFont.label(12))
+                                                .foregroundColor(selectedSubject == subj ? .white : .primary)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(
+                                                    selectedSubject == subj ? MedxTheme.primaryPurple : Color(uiColor: .tertiarySystemFill),
+                                                    in: Capsule()
+                                                )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.vertical, 4)
                             }
                         }
                     }
+
+                    Section {
+                        ForEach(filteredBookmarks) { bookmark in
+                            NavigationLink {
+                                BookmarkedQuestionDetailView(bookmark: bookmark, uid: uid)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(bookmark.previewText)
+                                        .font(.body)
+                                        .lineLimit(3)
+
+                                    HStack(spacing: 6) {
+                                        if !bookmark.subject.isEmpty {
+                                            Text(bookmark.subject)
+                                                .font(MedxFont.mono(10, weight: .bold))
+                                                .foregroundColor(MedxTheme.primaryPurple)
+                                                .padding(.horizontal, 7)
+                                                .padding(.vertical, 2)
+                                                .background(MedxTheme.primaryPurple.opacity(0.12), in: Capsule())
+                                        }
+
+                                        Text(bookmark.sourceName)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+
+                                        Spacer()
+
+                                        Text(bookmark.formattedDate)
+                                            .font(MedxFont.caption(11))
+                                            .foregroundStyle(Color(uiColor: .tertiaryLabel))
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    HapticManager.medium()
+                                    activityStore.removeBookmark(bookmark, uid: uid)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                        }
+                    } footer: {
+                        Text("\(filteredBookmarks.count) of \(allBookmarks.count) bookmarked questions")
+                            .font(MedxFont.caption(12))
+                    }
                 }
+                .searchable(text: $searchText, prompt: "Search bookmarks…")
             }
         }
         .navigationTitle("Bookmarks")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !allBookmarks.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button(role: .destructive) {
+                            showClearAllConfirm = true
+                        } label: {
+                            Label("Clear All Bookmarks", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .frame(width: 44, height: 44)
+                    }
+                }
+            }
+        }
+        .confirmationDialog(
+            "Clear All Bookmarks?",
+            isPresented: $showClearAllConfirm
+        ) {
+            Button("Clear All", role: .destructive) {
+                HapticManager.medium()
+                activityStore.clearAllBookmarks(uid: uid)
+            }
+        } message: {
+            Text("This will remove all bookmarked questions locally and from your cloud account.")
+        }
     }
 }
 
+// MARK: - Bookmarked Question Detail View
+
 private struct BookmarkedQuestionDetailView: View {
     let bookmark: BookmarkedQuestion
+    let uid: String?
+    @ObservedObject private var activityStore = ActivityStore.shared
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text(bookmark.sourceName)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                HTMLRichTextView(html: bookmark.question.displayText, fontSize: 17, weight: .semibold)
-
-                ForEach(bookmark.question.options) { option in
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: bookmark.question.correctIds.contains(option.id) || option.correct == true ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(bookmark.question.correctIds.contains(option.id) || option.correct == true ? MedxTheme.successGreen : Color.secondary)
-                        Text("\(option.label). \(option.text)")
-                            .font(.body)
+                // Header meta badge
+                HStack {
+                    if !bookmark.subject.isEmpty {
+                        Text(bookmark.subject)
+                            .font(MedxFont.mono(11, weight: .bold))
+                            .foregroundColor(MedxTheme.primaryPurple)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(MedxTheme.primaryPurple.opacity(0.12), in: Capsule())
                     }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                    Text(bookmark.sourceName)
+                        .font(MedxFont.caption(12))
+                        .foregroundColor(.secondary)
+
+                    Spacer()
+
+                    Text(bookmark.formattedDate)
+                        .font(MedxFont.caption(11))
+                        .foregroundColor(Color(uiColor: .tertiaryLabel))
                 }
 
+                // Question HTML display
+                HTMLRichTextView(html: bookmark.question.displayText, fontSize: 17, weight: .semibold)
+
+                // Images if any
+                if let imgs = bookmark.question.images, !imgs.isEmpty {
+                    ForEach(imgs, id: \.self) { imgUrl in
+                        CachedAsyncImage(url: URL(string: imgUrl))
+                            .frame(maxHeight: 220)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                }
+
+                // Options with Answer Key
+                VStack(spacing: 10) {
+                    ForEach(bookmark.question.options) { option in
+                        let isCorrect = bookmark.question.correctIds.contains(option.id) || option.correct == true
+
+                        HStack(alignment: .center, spacing: 12) {
+                            Text(option.label)
+                                .font(MedxFont.mono(13, weight: .bold))
+                                .foregroundColor(isCorrect ? .white : .primary)
+                                .frame(width: 28, height: 28)
+                                .background(isCorrect ? MedxTheme.successGreen : Color.primary.opacity(0.08))
+                                .clipShape(Circle())
+
+                            HTMLRichTextView(html: option.text, fontSize: 14, weight: .regular)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .layoutPriority(1)
+
+                            Spacer(minLength: 0)
+
+                            if isCorrect {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.headline)
+                                    .foregroundColor(MedxTheme.successGreen)
+                            }
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, minHeight: 52, alignment: .center)
+                        .background(isCorrect ? MedxTheme.successGreen.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(isCorrect ? MedxTheme.successGreen.opacity(0.4) : Color.clear, lineWidth: 1)
+                        )
+                    }
+                }
+
+                // Explanation
                 if let explanation = bookmark.question.explanation, !explanation.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Explanation", systemImage: "lightbulb.fill")
                             .font(.headline)
+                            .foregroundColor(MedxTheme.warningOrange)
                         HTMLRichTextView(html: explanation, fontSize: 15, weight: .regular, textColor: .secondary)
                     }
                     .padding(16)
                     .glassCard(cornerRadius: 16)
                 }
+
+                // Remove Bookmark Button
+                Button(role: .destructive) {
+                    HapticManager.medium()
+                    activityStore.removeBookmark(bookmark, uid: uid)
+                    dismiss()
+                } label: {
+                    Label("Remove Bookmark", systemImage: "bookmark.slash")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.bordered)
+                .tint(MedxTheme.destructiveRed)
+                .padding(.top, 10)
             }
             .padding(20)
         }
         .background(Color(uiColor: .systemGroupedBackground))
-        .navigationTitle("Question")
+        .navigationTitle("Question Details")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
+
+// MARK: - Watch History View
 
 private struct WatchHistoryView: View {
     let uid: String?
     @ObservedObject private var activityStore = ActivityStore.shared
     @State private var activeVideo: RecordedVideo?
+    @State private var showClearConfirm = false
 
     private var entries: [WatchHistoryEntry] {
         activityStore.watchHistory(for: uid)
@@ -362,7 +599,7 @@ private struct WatchHistoryView: View {
                 ContentUnavailableView(
                     "No Watch History",
                     systemImage: "clock.arrow.circlepath",
-                    description: Text("Videos you start watching will appear here.")
+                    description: Text("Videos you start watching will automatically track your progress and resume position here.")
                 )
             } else {
                 List {
@@ -370,34 +607,67 @@ private struct WatchHistoryView: View {
                         Button {
                             activeVideo = entry.video
                         } label: {
-                            VStack(alignment: .leading, spacing: 7) {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(entry.video.title)
-                                            .font(.headline)
-                                            .foregroundStyle(.primary)
-                                            .lineLimit(2)
-                                        Text(entry.video.subject)
-                                            .font(.subheadline)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
+                            HStack(spacing: 14) {
+                                ZStack {
+                                    Circle()
+                                        .fill(MedxTheme.primaryBlue.opacity(0.12))
+                                        .frame(width: 44, height: 44)
                                     Image(systemName: "play.circle.fill")
                                         .font(.title2)
-                                        .foregroundStyle(MedxTheme.primaryBlue)
+                                        .foregroundColor(MedxTheme.primaryBlue)
                                 }
-                                ProgressView(value: entry.progress)
-                                    .tint(MedxTheme.primaryBlue)
-                                Text(entry.progress >= 0.98 ? "Watched" : "Resume at \(formatTime(entry.positionSeconds))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(entry.video.title)
+                                        .font(.headline)
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(2)
+
+                                    HStack(spacing: 6) {
+                                        Text(entry.video.subject)
+                                            .font(MedxFont.caption(12))
+                                            .foregroundStyle(.secondary)
+
+                                        if let faculty = entry.video.faculty, !faculty.isEmpty {
+                                            Text("· \(faculty)")
+                                                .font(MedxFont.caption(12))
+                                                .foregroundStyle(Color(uiColor: .tertiaryLabel))
+                                        }
+
+                                        Spacer()
+
+                                        Text(entry.formattedDate)
+                                            .font(MedxFont.caption(11))
+                                            .foregroundStyle(Color(uiColor: .tertiaryLabel))
+                                    }
+
+                                    ProgressView(value: entry.progress)
+                                        .tint(entry.isCompleted ? MedxTheme.successGreen : MedxTheme.primaryBlue)
+
+                                    HStack {
+                                        if entry.isCompleted {
+                                            Label("Completed", systemImage: "checkmark.circle.fill")
+                                                .font(MedxFont.mono(11, weight: .bold))
+                                                .foregroundColor(MedxTheme.successGreen)
+                                        } else {
+                                            Label("Resume at \(entry.formattedResumeTime)", systemImage: "arrow.counterclockwise.circle.fill")
+                                                .font(MedxFont.mono(11, weight: .bold))
+                                                .foregroundColor(MedxTheme.cyanAccent)
+                                        }
+                                        Spacer()
+                                        Text("\(Int(entry.progress * 100))%")
+                                            .font(MedxFont.mono(11))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
                             }
-                            .padding(.vertical, 5)
+                            .padding(.vertical, 6)
                         }
                         .buttonStyle(.plain)
-                        .swipeActions {
+                        .swipeActions(edge: .trailing) {
                             Button(role: .destructive) {
-                                activityStore.removeWatchHistory(entry)
+                                HapticManager.medium()
+                                activityStore.removeWatchHistory(entry, uid: uid)
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
@@ -408,75 +678,191 @@ private struct WatchHistoryView: View {
         }
         .navigationTitle("Watch History")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !entries.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button(role: .destructive) {
+                            showClearConfirm = true
+                        } label: {
+                            Label("Clear All Watch History", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .frame(width: 44, height: 44)
+                    }
+                }
+            }
+        }
+        .confirmationDialog(
+            "Clear Watch History?",
+            isPresented: $showClearConfirm
+        ) {
+            Button("Clear All", role: .destructive) {
+                HapticManager.medium()
+                activityStore.clearAllWatchHistory(uid: uid)
+            }
+        } message: {
+            Text("This will clear your watch progress and resume positions for all videos locally and in the cloud.")
+        }
         .fullScreenCover(item: $activeVideo) { video in
             VideoPlayerView(video: video) {
                 activeVideo = nil
             }
         }
     }
-
-    private func formatTime(_ seconds: Double) -> String {
-        let total = max(Int(seconds), 0)
-        return String(format: "%d:%02d", total / 60, total % 60)
-    }
 }
+
+// MARK: - Activity Log View (Unified Watch History & Test Attempts)
 
 private struct ActivityLogView: View {
     let uid: String?
-    @State private var attempts: [SittingAttempt]
+    @Binding var attempts: [SittingAttempt]
     @ObservedObject private var activityStore = ActivityStore.shared
+    @State private var selectedFilter: LogFilter = .all
+    @State private var searchText = ""
     @State private var pendingDeletion: ActivityLogItem?
+    @State private var showClearOptions = false
     @State private var deletionError = false
+    @State private var isDeleting = false
 
-    init(uid: String?, attempts: [SittingAttempt]) {
-        self.uid = uid
-        _attempts = State(initialValue: attempts)
+    enum LogFilter: String, CaseIterable, Identifiable {
+        case all = "All"
+        case videos = "Videos"
+        case qbank = "QBank"
+        case tests = "Tests"
+
+        var id: String { rawValue }
     }
 
-    private var items: [ActivityLogItem] {
+    private var allItems: [ActivityLogItem] {
         let videoItems = activityStore.watchHistory(for: uid).map(ActivityLogItem.video)
         let attemptItems = attempts.map(ActivityLogItem.attempt)
         return (videoItems + attemptItems).sorted { $0.date > $1.date }
     }
 
+    private var filteredItems: [ActivityLogItem] {
+        allItems.filter { item in
+            let matchesCategory: Bool
+            switch selectedFilter {
+            case .all:
+                matchesCategory = true
+            case .videos:
+                if case .video = item { matchesCategory = true } else { matchesCategory = false }
+            case .qbank:
+                if case .attempt(let att) = item, att.kind != "test" { matchesCategory = true } else { matchesCategory = false }
+            case .tests:
+                if case .attempt(let att) = item, att.kind == "test" { matchesCategory = true } else { matchesCategory = false }
+            }
+
+            let matchesSearch = searchText.isEmpty ||
+                item.title.localizedCaseInsensitiveContains(searchText) ||
+                item.subtitle.localizedCaseInsensitiveContains(searchText)
+
+            return matchesCategory && matchesSearch
+        }
+    }
+
     var body: some View {
         Group {
-            if items.isEmpty {
-                ContentUnavailableView("No Activity", systemImage: "list.bullet.rectangle.portrait")
+            if allItems.isEmpty {
+                ContentUnavailableView(
+                    "No Activity Log",
+                    systemImage: "list.bullet.rectangle.portrait",
+                    description: Text("Your video watch history and QBank/test attempts will appear in this unified log.")
+                )
             } else {
                 List {
-                    ForEach(items) { item in
-                        HStack(spacing: 12) {
-                            Image(systemName: item.icon)
-                                .foregroundStyle(item.color)
-                                .frame(width: 28)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(item.title)
-                                    .font(.body)
-                                    .lineLimit(2)
-                                Text(item.subtitle)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                    // Filter picker
+                    Section {
+                        Picker("Filter Activity", selection: $selectedFilter) {
+                            ForEach(LogFilter.allCases) { filter in
+                                Text(filter.rawValue).tag(filter)
                             }
-                            Spacer()
-                            Button(role: .destructive) {
-                                pendingDeletion = item
-                            } label: {
-                                Image(systemName: "trash")
-                                    .frame(width: 44, height: 44)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Delete activity")
                         }
-                        .frame(minHeight: 52)
+                        .pickerStyle(.segmented)
+                        .padding(.vertical, 2)
+                    }
+
+                    Section {
+                        ForEach(filteredItems) { item in
+                            HStack(spacing: 14) {
+                                Image(systemName: item.icon)
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundStyle(item.color)
+                                    .frame(width: 32)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(item.title)
+                                        .font(.headline)
+                                        .lineLimit(2)
+
+                                    Text(item.subtitle)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+
+                                    Text(item.formattedDate)
+                                        .font(MedxFont.caption(11))
+                                        .foregroundStyle(Color(uiColor: .tertiaryLabel))
+                                }
+
+                                Spacer()
+
+                                Button(role: .destructive) {
+                                    pendingDeletion = item
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 44, height: 44)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Delete \(item.title)")
+                            }
+                            .padding(.vertical, 4)
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    pendingDeletion = item
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                        }
+                    } footer: {
+                        Text("\(filteredItems.count) activity entries")
+                            .font(MedxFont.caption(12))
                     }
                 }
+                .searchable(text: $searchText, prompt: "Search activity log…")
             }
         }
         .navigationTitle("Activity Log")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !allItems.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button(role: .destructive) {
+                            activityStore.clearAllWatchHistory(uid: uid)
+                        } label: {
+                            Label("Clear Watch History", systemImage: "play.slash")
+                        }
+
+                        Button(role: .destructive) {
+                            Task {
+                                await clearAllAttempts()
+                            }
+                        } label: {
+                            Label("Clear All Test Attempts", systemImage: "doc.badge.gearshape")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .frame(width: 44, height: 44)
+                    }
+                }
+            }
+        }
         .confirmationDialog(
-            "Delete Activity?",
+            "Delete Activity Entry?",
             isPresented: Binding(
                 get: { pendingDeletion != nil },
                 set: { if !$0 { pendingDeletion = nil } }
@@ -484,29 +870,32 @@ private struct ActivityLogView: View {
             presenting: pendingDeletion
         ) { item in
             Button("Delete", role: .destructive) {
-                delete(item)
+                deleteItem(item)
             }
         } message: { item in
             Text(item.deleteMessage)
         }
-        .alert("Couldn’t Delete Activity", isPresented: $deletionError) {
+        .alert("Failed to Delete", isPresented: $deletionError) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Check your connection and try again.")
+            Text("Could not delete from cloud. Please check your internet connection and try again.")
         }
     }
 
-    private func delete(_ item: ActivityLogItem) {
+    private func deleteItem(_ item: ActivityLogItem) {
         switch item {
         case .video(let entry):
-            activityStore.removeWatchHistory(entry)
+            activityStore.removeWatchHistory(entry, uid: uid)
             HapticManager.success()
+
         case .attempt(let attempt):
             Task {
                 do {
                     let token = try await AuthService.shared.getValidIdToken()
                     try await FirestoreService.shared.deleteAttempt(attempt, idToken: token)
-                    attempts.removeAll { $0.id == attempt.id }
+                    withAnimation {
+                        attempts.removeAll { $0.id == attempt.id || ($0.sourceId == attempt.sourceId && $0.finishedAt == attempt.finishedAt) }
+                    }
                     HapticManager.success()
                 } catch {
                     deletionError = true
@@ -515,7 +904,20 @@ private struct ActivityLogView: View {
         }
         pendingDeletion = nil
     }
+
+    private func clearAllAttempts() async {
+        guard let token = try? await AuthService.shared.getValidIdToken() else { return }
+        for att in attempts {
+            try? await FirestoreService.shared.deleteAttempt(att, idToken: token)
+        }
+        withAnimation {
+            attempts.removeAll()
+        }
+        HapticManager.success()
+    }
 }
+
+// MARK: - Activity Log Item Wrapper
 
 private enum ActivityLogItem: Identifiable, Hashable {
     case video(WatchHistoryEntry)
@@ -559,17 +961,24 @@ private enum ActivityLogItem: Identifiable, Hashable {
     var subtitle: String {
         switch self {
         case .video(let entry):
-            return "Video · \(Int(entry.progress * 100))% watched"
+            let status = entry.isCompleted ? "Watched" : "Resume at \(entry.formattedResumeTime)"
+            return "\(entry.video.subject) · \(status) (\(Int(entry.progress * 100))%)"
         case .attempt(let attempt):
-            let kind = attempt.kind == "test" ? "Test attempt" : "QBank attempt"
-            return "\(kind) · \(attempt.attempted)/\(attempt.total) answered"
+            let kind = attempt.kind == "test" ? "Test" : "QBank"
+            let mode = attempt.mode == "exam" ? "Exam" : "Revision"
+            return "\(kind) (\(mode)) · Score: \(attempt.score)/\(attempt.total) (\(attempt.totalPercentage)%)"
         }
+    }
+
+    var formattedDate: String {
+        RelativeDateTimeFormatter().localizedString(for: date, relativeTo: Date())
     }
 
     var deleteMessage: String {
         switch self {
-        case .video: return "This removes the video from Watch History and clears its resume position."
-        case .attempt: return "This permanently deletes the saved QBank or test attempt."
+        case .video: return "Deleting this log entry will delete the watch history and clear its resume position both locally and in Firebase."
+        case .attempt: return "Deleting this log entry will permanently remove the test/QBank attempt record locally and in Firebase."
         }
     }
 }
+

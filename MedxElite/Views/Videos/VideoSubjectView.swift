@@ -131,9 +131,15 @@ public struct VideoSubjectView: View {
                             ProgressView(value: history.progress)
                                 .tint(MedxTheme.primaryBlue)
                                 .frame(width: 56)
-                            Text(history.progress >= 0.98 ? "Watched" : "(Int(history.progress * 100))% watched")
-                                .font(MedxFont.caption(11))
-                                .foregroundStyle(.secondary)
+                            if history.isCompleted {
+                                Text("Watched")
+                                    .font(MedxFont.mono(11, weight: .bold))
+                                    .foregroundColor(MedxTheme.successGreen)
+                            } else {
+                                Text("Resume at \(history.formattedResumeTime) (\(Int(history.progress * 100))%)")
+                                    .font(MedxFont.caption(11))
+                                    .foregroundColor(MedxTheme.cyanAccent)
+                            }
                         }
                     }
                 }

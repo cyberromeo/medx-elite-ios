@@ -24,3 +24,8 @@ Packages/
 .AppleDouble
 .LSOverride
 Icon
+
+# Agents & Skills
+.agents/
+skills-lock.json
+

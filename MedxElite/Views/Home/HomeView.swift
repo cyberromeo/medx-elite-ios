@@ -203,8 +203,9 @@ public struct HomeView: View {
             let token = try await authService.getValidIdToken()
             async let attemptsTask = FirestoreService.shared.fetchUserAttempts(uid: uid, idToken: token)
             async let trackerTask = FirestoreService.shared.fetchUserTracker(uid: uid, idToken: token)
+            async let syncTask: Void = ActivityStore.shared.syncWithCloud(uid: uid)
 
-            let (att, trk) = try await (attemptsTask, trackerTask)
+            let (att, trk, _) = try await (attemptsTask, trackerTask, syncTask)
             self.attempts = att
             self.trackerDoc = trk
             self.isLoading = false
