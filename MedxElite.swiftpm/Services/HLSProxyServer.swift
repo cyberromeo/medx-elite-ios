@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import Combine
 
 /// A lightweight local HTTP proxy that intercepts HLS requests (.m3u8 and .ts)
 /// and forwards them to the real server with spoofed headers extracted from
@@ -14,7 +15,7 @@ import Network
 public final class HLSProxyServer: ObservableObject {
     public static let shared = HLSProxyServer()
 
-    @Published public private(set) var isRunning = false
+    @Published public private(set) var isRunning: Bool = false
     @Published public private(set) var port: UInt16 = 0
 
     private var listener: NWListener?

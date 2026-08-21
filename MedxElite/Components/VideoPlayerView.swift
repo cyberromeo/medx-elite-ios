@@ -33,8 +33,8 @@ public struct VideoPlayerView: View {
 
             if hasError {
                 errorView
-            } else if let player {
-                ProxiedVideoPlayerController(player: player)
+            } else if let currentPlayer = player {
+                ProxiedVideoPlayerController(player: currentPlayer)
                     .ignoresSafeArea()
             } else {
                 loadingView
@@ -124,7 +124,7 @@ public struct VideoPlayerView: View {
             print("[VideoPlayer] Audio session error: \(error)")
         }
 
-        if !proxy.isRunning {
+        if proxy.isRunning == false {
             proxy.start()
         }
 
@@ -180,8 +180,8 @@ public struct VideoPlayerView: View {
 
     private func closePlayer() {
         player?.pause()
-        if let onDismiss {
-            onDismiss()
+        if let dismissHandler = onDismiss {
+            dismissHandler()
         } else {
             dismiss()
         }
@@ -197,8 +197,8 @@ struct ProxiedVideoPlayerController: UIViewControllerRepresentable {
         let controller = AVPlayerViewController()
         controller.player = player
         controller.showsPlaybackControls = true
-        controller.allowsPictureInPicturePlayback = AVPictureInPictureController.isPictureInPictureSupported
-        controller.canStartPictureInPictureAutomaticallyFromInline = AVPictureInPictureController.isPictureInPictureSupported
+        controller.allowsPictureInPicturePlayback = AVPictureInPictureController.isPictureInPictureSupported()
+        controller.canStartPictureInPictureAutomaticallyFromInline = AVPictureInPictureController.isPictureInPictureSupported()
         controller.entersFullScreenWhenPlaybackBegins = false
         controller.exitsFullScreenWhenPlaybackEnds = true
         controller.updatesNowPlayingInfoCenter = true
@@ -209,7 +209,7 @@ struct ProxiedVideoPlayerController: UIViewControllerRepresentable {
 
     func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
         uiViewController.player = player
-        uiViewController.allowsPictureInPicturePlayback = AVPictureInPictureController.isPictureInPictureSupported
-        uiViewController.canStartPictureInPictureAutomaticallyFromInline = AVPictureInPictureController.isPictureInPictureSupported
+        uiViewController.allowsPictureInPicturePlayback = AVPictureInPictureController.isPictureInPictureSupported()
+        uiViewController.canStartPictureInPictureAutomaticallyFromInline = AVPictureInPictureController.isPictureInPictureSupported()
     }
 }
