@@ -18,6 +18,34 @@ public struct RecordedVideo: Identifiable, Hashable, Codable, Sendable {
         case id, source, batchId, batch, subjectId, subject, title, faculty, durationSeconds, duration, streamUrl, kind
     }
 
+    public init(
+        id: String,
+        source: String? = nil,
+        batchId: String? = nil,
+        batch: String? = nil,
+        subjectId: String? = nil,
+        subject: String,
+        title: String,
+        faculty: String? = nil,
+        durationSeconds: Int? = nil,
+        duration: String? = nil,
+        streamUrl: String,
+        kind: String? = nil
+    ) {
+        self.id = id
+        self.source = source
+        self.batchId = batchId
+        self.batch = batch
+        self.subjectId = subjectId
+        self.subject = subject
+        self.title = title
+        self.faculty = faculty
+        self.durationSeconds = durationSeconds
+        self.duration = duration
+        self.streamUrl = streamUrl
+        self.kind = kind
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         if let idStr = try? container.decode(String.self, forKey: .id) {

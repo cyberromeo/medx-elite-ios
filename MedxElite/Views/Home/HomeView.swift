@@ -137,16 +137,11 @@ public struct HomeView: View {
             showSettings = true
         } label: {
             if let profile = authService.currentProfile {
-                    ZStack {
-                        Circle()
-                            .fill(Color(uiColor: .tertiarySystemFill))
-                            .frame(width: 36, height: 36)
-                            .overlay(Circle().strokeBorder(Color(uiColor: .separator), lineWidth: 0.6))
-
-                        Text(String(profile.displayName.prefix(1)).uppercased())
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(profile.accentColor)
-                    }
+                Text(String(profile.displayName.prefix(1)).uppercased())
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(profile.accentColor)
+                    .frame(width: 44, height: 44)
+                    .liquidGlassCircle(tintColor: profile.accentColor)
             } else {
                 Image(systemName: "person.crop.circle.fill")
                     .font(.title3)

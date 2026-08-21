@@ -14,6 +14,7 @@ public struct QuizRunnerView: View {
     @State private var isLoading = true
     @State private var showExitAlert = false
     @State private var startedAt = Date()
+    @ObservedObject private var activityStore = ActivityStore.shared
 
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     @Environment(\.dismiss) private var dismiss
@@ -236,7 +237,19 @@ public struct QuizRunnerView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Label(formatTime(remainingSeconds), systemImage: "timer")
+             Button {
+                 guard let question = currentQuestion, let uid = AuthService.shared.currentSession?.uid else { return }
+                 activityStore.toggleBookmark(question: question, payload: payload, uid: uid)
+                 HapticManager.selection()
+             } label: {
+                 Image(systemName: activityStore.isBookmarked(questionId: question.id, sourceId: payload.id, uid: AuthService.shared.currentSession?.uid) ? "bookmark.fill" : "bookmark")
+                     .font(.body.weight(.semibold))
+                     .frame(width: 44, height: 44)
+             }
+             .buttonStyle(.plain)
+             .accessibilityLabel(activityStore.isBookmarked(questionId: question.id, sourceId: payload.id, uid: AuthService.shared.currentSession?.uid) ? "Remove bookmark" : "Bookmark question")
+
+             Label(formatTime(remainingSeconds), systemImage: "timer")
                 .font(.subheadline.monospacedDigit().weight(.semibold))
                 .foregroundStyle(remainingSeconds <= 10 ? MedxTheme.destructiveRed : .primary)
                 .padding(.horizontal, 10)

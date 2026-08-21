@@ -277,6 +277,19 @@ public actor FirestoreService {
         }
     }
 
+    public func deleteAttempt(_ attempt: SittingAttempt, idToken: String) async throws {
+        guard let id = attempt.id, !id.isEmpty else { return }
+        let urlString = "\(FirebaseConfig.firestoreRestBase)/medx_attempts/\(id)"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
     public func fetchUserTracker(uid: String, idToken: String) async throws -> UserTrackerDoc? {
         do {
             return try await fetchDocument(collection: "user_tracker", docId: uid, idToken: idToken, useCache: false)

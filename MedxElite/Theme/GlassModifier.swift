@@ -131,6 +131,19 @@ public extension View {
     func elevatedCard(cornerRadius: CGFloat = 16) -> some View {
         modifier(LiquidGlassCardModifier(cornerRadius: cornerRadius, shadowLevel: 2))
     }
+
+    @ViewBuilder
+    func liquidGlassCircle(tintColor: Color? = nil) -> some View {
+        let tint = tintColor ?? Color.accentColor
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular.tint(tint).interactive(), in: Circle())
+        } else {
+            self
+                .background(.thinMaterial, in: Circle())
+                .overlay(Circle().strokeBorder(tint.opacity(0.32), lineWidth: 0.6))
+                .shadow(color: Color.black.opacity(0.08), radius: 5, y: 2)
+        }
+    }
 }
 
 public struct MedxMetric: View {

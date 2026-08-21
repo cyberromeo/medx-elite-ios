@@ -2,6 +2,8 @@ import SwiftUI
 
 public struct VideoSubjectView: View {
     public let subjectGroup: VideoSubjectGroup
+    @ObservedObject private var activityStore = ActivityStore.shared
+    @ObservedObject private var authService = AuthService.shared
     @State private var activePlayingVideo: RecordedVideo?
     @State private var hasAppeared = false
 
@@ -53,9 +55,7 @@ public struct VideoSubjectView: View {
         .navigationBarTitleDisplayMode(.large)
         .fullScreenCover(item: $activePlayingVideo) { video in
             VideoPlayerView(
-                streamUrl: video.streamUrl,
-                title: video.title,
-                subtitle: video.faculty,
+                video: video,
                 onDismiss: {
                     activePlayingVideo = nil
                 }
@@ -123,6 +123,17 @@ public struct VideoSubjectView: View {
                                     .font(MedxFont.mono(12, weight: .semibold))
                             }
                             .foregroundColor(MedxTheme.primaryBlue.opacity(0.8))
+                        }
+                    }
+
+                    if let history = activityStore.entry(for: video.id, uid: authService.currentSession?.uid), history.progress > 0 {
+                        HStack(spacing: 6) {
+                            ProgressView(value: history.progress)
+                                .tint(MedxTheme.primaryBlue)
+                                .frame(width: 56)
+                            Text(history.progress >= 0.98 ? "Watched" : "(Int(history.progress * 100))% watched")
+                                .font(MedxFont.caption(11))
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }

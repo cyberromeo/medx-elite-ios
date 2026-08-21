@@ -3,6 +3,7 @@ import AVKit
 
 /// Native iOS video playback surface backed by AVPlayer and the system AVPlayerViewController controls.
 public struct VideoPlayerView: View {
+    public let video: RecordedVideo?
     public let streamUrl: String
     public let title: String
     public let subtitle: String?
@@ -13,6 +14,9 @@ public struct VideoPlayerView: View {
     @State private var isLoading = true
     @State private var hasError = false
     @State private var errorMessage = ""
+    @State private var timeObserverToken: Any?
+    @ObservedObject private var activityStore = ActivityStore.shared
+    @ObservedObject private var authService = AuthService.shared
     @Environment(\.dismiss) private var dismiss
 
     public init(
@@ -24,6 +28,15 @@ public struct VideoPlayerView: View {
         self.streamUrl = streamUrl
         self.title = title
         self.subtitle = subtitle
+        self.onDismiss = onDismiss
+        self.video = nil
+    }
+
+    public init(video: RecordedVideo, onDismiss: (() -> Void)? = nil) {
+        self.video = video
+        self.streamUrl = video.streamUrl
+        self.title = video.title
+        self.subtitle = video.faculty
         self.onDismiss = onDismiss
     }
 
@@ -155,7 +168,18 @@ public struct VideoPlayerView: View {
         let player = AVPlayer(playerItem: item)
         player.allowsExternalPlayback = true
         player.preventsDisplaySleepDuringVideoPlayback = true
+        if let video, let history = activityStore.entry(for: video.id, uid: authService.currentSession?.uid), history.resumePosition > 0 {
+            player.seek(to: CMTime(seconds: history.resumePosition, preferredTimescale: 600))
+        }
         player.playImmediately(atRate: 1.0)
+
+        timeObserverToken = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 5, preferredTimescale: 600), queue: .main) { time in
+            guard let video = self.video else { return }
+            let duration = player.currentItem?.duration.seconds ?? Double(video.durationSeconds ?? 0)
+            Task { @MainActor in
+                ActivityStore.shared.recordVideoProgress(video: video, uid: self.authService.currentSession?.uid, position: time.seconds, duration: duration.isFinite ? duration : 0)
+            }
+        }
 
         NotificationCenter.default.addObserver(
             forName: .AVPlayerItemFailedToPlayToEndTime,
@@ -173,6 +197,14 @@ public struct VideoPlayerView: View {
     }
 
     private func teardownPlayer() {
+        if let token = timeObserverToken, let player {
+            player.removeTimeObserver(token)
+        }
+        timeObserverToken = nil
+        if let video, let player {
+            let duration = player.currentItem?.duration.seconds ?? Double(video.durationSeconds ?? 0)
+            ActivityStore.shared.recordVideoProgress(video: video, uid: authService.currentSession?.uid, position: player.currentTime().seconds, duration: duration.isFinite ? duration : 0)
+        }
         player?.pause()
         player?.replaceCurrentItem(with: nil)
         player = nil
