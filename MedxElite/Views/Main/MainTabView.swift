@@ -55,3 +55,40 @@ public struct MainTabView: View {
         }
     }
 }
+
+public struct ProfileSettingsButton: View {
+    @ObservedObject private var authService = AuthService.shared
+    @State private var showSettings = false
+
+    public init() {}
+
+    public var body: some View {
+        Button {
+            HapticManager.light()
+            showSettings = true
+        } label: {
+            if let profile = authService.currentProfile {
+                Text(String(profile.displayName.prefix(1)).uppercased())
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(profile.accentColor)
+                    .frame(width: 44, height: 44)
+                    .liquidGlassCircle(tintColor: profile.accentColor)
+            } else {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(width: 44, height: 44)
+        .fixedSize()
+        .clipShape(Circle())
+        .contentShape(Circle())
+        .accessibilityLabel("Profile settings")
+        .accessibilityHint("Opens account, bookmarks, history, and app settings")
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
+    }
+}

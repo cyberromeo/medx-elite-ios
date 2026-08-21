@@ -142,7 +142,10 @@ public struct SittingReviewView: View {
                                 QuestionReviewCard(
                                     questionNumber: originalIndex,
                                     question: q,
-                                    response: r
+                                    response: r,
+                                    sourceId: name,
+                                    sourceName: name,
+                                    subject: subject
                                 )
                             }
                         }
@@ -175,14 +178,38 @@ private struct QuestionReviewCard: View {
     let questionNumber: Int
     let question: Question
     let response: QuestionResponse?
+    let sourceId: String
+    let sourceName: String
+    let subject: String
+    @ObservedObject private var activityStore = ActivityStore.shared
+    @ObservedObject private var authService = AuthService.shared
     @State private var isExplanationExpanded = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             // Header status
-            HStack {
+            HStack(spacing: 10) {
                 Text("Question \(questionNumber)")
                     .font(MedxFont.headline(15))
+
+                Button {
+                    guard let uid = authService.currentSession?.uid else { return }
+                    activityStore.toggleBookmark(
+                        question: question,
+                        sourceId: sourceId,
+                        sourceName: sourceName,
+                        subject: subject,
+                        uid: uid
+                    )
+                    HapticManager.selection()
+                } label: {
+                    Image(systemName: activityStore.isBookmarked(questionId: question.id, sourceId: sourceId, uid: authService.currentSession?.uid) ? "bookmark.fill" : "bookmark")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(activityStore.isBookmarked(questionId: question.id, sourceId: sourceId, uid: authService.currentSession?.uid) ? MedxTheme.primaryPurple : .secondary)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(activityStore.isBookmarked(questionId: question.id, sourceId: sourceId, uid: authService.currentSession?.uid) ? "Remove bookmark" : "Bookmark question")
 
                 Spacer()
 

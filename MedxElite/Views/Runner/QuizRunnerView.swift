@@ -181,6 +181,7 @@ public struct QuizRunnerView: View {
                         .padding(.horizontal, 20)
                         .padding(.bottom, 110)
                     }
+                    .simultaneousGesture(horizontalQuestionGesture)
 
                     // MARK: - Bottom Liquid Glass Floating Bar
                     bottomBar(question: question, isRevealed: isRevealed)
@@ -272,44 +273,48 @@ public struct QuizRunnerView: View {
         let isLast = currentIndex + 1 >= questions.count
         let canAdvance = payload.mode == .exam || isRevealed
 
-        return HStack(spacing: 12) {
-            Button {
-                HapticManager.light()
-                currentIndex -= 1
-                resetTimerForQuestion()
-            } label: {
-                Label("Back", systemImage: "chevron.left")
-                    .labelStyle(.titleAndIcon)
-                    .frame(minHeight: 44)
-            }
-            .buttonStyle(.bordered)
-            .disabled(currentIndex == 0)
+        return VStack(spacing: 8) {
+            bookmarkButton(question: question)
 
-            if payload.mode == .exam && responses[question.id] == nil {
+            HStack(spacing: 12) {
                 Button {
                     HapticManager.light()
-                    nextQuestion()
+                    currentIndex -= 1
+                    resetTimerForQuestion()
                 } label: {
-                    Text("Skip")
+                    Label("Back", systemImage: "chevron.left")
+                        .labelStyle(.titleAndIcon)
                         .frame(minHeight: 44)
                 }
                 .buttonStyle(.bordered)
-            }
+                .disabled(currentIndex == 0)
 
-            Button {
-                HapticManager.medium()
-                if isLast {
-                    finishSitting()
-                } else {
-                    nextQuestion()
+                if payload.mode == .exam && responses[question.id] == nil {
+                    Button {
+                        HapticManager.light()
+                        nextQuestion()
+                    } label: {
+                        Text("Skip")
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.bordered)
                 }
-            } label: {
-                Text(isLast ? "Finish" : "Next")
-                    .frame(maxWidth: .infinity, minHeight: 44)
+
+                Button {
+                    HapticManager.medium()
+                    if isLast {
+                        finishSitting()
+                    } else {
+                        nextQuestion()
+                    }
+                } label: {
+                    Text(isLast ? "Finish" : "Next")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple)
+                .disabled(!canAdvance)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple)
-            .disabled(!canAdvance)
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
@@ -319,6 +324,46 @@ public struct QuizRunnerView: View {
             Divider()
         }
         .safeAreaPadding(.bottom, 4)
+    }
+
+    private func bookmarkButton(question: Question) -> some View {
+        let uid = AuthService.shared.currentSession?.uid
+        let isBookmarked = activityStore.isBookmarked(questionId: question.id, sourceId: payload.id, uid: uid)
+
+        return Button {
+            guard uid != nil else { return }
+            activityStore.toggleBookmark(question: question, payload: payload, uid: uid)
+            HapticManager.selection()
+        } label: {
+            Label(isBookmarked ? "Bookmarked" : "Bookmark question", systemImage: isBookmarked ? "bookmark.fill" : "bookmark")
+                .frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .buttonStyle(.bordered)
+        .tint(isBookmarked ? MedxTheme.primaryPurple : .secondary)
+        .accessibilityValue(isBookmarked ? "Saved" : "Not saved")
+    }
+
+    private var horizontalQuestionGesture: some Gesture {
+        DragGesture(minimumDistance: 32)
+            .onEnded { value in
+                let horizontal = abs(value.translation.width)
+                let vertical = abs(value.translation.height)
+                guard horizontal > 70, horizontal > vertical * 1.25 else { return }
+
+                if value.translation.width < 0 {
+                    guard let question = currentQuestion else { return }
+                    let canAdvance = payload.mode == .exam || revealedQuestions[question.id] == true
+                    guard canAdvance else {
+                        HapticManager.error()
+                        return
+                    }
+                    nextQuestion()
+                } else if currentIndex > 0 {
+                    currentIndex -= 1
+                    resetTimerForQuestion()
+                    HapticManager.light()
+                }
+            }
     }
 
     private var ambientBackground: some View {

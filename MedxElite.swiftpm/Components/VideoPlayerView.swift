@@ -15,6 +15,9 @@ public struct VideoPlayerView: View {
     @State private var hasError = false
     @State private var errorMessage = ""
     @State private var timeObserverToken: Any?
+    @State private var showResumeToast = false
+    @State private var resumedFromSeconds: Double = 0
+    @State private var lastCloudSyncTime: Date = Date()
     @ObservedObject private var activityStore = ActivityStore.shared
     @ObservedObject private var authService = AuthService.shared
     @Environment(\.dismiss) private var dismiss
@@ -49,6 +52,16 @@ public struct VideoPlayerView: View {
             } else if let currentPlayer = player {
                 ProxiedVideoPlayerController(player: currentPlayer)
                     .ignoresSafeArea()
+
+                if showResumeToast {
+                    VStack {
+                        resumeToastView
+                            .padding(.top, 16)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        Spacer()
+                    }
+                    .zIndex(10)
+                }
             } else {
                 loadingView
             }
@@ -61,6 +74,61 @@ public struct VideoPlayerView: View {
         }
         .statusBarHidden(true)
         .background(Color.black)
+    }
+
+    private var resumeToastView: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.counterclockwise.circle.fill")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(MedxTheme.cyanAccent)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Resumed Playback")
+                    .font(MedxFont.headline(13))
+                    .foregroundColor(.white)
+                Text("Playing from \(formatTime(resumedFromSeconds))")
+                    .font(MedxFont.caption(11))
+                    .foregroundColor(.white.opacity(0.8))
+            }
+
+            Spacer(minLength: 8)
+
+            Button {
+                HapticManager.selection()
+                restartFromBeginning()
+            } label: {
+                Text("Start Over")
+                    .font(MedxFont.label(12))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.white.opacity(0.2), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Restart video from beginning")
+
+            Button {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    showResumeToast = false
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.white.opacity(0.7))
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss resume notification")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(MedxTheme.cyanAccent.opacity(0.3), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 6)
+        .padding(.horizontal, 24)
     }
 
     private var loadingView: some View {
@@ -168,16 +236,43 @@ public struct VideoPlayerView: View {
         let player = AVPlayer(playerItem: item)
         player.allowsExternalPlayback = true
         player.preventsDisplaySleepDuringVideoPlayback = true
-        if let video, let history = activityStore.entry(for: video.id, uid: authService.currentSession?.uid), history.resumePosition > 0 {
-            player.seek(to: CMTime(seconds: history.resumePosition, preferredTimescale: 600))
+
+        if let video, let history = activityStore.entry(for: video.id, uid: authService.currentSession?.uid), history.resumePosition > 5 {
+            let targetSeconds = history.resumePosition
+            player.seek(to: CMTime(seconds: targetSeconds, preferredTimescale: 600))
+            self.resumedFromSeconds = targetSeconds
+            withAnimation(.easeOut(duration: 0.35)) {
+                self.showResumeToast = true
+            }
+            // Auto dismiss toast after 4.5 seconds
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
+                withAnimation(.easeOut(duration: 0.35)) {
+                    self.showResumeToast = false
+                }
+            }
         }
+
         player.playImmediately(atRate: 1.0)
 
         timeObserverToken = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 5, preferredTimescale: 600), queue: .main) { time in
             guard let video = self.video else { return }
             let duration = player.currentItem?.duration.seconds ?? Double(video.durationSeconds ?? 0)
+            let currentSecs = time.seconds
+            guard currentSecs.isFinite, currentSecs >= 0 else { return }
+
+            let shouldSyncCloud = Date().timeIntervalSince(self.lastCloudSyncTime) >= 20.0
+            if shouldSyncCloud {
+                self.lastCloudSyncTime = Date()
+            }
+
             Task { @MainActor in
-                ActivityStore.shared.recordVideoProgress(video: video, uid: self.authService.currentSession?.uid, position: time.seconds, duration: duration.isFinite ? duration : 0)
+                ActivityStore.shared.recordVideoProgress(
+                    video: video,
+                    uid: self.authService.currentSession?.uid,
+                    position: currentSecs,
+                    duration: duration.isFinite ? duration : 0,
+                    syncToCloud: shouldSyncCloud
+                )
             }
         }
 
@@ -196,6 +291,24 @@ public struct VideoPlayerView: View {
         isLoading = false
     }
 
+    private func restartFromBeginning() {
+        guard let player else { return }
+        player.seek(to: .zero)
+        withAnimation(.easeOut(duration: 0.25)) {
+            showResumeToast = false
+        }
+        if let video {
+            let duration = player.currentItem?.duration.seconds ?? Double(video.durationSeconds ?? 0)
+            ActivityStore.shared.recordVideoProgress(
+                video: video,
+                uid: authService.currentSession?.uid,
+                position: 0,
+                duration: duration.isFinite ? duration : 0,
+                syncToCloud: true
+            )
+        }
+    }
+
     private func teardownPlayer() {
         if let token = timeObserverToken, let player {
             player.removeTimeObserver(token)
@@ -203,7 +316,16 @@ public struct VideoPlayerView: View {
         timeObserverToken = nil
         if let video, let player {
             let duration = player.currentItem?.duration.seconds ?? Double(video.durationSeconds ?? 0)
-            ActivityStore.shared.recordVideoProgress(video: video, uid: authService.currentSession?.uid, position: player.currentTime().seconds, duration: duration.isFinite ? duration : 0)
+            let position = player.currentTime().seconds
+            if position.isFinite, position >= 0 {
+                ActivityStore.shared.recordVideoProgress(
+                    video: video,
+                    uid: authService.currentSession?.uid,
+                    position: position,
+                    duration: duration.isFinite ? duration : 0,
+                    syncToCloud: true
+                )
+            }
         }
         player?.pause()
         player?.replaceCurrentItem(with: nil)

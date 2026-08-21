@@ -164,10 +164,6 @@ public struct FlashcardDeckView: View {
 
                     Spacer(minLength: 8)
 
-                    Text("Double-tap to zoom")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.72))
-                        .lineLimit(1)
                 }
 
                 if let chapter = card.chapter, !chapter.isEmpty {
@@ -177,10 +173,6 @@ public struct FlashcardDeckView: View {
                         .lineLimit(1)
                 }
 
-                Text("Swipe left or right for another card")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.62))
-                    .accessibilityHidden(true)
             }
             .padding(.horizontal, 18)
             .padding(.top, 14)

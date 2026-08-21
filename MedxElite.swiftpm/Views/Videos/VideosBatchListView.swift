@@ -6,6 +6,8 @@ public struct VideosBatchListView: View {
     @State private var isLoading = true
     @State private var searchText = ""
     @State private var expandedBatches: Set<String> = []
+    @State private var activeVideo: RecordedVideo?
+    @ObservedObject private var activityStore = ActivityStore.shared
 
     public init() {}
 
@@ -100,6 +102,8 @@ public struct VideosBatchListView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 6)
 
+                        continueWatchingSection
+
                         // Batch groups
                         ForEach(batchGroups) { batch in
                             batchSection(batch)
@@ -114,9 +118,19 @@ public struct VideosBatchListView: View {
         }
         .navigationTitle("Videos")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ProfileSettingsButton()
+            }
+        }
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search videos")
         .task {
             await loadVideos()
+        }
+        .fullScreenCover(item: $activeVideo) { video in
+            VideoPlayerView(video: video) {
+                activeVideo = nil
+            }
         }
     }
 
@@ -148,6 +162,58 @@ public struct VideosBatchListView: View {
                 }
             }
             .padding(.horizontal, 20)
+        }
+    }
+
+    @ViewBuilder
+    private var continueWatchingSection: some View {
+        let entries = Array(activityStore.watchHistory(for: authService.currentSession?.uid).prefix(5))
+        if !entries.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Label("Continue Watching", systemImage: "play.circle.fill")
+                        .font(MedxFont.headline(16))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Text("Resume")
+                        .font(MedxFont.caption(12))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 20)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(entries) { entry in
+                            Button {
+                                HapticManager.light()
+                                activeVideo = entry.video
+                            } label: {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Image(systemName: entry.isCompleted ? "checkmark.circle.fill" : "play.circle.fill")
+                                        .font(.title2)
+                                        .foregroundStyle(entry.isCompleted ? MedxTheme.successGreen : MedxTheme.primaryBlue)
+                                    Text(entry.video.title)
+                                        .font(MedxFont.headline(13))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(2)
+                                        .frame(width: 170, alignment: .leading)
+                                    ProgressView(value: entry.progress)
+                                        .tint(entry.isCompleted ? MedxTheme.successGreen : MedxTheme.primaryBlue)
+                                    Text(entry.isCompleted ? "Completed" : "Resume at \(entry.formattedResumeTime)")
+                                        .font(MedxFont.caption(11))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(14)
+                                .frame(width: 198, alignment: .leading)
+                                .glassCard(cornerRadius: 16, shadowLevel: 1)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(entry.video.title), \(Int(entry.progress * 100)) percent watched")
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            }
         }
     }
 

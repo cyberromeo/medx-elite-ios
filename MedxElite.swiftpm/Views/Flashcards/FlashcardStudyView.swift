@@ -14,6 +14,10 @@ public struct FlashcardStudyView: View {
         GridItem(.adaptive(minimum: 150, maximum: 200), spacing: 14)
     ]
 
+    private var cards: [FlashcardCard] {
+        subject.cards ?? []
+    }
+
     public var body: some View {
         ScrollView {
             VStack(spacing: 18) {
@@ -57,56 +61,59 @@ public struct FlashcardStudyView: View {
                             }
                         }
                     } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: selectedDevice == .mobile
-                                  ? (selectedOrientation == .portrait ? "iphone" : "iphone.landscape")
-                                  : (selectedOrientation == .portrait ? "ipad" : "ipad.landscape"))
-                            Text("\(selectedDevice.rawValue) \(selectedOrientation.rawValue)")
-                                .font(MedxFont.label(12))
-                        }
-                        .foregroundColor(MedxTheme.primaryPurple)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(MedxTheme.primaryPurple.opacity(0.12))
-                        .clipShape(Capsule())
+                        Image(systemName: selectedDevice == .mobile
+                              ? (selectedOrientation == .portrait ? "iphone" : "iphone.landscape")
+                              : (selectedOrientation == .portrait ? "ipad" : "ipad.landscape"))
+                            .font(.body.weight(.semibold))
+                            .frame(width: 44, height: 44)
+                            .medxNavigationGlass(cornerRadius: 22, tint: MedxTheme.primaryPurple, interactive: true)
                     }
+                    .accessibilityLabel("Preview layout")
+                    .accessibilityValue("\(selectedDevice.rawValue), \(selectedOrientation.rawValue)")
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
 
-                // Cards Grid
-                let cards = subject.cards ?? []
-                LazyVGrid(columns: columns, spacing: 14) {
-                    ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
-                        Button {
-                            HapticManager.light()
-                            activeDeckStartIndex = index
-                        } label: {
-                            VStack(alignment: .leading, spacing: 8) {
-                                let urlStr = card.variants?.urlFor(device: selectedDevice, orientation: selectedOrientation)
-                                let url = URL(string: urlStr ?? "")
+                if cards.isEmpty {
+                    ContentUnavailableView(
+                        "No Flashcards",
+                        systemImage: "rectangle.stack.badge.minus",
+                        description: Text("This subject does not contain any flashcards yet.")
+                    )
+                    .padding(.top, 48)
+                } else {
+                    LazyVGrid(columns: columns, spacing: 14) {
+                        ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
+                            Button {
+                                HapticManager.light()
+                                activeDeckStartIndex = index
+                            } label: {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    let urlStr = card.variants?.urlFor(device: selectedDevice, orientation: selectedOrientation)
+                                    let url = URL(string: urlStr ?? "")
 
-                                CachedAsyncImage(url: url, contentMode: .fill)
-                                    .frame(height: 140)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    CachedAsyncImage(url: url, contentMode: .fill)
+                                        .aspectRatio(4 / 3, contentMode: .fit)
+                                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                                Text(card.name)
-                                    .font(MedxFont.headline(13))
-                                    .foregroundColor(.primary)
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.leading)
+                                    Text(card.name)
+                                        .font(MedxFont.headline(13))
+                                        .foregroundColor(.primary)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                }
+                                .padding(10)
+                                .glassCard(cornerRadius: 16, shadowLevel: 1)
                             }
-                            .padding(10)
-                            .glassCard(cornerRadius: 16, shadowLevel: 1)
+                            .buttonStyle(.plain)
+                            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .accessibilityLabel("Open flashcard \(card.name)")
+                            .accessibilityHint("Opens the photo gallery viewer")
                         }
-                        .buttonStyle(.plain)
-                        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .accessibilityLabel("Open flashcard \(card.name)")
-                        .accessibilityHint("Opens the photo gallery viewer")
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 40)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 40)
             }
         }
         .navigationTitle(subject.name)
@@ -115,7 +122,7 @@ public struct FlashcardStudyView: View {
             get: { activeDeckStartIndex.map { DeckIndexWrapper(index: $0) } },
             set: { activeDeckStartIndex = $0?.index }
         )) { wrapper in
-            FlashcardDeckView(cards: subject.cards ?? [], initialIndex: wrapper.index)
+            FlashcardDeckView(cards: cards, initialIndex: wrapper.index)
         }
     }
 }

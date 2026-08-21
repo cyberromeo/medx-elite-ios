@@ -30,12 +30,29 @@ public struct QBankChapterView: View {
         return map
     }
 
+    private var attemptedModuleCount: Int {
+        let moduleIds = Set((subject.chapters ?? []).flatMap { ($0.modules ?? []).map(\.id) })
+        return moduleIds.intersection(Set(moduleAttemptsMap.keys)).count
+    }
+
     public var body: some View {
         ScrollView {
             VStack(spacing: 24) {
                 // Header Info
-                VStack(spacing: 6) {
-                    Text("\(subject.moduleCount) modules · \((subject.questionCount ?? 0).formatted()) questions")
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Label("\(subject.moduleCount) Modules", systemImage: "square.grid.2x2.fill")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Text("\(attemptedModuleCount) practiced")
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+
+                    ProgressView(value: Double(attemptedModuleCount), total: Double(max(subject.moduleCount, 1)))
+                        .tint(MedxTheme.primaryBlue)
+
+                    Text("\((subject.questionCount ?? 0).formatted()) questions available")
                         .font(MedxFont.caption(14))
                         .foregroundColor(.secondary)
                 }
@@ -71,6 +88,9 @@ public struct QBankChapterView: View {
                                                 Text("\(module.questionCount) questions · best \(info.best)/\(info.total) · \(info.count) sitting\(info.count == 1 ? "" : "s")")
                                                     .font(MedxFont.mono(12, weight: .semibold))
                                                     .foregroundColor(MedxTheme.successGreen)
+                                                ProgressView(value: Double(info.best), total: Double(max(info.total, 1)))
+                                                    .tint(MedxTheme.successGreen)
+                                                    .frame(maxWidth: 180)
                                             } else {
                                                 Text("\(module.questionCount) questions")
                                                     .font(MedxFont.caption(12))
@@ -90,7 +110,9 @@ public struct QBankChapterView: View {
                                                 .font(.title3)
                                         }
                                     }
-                                    .padding(16)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .frame(minHeight: 64)
                                     .liquidGlassCard(cornerRadius: 16)
                                 }
                                 .buttonStyle(BouncyButtonStyle())

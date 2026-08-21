@@ -149,6 +149,8 @@ public struct HomeView: View {
             }
         }
         .frame(width: 44, height: 44)
+        .fixedSize()
+        .clipShape(Circle())
         .contentShape(Circle())
         .buttonStyle(.plain)
         .accessibilityLabel("Profile settings")

@@ -319,13 +319,17 @@ public struct SettingsView: View {
 
 // MARK: - Bookmarked Questions View
 
-private struct BookmarkedQuestionsView: View {
+struct BookmarkedQuestionsView: View {
     let uid: String?
     @ObservedObject private var activityStore = ActivityStore.shared
     @State private var searchText = ""
     @State private var selectedSubject: String = "All"
     @State private var showClearAllConfirm = false
     @State private var practicePayload: RunnerPayload?
+
+    init(uid: String?) {
+        self.uid = uid
+    }
 
     private var allBookmarks: [BookmarkedQuestion] {
         activityStore.bookmarks(for: uid)
@@ -981,4 +985,3 @@ private enum ActivityLogItem: Identifiable, Hashable {
         }
     }
 }
-

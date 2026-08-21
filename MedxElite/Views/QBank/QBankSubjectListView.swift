@@ -7,6 +7,7 @@ public struct QBankSubjectListView: View {
     @State private var searchText = ""
     @State private var isLoading = true
     @State private var activeRunnerPayload: RunnerPayload?
+    @ObservedObject private var activityStore = ActivityStore.shared
 
     public init() {}
 
@@ -55,6 +56,31 @@ public struct QBankSubjectListView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 6)
 
+                        NavigationLink {
+                            BookmarkedQuestionsView(uid: authService.currentSession?.uid)
+                        } label: {
+                            HStack {
+                                Label("Bookmarked Questions", systemImage: "bookmark.fill")
+                                Spacer()
+                                Text("\(activityStore.bookmarks(for: authService.currentSession?.uid).count)")
+                                    .font(.subheadline.monospacedDigit().weight(.semibold))
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(MedxTheme.primaryPurple)
+                        .padding(.horizontal, 20)
+
+                        if filteredSubjects.isEmpty {
+                            ContentUnavailableView {
+                                Label("No Subjects", systemImage: "magnifyingglass")
+                            } description: {
+                                Text(searchText.isEmpty ? "Subjects will appear here when available." : "Try a different search.")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 36)
+                        }
+
                         // Subjects List
                         LazyVStack(spacing: 12) {
                             ForEach(filteredSubjects) { subject in
@@ -87,6 +113,11 @@ public struct QBankSubjectListView: View {
         }
         .navigationTitle("Question Bank")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ProfileSettingsButton()
+            }
+        }
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search subjects")
         .task {
             await loadData()

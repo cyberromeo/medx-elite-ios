@@ -94,6 +94,11 @@ public struct TestsListView: View {
         }
         .navigationTitle("Tests")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ProfileSettingsButton()
+            }
+        }
         .task {
             await loadTestsData()
         }

@@ -239,6 +239,104 @@ public actor FirestoreService {
         return subjects.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
+    public func fetchBookmarks(uid: String, idToken: String) async throws -> [BookmarkedQuestion] {
+        let bookmarks: [BookmarkedQuestion] = try await runQuery(
+            collection: "medx_bookmarks",
+            whereField: "ownerId",
+            equals: uid,
+            idToken: idToken,
+            useCache: false
+        )
+        return bookmarks
+    }
+
+    public func saveBookmark(_ bookmark: BookmarkedQuestion, idToken: String) async throws {
+        let safeDocId = bookmark.docId.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: " ", with: "_")
+        let urlString = "\(FirebaseConfig.firestoreRestBase)/medx_bookmarks/\(safeDocId)"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let encData = try JSONEncoder().encode(bookmark)
+        guard let dict = try JSONSerialization.jsonObject(with: encData) as? [String: Any] else { return }
+
+        let firestoreFields = Self.convertToFirestoreFields(dict)
+        let body: [String: Any] = ["fields": firestoreFields]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    public func deleteBookmark(docId: String, idToken: String) async throws {
+        let safeDocId = docId.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: " ", with: "_")
+        let urlString = "\(FirebaseConfig.firestoreRestBase)/medx_bookmarks/\(safeDocId)"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    public func fetchWatchHistory(uid: String, idToken: String) async throws -> [WatchHistoryEntry] {
+        let history: [WatchHistoryEntry] = try await runQuery(
+            collection: "medx_watch_history",
+            whereField: "ownerId",
+            equals: uid,
+            idToken: idToken,
+            useCache: false
+        )
+        return history
+    }
+
+    public func saveWatchHistoryEntry(_ entry: WatchHistoryEntry, idToken: String) async throws {
+        let safeDocId = entry.docId.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: " ", with: "_")
+        let urlString = "\(FirebaseConfig.firestoreRestBase)/medx_watch_history/\(safeDocId)"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let encData = try JSONEncoder().encode(entry)
+        guard let dict = try JSONSerialization.jsonObject(with: encData) as? [String: Any] else { return }
+
+        let firestoreFields = Self.convertToFirestoreFields(dict)
+        let body: [String: Any] = ["fields": firestoreFields]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    public func deleteWatchHistoryEntry(docId: String, idToken: String) async throws {
+        let safeDocId = docId.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: " ", with: "_")
+        let urlString = "\(FirebaseConfig.firestoreRestBase)/medx_watch_history/\(safeDocId)"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
     public func fetchVideos(idToken: String) async throws -> [RecordedVideo] {
         let videos: [RecordedVideo] = try await fetchCollection(collection: "medx_videos", idToken: idToken)
         return videos
@@ -354,6 +452,9 @@ public actor FirestoreService {
         if let doubleVal = valDict["doubleValue"] as? Double {
             return doubleVal
         }
+        if let doubleStr = valDict["doubleValue"] as? String {
+            return Double(doubleStr) ?? 0.0
+        }
         if let boolVal = valDict["booleanValue"] as? Bool {
             return boolVal
         }
@@ -371,23 +472,29 @@ public actor FirestoreService {
         return ""
     }
 
+    public static func convertToFirestoreValue(_ val: Any) -> [String: Any]? {
+        if let str = val as? String {
+            return ["stringValue": str]
+        } else if let int = val as? Int {
+            return ["integerValue": String(int)]
+        } else if let dbl = val as? Double {
+            return ["doubleValue": dbl]
+        } else if let bool = val as? Bool {
+            return ["booleanValue": bool]
+        } else if let subDict = val as? [String: Any] {
+            return ["mapValue": ["fields": convertToFirestoreFields(subDict)]]
+        } else if let arr = val as? [Any] {
+            let values = arr.compactMap { convertToFirestoreValue($0) }
+            return ["arrayValue": ["values": values]]
+        }
+        return nil
+    }
+
     public static func convertToFirestoreFields(_ dict: [String: Any]) -> [String: Any] {
         var fields: [String: Any] = [:]
         for (key, val) in dict {
-            if let str = val as? String {
-                fields[key] = ["stringValue": str]
-            } else if let int = val as? Int {
-                fields[key] = ["integerValue": String(int)]
-            } else if let bool = val as? Bool {
-                fields[key] = ["booleanValue": bool]
-            } else if let arr = val as? [[String: Any]] {
-                fields[key] = [
-                    "arrayValue": [
-                        "values": arr.map { ["mapValue": ["fields": convertToFirestoreFields($0)]] }
-                    ]
-                ]
-            } else if let subDict = val as? [String: Any] {
-                fields[key] = ["mapValue": ["fields": convertToFirestoreFields(subDict)]]
+            if let converted = convertToFirestoreValue(val) {
+                fields[key] = converted
             }
         }
         return fields
