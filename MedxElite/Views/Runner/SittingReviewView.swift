@@ -1,11 +1,13 @@
 import SwiftUI
 
 public struct SittingReviewView: View {
+    public let sourceId: String
     public let name: String
     public let subject: String
     public let questions: [Question]
     public let responses: [Int: QuestionResponse]
     public let gradable: Bool
+    public let elapsedSeconds: Int
     public var onDone: () -> Void
 
     @State private var filter: ReviewFilter = .all
@@ -15,18 +17,22 @@ public struct SittingReviewView: View {
     }
 
     public init(
+        sourceId: String,
         name: String,
         subject: String,
         questions: [Question],
         responses: [Int: QuestionResponse],
         gradable: Bool = true,
+        elapsedSeconds: Int = 0,
         onDone: @escaping () -> Void
     ) {
+        self.sourceId = sourceId
         self.name = name
         self.subject = subject
         self.questions = questions
         self.responses = responses
         self.gradable = gradable
+        self.elapsedSeconds = elapsedSeconds
         self.onDone = onDone
     }
 
@@ -35,6 +41,14 @@ public struct SittingReviewView: View {
     private var attemptedCount: Int { responses.values.filter { $0.chosenId != nil }.count }
     private var wrongCount: Int { responses.values.filter { $0.chosenId != nil && !$0.correct }.count }
     private var skippedCount: Int { totalCount - attemptedCount }
+
+    private var formattedElapsed: String {
+        let seconds = max(elapsedSeconds, 0)
+        if seconds >= 3600 {
+            return String(format: "%dh %02dm", seconds / 3600, (seconds % 3600) / 60)
+        }
+        return String(format: "%02d:%02d", seconds / 60, seconds % 60)
+    }
 
     private var filteredQuestions: [Question] {
         switch filter {
@@ -60,71 +74,10 @@ public struct SittingReviewView: View {
 
                 ScrollView {
                     VStack(spacing: 20) {
-                        // Score Summary Hero Card (Liquid Glass)
-                        VStack(spacing: 16) {
-                            if gradable {
-                                let pct = totalCount > 0 ? Int(round(Double(scoreCount) / Double(totalCount) * 100.0)) : 0
+                        heroCard
+                            .padding(.horizontal, 20)
+                            .padding(.top, 10)
 
-                                HStack(spacing: 24) {
-                                    ProgressRingView(
-                                        progress: Double(scoreCount) / Double(max(totalCount, 1)),
-                                        strokeWidth: 10,
-                                        size: 100,
-                                        gradient: LinearGradient(
-                                            colors: [MedxTheme.successGreen, MedxTheme.cyanAccent],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        centerContent: AnyView(
-                                            VStack(spacing: 0) {
-                                                Text("\(pct)%")
-                                                    .font(MedxFont.mono(22, weight: .heavy))
-                                                Text("score")
-                                                    .font(MedxFont.label(10))
-                                                    .foregroundColor(.secondary)
-                                            }
-                                        )
-                                    )
-
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text("\(scoreCount) / \(totalCount)")
-                                            .font(MedxFont.mono(26, weight: .bold))
-
-                                        HStack(spacing: 12) {
-                                            Label("\(scoreCount) correct", systemImage: "checkmark.circle.fill")
-                                                .font(MedxFont.label(12))
-                                                .foregroundColor(MedxTheme.successGreen)
-
-                                            Label("\(wrongCount) wrong", systemImage: "xmark.circle.fill")
-                                                .font(MedxFont.label(12))
-                                                .foregroundColor(MedxTheme.destructiveRed)
-                                        }
-
-                                        if skippedCount > 0 {
-                                            Text("\(skippedCount) unattempted")
-                                                .font(MedxFont.caption(12))
-                                                .foregroundColor(.secondary)
-                                        }
-                                    }
-
-                                    Spacer()
-                                }
-                            } else {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("Practice Complete")
-                                        .font(MedxFont.title(22))
-                                    Text("This paper has no official answer key and is not graded. You completed \(attemptedCount) of \(totalCount) questions.")
-                                        .font(MedxFont.body(14))
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                        }
-                        .padding(20)
-                        .liquidGlassCard(cornerRadius: 24, glowColor: MedxTheme.successGreen)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 10)
-
-                        // Segmented Filter Picker
                         Picker("Filter", selection: $filter) {
                             Text("All (\(totalCount))").tag(ReviewFilter.all)
                             Text("Wrong (\(wrongCount))").tag(ReviewFilter.wrong)
@@ -133,17 +86,21 @@ public struct SittingReviewView: View {
                         .pickerStyle(.segmented)
                         .padding(.horizontal, 20)
 
-                        // Question Review List
+                        if filteredQuestions.isEmpty, filter != .all {
+                            emptyFilterState
+                                .padding(.horizontal, 20)
+                                .padding(.top, 24)
+                        }
+
                         LazyVStack(spacing: 16) {
-                            ForEach(Array(filteredQuestions.enumerated()), id: \.element.id) { idx, q in
-                                let r = responses[q.id]
+                            ForEach(Array(filteredQuestions.enumerated()), id: \.element.id) { _, q in
                                 let originalIndex = (questions.firstIndex(where: { $0.id == q.id }) ?? 0) + 1
 
                                 QuestionReviewCard(
                                     questionNumber: originalIndex,
                                     question: q,
-                                    response: r,
-                                    sourceId: name,
+                                    response: responses[q.id],
+                                    sourceId: sourceId,
                                     sourceName: name,
                                     subject: subject
                                 )
@@ -168,11 +125,100 @@ public struct SittingReviewView: View {
         }
     }
 
+    // MARK: - Hero
+
+    private var heroCard: some View {
+        VStack(spacing: 16) {
+            if gradable {
+                let pct = totalCount > 0 ? Int(round(Double(scoreCount) / Double(totalCount) * 100.0)) : 0
+
+                HStack(spacing: 20) {
+                    ProgressRingView(
+                        progress: Double(scoreCount) / Double(max(totalCount, 1)),
+                        strokeWidth: 10,
+                        size: 96,
+                        gradient: LinearGradient(
+                            colors: [MedxTheme.successGreen, MedxTheme.cyanAccent],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        centerContent: AnyView(
+                            VStack(spacing: 0) {
+                                Text("\(pct)%")
+                                    .font(MedxFont.mono(22, weight: .heavy))
+                                Text("score")
+                                    .font(MedxFont.label(10))
+                                    .foregroundStyle(.secondary)
+                            }
+                        )
+                    )
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("\(scoreCount) / \(totalCount)")
+                            .font(MedxFont.mono(26, weight: .bold))
+                        Text(subject.isEmpty ? "Sitting complete" : subject)
+                            .font(MedxFont.caption(12))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+
+                        if skippedCount > 0 {
+                            Text("\(skippedCount) unattempted")
+                                .font(MedxFont.caption(12))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Practice Complete")
+                        .font(MedxFont.title(22))
+                    Text("This paper has no official answer key and is not graded. You completed \(attemptedCount) of \(totalCount) questions.")
+                        .font(MedxFont.body(14))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            MedxMetricsRow {
+                if gradable {
+                    MedxMetric(icon: "checkmark.circle.fill", value: "\(scoreCount)", label: "correct", color: MedxTheme.successGreen)
+                    MedxMetric(icon: "xmark.circle.fill", value: "\(wrongCount)", label: "wrong", color: MedxTheme.destructiveRed)
+                } else {
+                    MedxMetric(icon: "checkmark.circle.fill", value: "\(attemptedCount)", label: "attempted", color: MedxTheme.primaryPurple)
+                }
+                MedxMetric(icon: "clock.fill", value: formattedElapsed, label: "time taken", color: MedxTheme.primaryBlue)
+            }
+        }
+        .padding(20)
+        .liquidGlassCard(cornerRadius: 24, glowColor: MedxTheme.successGreen)
+    }
+
+    private var emptyFilterState: some View {
+        VStack(spacing: 8) {
+            Image(systemName: filter == .wrong ? "checkmark.seal.fill" : "checkmark.circle.fill")
+                .font(.largeTitle)
+                .foregroundStyle(MedxTheme.successGreen)
+            Text(filter == .wrong ? "Nothing wrong here" : "Nothing skipped")
+                .font(.headline)
+            Text(filter == .wrong
+                 ? "You didn't get any question wrong in this sitting."
+                 : "You attempted every question in this sitting.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     private var ambientBackground: some View {
         Color(uiColor: .systemGroupedBackground)
             .ignoresSafeArea()
     }
 }
+
+// MARK: - Review card
 
 private struct QuestionReviewCard: View {
     let questionNumber: Int
@@ -181,134 +227,160 @@ private struct QuestionReviewCard: View {
     let sourceId: String
     let sourceName: String
     let subject: String
+
     @ObservedObject private var activityStore = ActivityStore.shared
     @ObservedObject private var authService = AuthService.shared
     @State private var isExplanationExpanded = true
 
+    private var uid: String? { authService.currentSession?.uid }
+
+    private var isBookmarked: Bool {
+        activityStore.isBookmarked(questionId: question.id, sourceId: sourceId, uid: uid)
+    }
+
+    private var outcome: RunnerOutcome { RunnerOutcome(response: response) }
+
+    private var reference: String {
+        question.reference?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // Header status
-            HStack(spacing: 10) {
-                Text("Question \(questionNumber)")
-                    .font(MedxFont.headline(15))
+            header
 
-                Button {
-                    guard let uid = authService.currentSession?.uid else { return }
-                    activityStore.toggleBookmark(
-                        question: question,
-                        sourceId: sourceId,
-                        sourceName: sourceName,
-                        subject: subject,
-                        uid: uid
-                    )
-                    HapticManager.selection()
-                } label: {
-                    Image(systemName: activityStore.isBookmarked(questionId: question.id, sourceId: sourceId, uid: authService.currentSession?.uid) ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(activityStore.isBookmarked(questionId: question.id, sourceId: sourceId, uid: authService.currentSession?.uid) ? MedxTheme.primaryPurple : .secondary)
-                        .frame(width: 32, height: 32)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(activityStore.isBookmarked(questionId: question.id, sourceId: sourceId, uid: authService.currentSession?.uid) ? "Remove bookmark" : "Bookmark question")
-
-                Spacer()
-
-                if let r = response, r.chosenId != nil {
-                    if r.correct {
-                        Label("Correct", systemImage: "checkmark.circle.fill")
-                            .font(MedxFont.label(12))
-                            .foregroundColor(MedxTheme.successGreen)
-                    } else {
-                        Label("Incorrect", systemImage: "xmark.circle.fill")
-                            .font(MedxFont.label(12))
-                            .foregroundColor(MedxTheme.destructiveRed)
-                    }
-                } else {
-                    Label("Unattempted", systemImage: "minus.circle.fill")
-                        .font(MedxFont.label(12))
-                        .foregroundColor(MedxTheme.warningOrange)
-                }
-            }
-
-            // Question text
             HTMLRichTextView(html: question.displayText, fontSize: 15, weight: .semibold)
 
-            // Images if any
-            if let imgs = question.images, !imgs.isEmpty {
-                ForEach(imgs, id: \.self) { imgUrl in
-                    CachedAsyncImage(url: URL(string: imgUrl))
+            if let images = question.images, !images.isEmpty {
+                ForEach(images, id: \.self) { imageUrl in
+                    CachedAsyncImage(url: URL(string: imageUrl))
                         .frame(maxHeight: 220)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
             }
 
-            // Options Static List
-            VStack(spacing: 8) {
-                ForEach(question.options) { opt in
-                    let isChosen = response?.chosenId == opt.id
-                    let isCorrect = opt.correct == true || question.correctIds.contains(opt.id)
+            optionList
 
-                    HStack(alignment: .center, spacing: 12) {
-                        Text(opt.label)
-                            .font(MedxFont.mono(13, weight: .bold))
-                            .foregroundColor(isCorrect || isChosen ? .white : .primary)
-                            .frame(width: 28, height: 28)
-                            .background(isCorrect ? MedxTheme.successGreen : (isChosen ? MedxTheme.destructiveRed : Color.primary.opacity(0.08)))
-                            .clipShape(Circle())
-
-                        HTMLRichTextView(html: opt.text, fontSize: 14, weight: .regular)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .layoutPriority(1)
-                        Spacer(minLength: 0)
-
-                        if isCorrect {
-                            Image(systemName: "checkmark")
-                                .font(.headline)
-                                .foregroundColor(MedxTheme.successGreen)
-                        } else if isChosen {
-                            Image(systemName: "xmark")
-                                .font(.headline)
-                                .foregroundColor(MedxTheme.destructiveRed)
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .center)
-                    .background(isCorrect ? MedxTheme.successGreen.opacity(0.1) : (isChosen ? MedxTheme.destructiveRed.opacity(0.1) : Color.primary.opacity(0.02)))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-            }
-
-            // Explanation
-            if let expl = question.explanation, !expl.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Button {
-                        withAnimation(.spring()) {
-                            isExplanationExpanded.toggle()
-                        }
-                    } label: {
-                        HStack {
-                            Text("Explanation")
-                                .font(MedxFont.headline(14))
-                                .foregroundColor(.primary)
-                            Spacer()
-                            Image(systemName: isExplanationExpanded ? "chevron.up" : "chevron.down")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-
-                    if isExplanationExpanded {
-                        HTMLRichTextView(html: expl, fontSize: 14, weight: .regular, textColor: .secondary)
-                            .padding(.top, 2)
-                    }
-                }
-                .padding(14)
-                .background(Color.primary.opacity(0.04))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
+            explanationSection
         }
         .padding(18)
         .liquidGlassCard(cornerRadius: 20)
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Text("Q\(questionNumber)")
+                .font(MedxFont.mono(12, weight: .bold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
+
+            RunnerCircleButton(
+                icon: isBookmarked ? "bookmark.fill" : "bookmark",
+                tint: isBookmarked ? MedxTheme.primaryPurple : nil,
+                accessibilityLabel: isBookmarked ? "Remove bookmark" : "Bookmark question",
+                accessibilityValue: isBookmarked ? "Saved" : "Not saved"
+            ) {
+                guard let uid else { return }
+                activityStore.toggleBookmark(
+                    question: question,
+                    sourceId: sourceId,
+                    sourceName: sourceName,
+                    subject: subject,
+                    uid: uid
+                )
+                HapticManager.selection()
+            }
+
+            Spacer(minLength: 0)
+
+            Label(outcome.title, systemImage: outcome.icon)
+                .font(MedxFont.label(12))
+                .foregroundStyle(outcome.color)
+                .labelStyle(.titleAndIcon)
+        }
+    }
+
+    private var optionList: some View {
+        VStack(spacing: 8) {
+            ForEach(question.options) { option in
+                let isChosen = response?.chosenId == option.id
+                let isCorrect = option.correct == true || question.correctIds.contains(option.id)
+                let tint: Color? = isCorrect
+                    ? MedxTheme.successGreen
+                    : (isChosen ? MedxTheme.destructiveRed : nil)
+
+                HStack(alignment: .center, spacing: 12) {
+                    Text(option.label)
+                        .font(MedxFont.mono(13, weight: .bold))
+                        .foregroundStyle(tint == nil ? Color.primary : Color.white)
+                        .frame(width: 28, height: 28)
+                        .background(Circle().fill(tint ?? Color(uiColor: .tertiarySystemFill)))
+
+                    HTMLRichTextView(html: option.text, fontSize: 14, weight: .regular)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .layoutPriority(1)
+
+                    Spacer(minLength: 0)
+
+                    if isCorrect {
+                        Image(systemName: "checkmark")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(MedxTheme.successGreen)
+                    } else if isChosen {
+                        Image(systemName: "xmark")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(MedxTheme.destructiveRed)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
+                .background(
+                    (tint ?? Color.primary).opacity(tint == nil ? 0.03 : 0.10),
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var explanationSection: some View {
+        if (question.explanation?.isEmpty == false) || !reference.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        isExplanationExpanded.toggle()
+                    }
+                } label: {
+                    HStack {
+                        Text("Explanation")
+                            .font(MedxFont.headline(14))
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Image(systemName: isExplanationExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if isExplanationExpanded {
+                    if let explanation = question.explanation, !explanation.isEmpty {
+                        HTMLRichTextView(html: explanation, fontSize: 14, weight: .regular, textColor: .secondary)
+                            .padding(.top, 2)
+                    }
+
+                    if !reference.isEmpty {
+                        Label(reference, systemImage: "book.closed")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .padding(14)
+            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
     }
 }

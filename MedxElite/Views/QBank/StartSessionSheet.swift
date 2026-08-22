@@ -19,46 +19,64 @@ public struct StartSessionSheet: View {
             ZStack {
                 Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
 
-                VStack(spacing: 24) {
-                    VStack(spacing: 8) {
-                        Text(title)
-                            .font(MedxFont.title(22))
-                            .multilineTextAlignment(.center)
+                ScrollView {
+                    VStack(spacing: 22) {
+                        VStack(spacing: 10) {
+                            Text(title)
+                                .font(MedxFont.title(22))
+                                .multilineTextAlignment(.center)
 
-                        Text("\(subtitle) · \(questionCount) questions")
-                            .font(MedxFont.caption(14))
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.top, 16)
+                            HStack(spacing: 8) {
+                                if !subtitle.isEmpty {
+                                    Text(subtitle)
+                                        .font(MedxFont.caption(14))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
 
-                    // Mode Selection Options
-                    VStack(spacing: 16) {
-                        ModeCard(
-                            mode: .revision,
-                            icon: "bolt.fill",
-                            accentColor: MedxTheme.primaryPurple,
-                            durationText: "\(questionCount) mins (60s / question)"
-                        ) {
-                            HapticManager.medium()
-                            dismiss()
-                            onStart(.revision)
+                                Text("\(questionCount) questions")
+                                    .font(MedxFont.mono(11, weight: .bold))
+                                    .foregroundStyle(MedxTheme.primaryBlue)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(MedxTheme.primaryBlue.opacity(0.14), in: Capsule())
+                            }
                         }
+                        .padding(.top, 10)
+                        .padding(.horizontal, 20)
 
-                        ModeCard(
-                            mode: .exam,
-                            icon: "timer",
-                            accentColor: MedxTheme.primaryBlue,
-                            durationText: "\(questionCount) mins total timer"
-                        ) {
-                            HapticManager.medium()
-                            dismiss()
-                            onStart(.exam)
+                        Text("Pick how you want to sit this paper")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        VStack(spacing: 14) {
+                            ModeCard(
+                                mode: .revision,
+                                icon: "bolt.fill",
+                                accentColor: MedxTheme.primaryPurple,
+                                durationText: "60s / question"
+                            ) {
+                                HapticManager.medium()
+                                dismiss()
+                                onStart(.revision)
+                            }
+
+                            ModeCard(
+                                mode: .exam,
+                                icon: "timer",
+                                accentColor: MedxTheme.primaryBlue,
+                                durationText: "\(questionCount) min total"
+                            ) {
+                                HapticManager.medium()
+                                dismiss()
+                                onStart(.exam)
+                            }
                         }
+                        .padding(.horizontal, 20)
                     }
-                    .padding(.horizontal, 20)
-
-                    Spacer()
+                    .padding(.bottom, 24)
                 }
+                .scrollBounceBehavior(.basedOnSize)
             }
             .navigationTitle("Start Sitting")
             .navigationBarTitleDisplayMode(.inline)
@@ -70,7 +88,8 @@ public struct StartSessionSheet: View {
                 }
             }
         }
-        .presentationDetents([.height(460)])
+        .presentationDetents([.height(460), .large])
+        .presentationDragIndicator(.visible)
     }
 }
 
@@ -83,38 +102,49 @@ private struct ModeCard: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(alignment: .top, spacing: 16) {
+            HStack(alignment: .center, spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(accentColor.opacity(0.15))
-                        .frame(width: 48, height: 48)
+                        .frame(width: 46, height: 46)
                     Image(systemName: icon)
                         .font(.title3)
-                        .foregroundColor(accentColor)
+                        .foregroundStyle(accentColor)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack {
+                    HStack(spacing: 8) {
                         Text(mode.displayName)
                             .font(MedxFont.headline(17))
-                            .foregroundColor(.primary)
-
-                        Spacer()
+                            .foregroundStyle(.primary)
 
                         Text(durationText)
-                            .font(MedxFont.mono(12, weight: .semibold))
-                            .foregroundColor(accentColor)
+                            .font(MedxFont.mono(11, weight: .semibold))
+                            .foregroundStyle(accentColor)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(accentColor.opacity(0.12), in: Capsule())
                     }
 
                     Text(mode.description)
                         .font(MedxFont.caption(13))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(.tertiary)
             }
-            .padding(18)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .liquidGlassCard(cornerRadius: 20, glowColor: accentColor)
+            .contentShape(Rectangle())
         }
         .buttonStyle(BouncyButtonStyle())
+        .accessibilityLabel("\(mode.displayName) mode")
+        .accessibilityHint("\(mode.description). \(durationText).")
     }
 }

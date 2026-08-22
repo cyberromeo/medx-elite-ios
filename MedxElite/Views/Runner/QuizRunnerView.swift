@@ -1,27 +1,86 @@
 import SwiftUI
 
+// MARK: - Sitting Runner
+
 public struct QuizRunnerView: View {
     public let payload: RunnerPayload
     public var onFinishedSession: () -> Void
 
     @State private var questions: [Question] = []
     @State private var currentIndex = 0
+    @State private var furthestIndex = 0
     @State private var responses: [Int: QuestionResponse] = [:]
     @State private var revealedQuestions: [Int: Bool] = [:]
-    @State private var remainingSeconds: Int = 0
+    @State private var remainingSeconds = 0
+    @State private var completedSeconds = 0
+    @State private var loadState: RunnerLoadState = .loading
     @State private var isFinished = false
-    @State private var isSaving = false
-    @State private var isLoading = true
     @State private var showExitAlert = false
+    @State private var showNavigator = false
     @State private var startedAt = Date()
-    @ObservedObject private var activityStore = ActivityStore.shared
 
-    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    @ObservedObject private var activityStore = ActivityStore.shared
+    @ObservedObject private var authService = AuthService.shared
     @Environment(\.dismiss) private var dismiss
+
+    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    private let topAnchor = "runner.top"
 
     public init(payload: RunnerPayload, onFinishedSession: @escaping () -> Void) {
         self.payload = payload
         self.onFinishedSession = onFinishedSession
+    }
+
+    public var body: some View {
+        ZStack {
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea()
+
+            switch loadState {
+            case .loading:
+                loadingState
+            case .unavailable(let message):
+                unavailableState(message: message)
+            case .ready:
+                if isFinished {
+                    SittingReviewView(
+                        sourceId: payload.id,
+                        name: payload.name,
+                        subject: payload.subject,
+                        questions: questions,
+                        responses: responses,
+                        gradable: payload.gradable,
+                        elapsedSeconds: completedSeconds
+                    ) {
+                        onFinishedSession()
+                        dismiss()
+                    }
+                } else if let question = currentQuestion {
+                    activeRunner(question: question)
+                }
+            }
+        }
+        .alert("Leave sitting?", isPresented: $showExitAlert) {
+            Button("Keep Going", role: .cancel) {}
+            Button("Leave", role: .destructive) { dismiss() }
+        } message: {
+            Text("Your progress in this sitting will not be saved.")
+        }
+        .sheet(isPresented: $showNavigator) {
+            navigatorSheet
+        }
+        .onReceive(timer) { _ in
+            tick()
+        }
+        .task {
+            await loadSittingQuestions()
+        }
+    }
+
+    // MARK: - Derived state
+
+    private var accent: Color {
+        payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple
     }
 
     private var currentQuestion: Question? {
@@ -29,318 +88,420 @@ public struct QuizRunnerView: View {
         return questions[currentIndex]
     }
 
-    public var body: some View {
-        ZStack {
-            ambientBackground
-
-            if isLoading {
-                ProgressView("Loading sitting…")
-                    .controlSize(.large)
-            } else if isFinished {
-                SittingReviewView(
-                    name: payload.name,
-                    subject: payload.subject,
-                    questions: questions,
-                    responses: responses,
-                    gradable: payload.gradable
-                ) {
-                    onFinishedSession()
-                    dismiss()
-                }
-            } else if let question = currentQuestion {
-                let currentResp = responses[question.id]
-                let isLocked = currentResp != nil
-                let isRevealed = payload.mode == .revision && revealedQuestions[question.id] == true
-
-                VStack(spacing: 0) {
-                    // MARK: - Floating Liquid Glass Top HUD
-                    topHUD(question: question)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                        .padding(.bottom, 8)
-
-                    // Linear Progress Bar
-                    GeometryReader { geo in
-                        let progress = Double(currentIndex + 1) / Double(max(questions.count, 1))
-                        ZStack(alignment: .leading) {
-                            Capsule()
-                                .fill(Color.primary.opacity(0.08))
-                                .frame(height: 4)
-                            Capsule()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple,
-                                            MedxTheme.cyanAccent
-                                        ],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .frame(width: geo.size.width * CGFloat(progress), height: 4)
-                                .animation(.spring(), value: progress)
-                        }
-                    }
-                    .frame(height: 4)
-                    .padding(.horizontal, 20)
-
-                    // Main Scrollable Question Content
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 18) {
-                            // Mode & Subject Tags
-                            HStack(spacing: 8) {
-                                Text(payload.mode.displayName)
-                                    .font(MedxFont.mono(11, weight: .bold))
-                                    .foregroundColor(payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple)
-                                    .padding(.horizontal, 9)
-                                    .padding(.vertical, 4)
-                                    .background((payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple).opacity(0.12), in: Capsule())
-
-                                if !payload.subject.isEmpty {
-                                    Text(payload.subject)
-                                        .font(MedxFont.caption(11))
-                                        .foregroundColor(.secondary)
-                                        .padding(.horizontal, 9)
-                                        .padding(.vertical, 4)
-                                        .background(Color.primary.opacity(0.05), in: Capsule())
-                                }
-
-                                if !payload.gradable {
-                                    Text("Practice Only")
-                                        .font(MedxFont.mono(10, weight: .bold))
-                                        .foregroundColor(MedxTheme.warningOrange)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(MedxTheme.warningOrange.opacity(0.12), in: Capsule())
-                                }
-                            }
-                            .padding(.top, 12)
-
-                            // Question Text (Native SF Pro via HTMLRichTextView)
-                            HTMLRichTextView(html: question.displayText, fontSize: 17, weight: .semibold)
-
-                            // Question Images
-                            if let imgs = question.images, !imgs.isEmpty {
-                                ForEach(imgs, id: \.self) { imgUrl in
-                                    CachedAsyncImage(url: URL(string: imgUrl))
-                                        .frame(maxHeight: 240)
-                                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                }
-                            }
-
-                            // Options List
-                            VStack(spacing: 12) {
-                                ForEach(question.options) { opt in
-                                    let isChosen = currentResp?.chosenId == opt.id
-                                    let isCorrect = opt.correct == true || question.correctIds.contains(opt.id)
-
-                                    QuestionOptionButton(
-                                        option: opt,
-                                        isChosen: isChosen,
-                                        isCorrect: isCorrect,
-                                        isRevealed: isRevealed,
-                                        isLocked: isLocked
-                                    ) {
-                                        handlePickOption(question: question, chosenId: opt.id)
-                                    }
-                                }
-                            }
-
-                            // Revision Instant Explanation Card (Liquid Glass)
-                            if isRevealed {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    HStack {
-                                        if currentResp?.timedOut == true {
-                                            Label("Time Up · Unattempted", systemImage: "clock.badge.xmark")
-                                                .font(MedxFont.label(12))
-                                                .foregroundColor(MedxTheme.warningOrange)
-                                        } else if currentResp?.correct == true {
-                                            Label("Correct Answer", systemImage: "checkmark.circle.fill")
-                                                .font(MedxFont.label(12))
-                                                .foregroundColor(MedxTheme.successGreen)
-                                        } else {
-                                            Label("Incorrect Answer", systemImage: "xmark.circle.fill")
-                                                .font(MedxFont.label(12))
-                                                .foregroundColor(MedxTheme.destructiveRed)
-                                        }
-                                    }
-
-                                    if let expl = question.explanation, !expl.isEmpty {
-                                        HTMLRichTextView(html: expl, fontSize: 14, weight: .regular, textColor: .secondary)
-                                    } else {
-                                        Text("No explanation provided.")
-                                            .font(MedxFont.caption(13))
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                .padding(18)
-                                .liquidGlassCard(cornerRadius: 20, glowColor: currentResp?.correct == true ? MedxTheme.successGreen : MedxTheme.destructiveRed)
-                                .transition(.opacity.combined(with: .move(edge: .bottom)))
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 110)
-                    }
-                    .simultaneousGesture(horizontalQuestionGesture)
-
-                    // MARK: - Bottom Liquid Glass Floating Bar
-                    bottomBar(question: question, isRevealed: isRevealed)
-                }
-            }
-        }
-        .alert("Leave Sitting?", isPresented: $showExitAlert) {
-            Button("Cancel", role: .cancel) {}
-            Button("Leave", role: .destructive) {
-                dismiss()
-            }
-        } message: {
-            Text("Your sitting progress will not be saved if you exit now.")
-        }
-        .onReceive(timer) { _ in
-            guard !isLoading, !isFinished else { return }
-            if payload.mode == .revision, let q = currentQuestion, responses[q.id] != nil {
-                return
-            }
-            if remainingSeconds > 0 {
-                remainingSeconds -= 1
-            } else {
-                handleTimeout()
-            }
-        }
-        .task {
-            await loadSittingQuestions()
-        }
+    private var uid: String? {
+        authService.currentSession?.uid
     }
 
-    // MARK: - Top Glass HUD
+    private var answeredCount: Int {
+        responses.values.filter { $0.chosenId != nil }.count
+    }
 
-    private func topHUD(question: Question) -> some View {
-        HStack(spacing: 12) {
+    private var subtitleLine: String {
+        var parts: [String] = [payload.mode == .exam ? "Exam" : "Revision"]
+        if !payload.subject.isEmpty { parts.append(payload.subject) }
+        if !payload.gradable { parts.append("Ungraded") }
+        return parts.joined(separator: " · ")
+    }
+
+    private var questionStatuses: [RunnerQuestionStatus] {
+        questions.map { status(for: $0) }
+    }
+
+    /// In revision mode the per-question clock stops once the answer is revealed.
+    private var isTimerPaused: Bool {
+        guard payload.mode == .revision, let question = currentQuestion else { return false }
+        return responses[question.id] != nil
+    }
+
+    private func status(for question: Question) -> RunnerQuestionStatus {
+        guard let response = responses[question.id] else { return .unanswered }
+        if response.timedOut == true { return .timedOut }
+        guard response.chosenId != nil else { return .unanswered }
+        if revealedQuestions[question.id] == true {
+            return response.correct ? .correct : .wrong
+        }
+        return .answered
+    }
+
+    private func isBookmarked(_ question: Question) -> Bool {
+        activityStore.isBookmarked(questionId: question.id, sourceId: payload.id, uid: uid)
+    }
+
+    // MARK: - Active runner
+
+    private func activeRunner(question: Question) -> some View {
+        let response = responses[question.id]
+        let isRevealed = payload.mode == .revision && revealedQuestions[question.id] == true
+        let isLocked = payload.mode == .revision && response != nil
+
+        return VStack(spacing: 0) {
+            header(question: question)
+                .padding(.horizontal, 14)
+                .padding(.top, 6)
+                .padding(.bottom, 12)
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Color.clear
+                            .frame(height: 1)
+                            .id(topAnchor)
+
+                        questionCard(question: question)
+
+                        answerSection(
+                            question: question,
+                            response: response,
+                            isRevealed: isRevealed,
+                            isLocked: isLocked
+                        )
+
+                        if isRevealed {
+                            explanationCard(question: question, response: response)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 20)
+                }
+                .scrollIndicators(.hidden)
+                .simultaneousGesture(horizontalQuestionGesture)
+                .onChange(of: currentIndex) { _, _ in
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        proxy.scrollTo(topAnchor, anchor: .top)
+                    }
+                }
+            }
+
+            footer(question: question, isRevealed: isRevealed)
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+                .padding(.bottom, 4)
+        }
+        .animation(.easeOut(duration: 0.2), value: isRevealed)
+    }
+
+    // MARK: - Header
+
+    private func header(question: Question) -> some View {
+        let bookmarked = isBookmarked(question)
+
+        return VStack(spacing: 10) {
+            HStack(spacing: 6) {
+                RunnerCircleButton(icon: "xmark", accessibilityLabel: "Close sitting") {
+                    HapticManager.light()
+                    showExitAlert = true
+                }
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(payload.name)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                    Text(subtitleLine)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 2)
+
+                timerPill
+
+                RunnerCircleButton(
+                    icon: bookmarked ? "bookmark.fill" : "bookmark",
+                    tint: bookmarked ? MedxTheme.primaryPurple : nil,
+                    accessibilityLabel: bookmarked ? "Remove bookmark" : "Bookmark question"
+                ) {
+                    toggleBookmark(question)
+                }
+            }
+
             Button {
-                showExitAlert = true
+                HapticManager.light()
+                showNavigator = true
             } label: {
-                Image(systemName: "xmark")
-                    .font(.subheadline.weight(.bold))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+                VStack(spacing: 7) {
+                    HStack(spacing: 5) {
+                        Text("Question \(currentIndex + 1) of \(questions.count)")
+                            .font(.caption.weight(.semibold).monospacedDigit())
+                        Image(systemName: "square.grid.2x2")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 8)
+                        Text("\(answeredCount) answered")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    progressTrack
+                }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Close sitting")
-            .accessibilityHint("Shows options to leave this sitting")
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(payload.name)
-                    .font(.headline)
-                    .lineLimit(1)
-                Text("Question \(currentIndex + 1) of \(questions.count)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-             Button {
-                 guard let question = currentQuestion, let uid = AuthService.shared.currentSession?.uid else { return }
-                 activityStore.toggleBookmark(question: question, payload: payload, uid: uid)
-                 HapticManager.selection()
-             } label: {
-                 Image(systemName: activityStore.isBookmarked(questionId: question.id, sourceId: payload.id, uid: AuthService.shared.currentSession?.uid) ? "bookmark.fill" : "bookmark")
-                     .font(.body.weight(.semibold))
-                     .frame(width: 44, height: 44)
-             }
-             .buttonStyle(.plain)
-             .accessibilityLabel(activityStore.isBookmarked(questionId: question.id, sourceId: payload.id, uid: AuthService.shared.currentSession?.uid) ? "Remove bookmark" : "Bookmark question")
-
-             Label(formatTime(remainingSeconds), systemImage: "timer")
-                .font(.subheadline.monospacedDigit().weight(.semibold))
-                .foregroundStyle(remainingSeconds <= 10 ? MedxTheme.destructiveRed : .primary)
-                .padding(.horizontal, 10)
-                .frame(minHeight: 36)
-                .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
-                .accessibilityLabel("Time remaining")
-                .accessibilityValue(formatTime(remainingSeconds))
+            .accessibilityLabel("Question \(currentIndex + 1) of \(questions.count)")
+            .accessibilityValue("\(answeredCount) answered")
+            .accessibilityHint("Opens the question navigator")
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .medxNavigationGlass(cornerRadius: 16, tint: payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple)
-        .overlay(alignment: .bottom) {
-            Divider()
+        .padding(.vertical, 10)
+        .medxNavigationGlass(cornerRadius: 22, tint: accent)
+    }
+
+    private var timerPill: some View {
+        let paused = isTimerPaused
+        let isLow = !paused && remainingSeconds <= 10
+        let tint: Color = paused
+            ? MedxTheme.successGreen
+            : (isLow ? MedxTheme.destructiveRed : Color.primary)
+
+        return HStack(spacing: 5) {
+            Image(systemName: paused ? "checkmark.circle.fill" : "timer")
+                .font(.caption.weight(.bold))
+                .symbolEffect(.pulse, options: .repeating, isActive: isLow)
+            Text(paused ? "Done" : formatTime(remainingSeconds))
+                .font(.footnote.weight(.semibold).monospacedDigit())
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 10)
+        .frame(height: 34)
+        .background(
+            isLow ? MedxTheme.destructiveRed.opacity(0.14) : Color(uiColor: .tertiarySystemFill),
+            in: Capsule()
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            paused
+                ? "Answer revealed, timer paused"
+                : "Time remaining \(formatTime(remainingSeconds))"
+        )
+    }
+
+    private var progressTrack: some View {
+        let statuses = questionStatuses
+
+        return Group {
+            if statuses.count <= 28 {
+                HStack(spacing: 3) {
+                    ForEach(Array(statuses.enumerated()), id: \.offset) { index, status in
+                        Capsule()
+                            .fill(status.trackColor(accent: accent, isCurrent: index == currentIndex))
+                            .frame(height: index == currentIndex ? 6 : 4)
+                    }
+                }
+                .frame(height: 6)
+            } else {
+                continuousTrack
+            }
+        }
+        .animation(.easeOut(duration: 0.22), value: currentIndex)
+    }
+
+    private var continuousTrack: some View {
+        let fraction = Double(currentIndex + 1) / Double(max(questions.count, 1))
+
+        return GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color(uiColor: .quaternaryLabel))
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [accent, MedxTheme.cyanAccent],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: max(8, geo.size.width * fraction))
+            }
+        }
+        .frame(height: 5)
+    }
+
+    // MARK: - Question, options, explanation
+
+    private func questionCard(question: Question) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Text("QUESTION \(currentIndex + 1)")
+                    .font(MedxFont.mono(11, weight: .bold))
+                    .foregroundStyle(accent)
+                Spacer(minLength: 0)
+                if !payload.gradable {
+                    RunnerChip(text: "No official key", tint: MedxTheme.warningOrange)
+                }
+            }
+
+            HTMLRichTextView(html: question.displayText, fontSize: 17, weight: .semibold)
+
+            if let images = question.images, !images.isEmpty {
+                VStack(spacing: 10) {
+                    ForEach(images, id: \.self) { imageUrl in
+                        CachedAsyncImage(url: URL(string: imageUrl))
+                            .frame(maxHeight: 260)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .liquidGlassCard(cornerRadius: 22)
+    }
+
+    private func answerSection(
+        question: Question,
+        response: QuestionResponse?,
+        isRevealed: Bool,
+        isLocked: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(answerHint(response: response, isRevealed: isRevealed))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+
+            ForEach(question.options) { option in
+                let isChosen = response?.chosenId == option.id
+                let isCorrect = option.correct == true || question.correctIds.contains(option.id)
+
+                QuestionOptionButton(
+                    option: option,
+                    isChosen: isChosen,
+                    isCorrect: isCorrect,
+                    isRevealed: isRevealed,
+                    isLocked: isLocked,
+                    accent: accent,
+                    isDimmed: isRevealed && !isChosen && !isCorrect
+                ) {
+                    handlePickOption(question: question, chosenId: option.id)
+                }
+            }
         }
     }
 
-    // MARK: - Bottom Floating Bar
+    private func answerHint(response: QuestionResponse?, isRevealed: Bool) -> String {
+        if isRevealed { return "Correct answer highlighted below" }
+        if response?.chosenId != nil { return "Tap another option to change your answer" }
+        return "Choose the best answer"
+    }
 
-    private func bottomBar(question: Question, isRevealed: Bool) -> some View {
-        let isLast = currentIndex + 1 >= questions.count
-        let canAdvance = payload.mode == .exam || isRevealed
+    private func explanationCard(question: Question, response: QuestionResponse?) -> some View {
+        let outcome = RunnerOutcome(response: response)
+        let correctLabel = question.options.first { option in
+            option.correct == true || question.correctIds.contains(option.id)
+        }?.label
+        let reference = question.reference?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: outcome.icon)
+                    .font(.subheadline.weight(.bold))
+                Text(outcome.title)
+                    .font(.subheadline.weight(.bold))
+                Spacer(minLength: 0)
+
+                if outcome != .correct, let correctLabel, !correctLabel.isEmpty {
+                    Text("Answer \(correctLabel)")
+                        .font(MedxFont.mono(11, weight: .bold))
+                        .foregroundStyle(MedxTheme.successGreen)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(MedxTheme.successGreen.opacity(0.14), in: Capsule())
+                }
+            }
+            .foregroundStyle(outcome.color)
+
+            if let explanation = question.explanation, !explanation.isEmpty {
+                HTMLRichTextView(html: explanation, fontSize: 14, weight: .regular, textColor: .secondary)
+            } else {
+                Text("No explanation provided for this question.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !reference.isEmpty {
+                Label(reference, systemImage: "book.closed")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .liquidGlassCard(cornerRadius: 20, glowColor: outcome.color)
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
+    }
+    // MARK: - Footer
+
+    private var isLastQuestion: Bool {
+        currentIndex >= questions.count - 1
+    }
+
+    /// Exam mode never blocks navigation; revision requires the answer to be revealed first.
+    private func canAdvance(isRevealed: Bool) -> Bool {
+        payload.mode == .exam || isRevealed
+    }
+
+    private func footer(question: Question, isRevealed: Bool) -> some View {
+        let canGo = canAdvance(isRevealed: isRevealed)
+        let showSkip = payload.mode == .exam && responses[question.id]?.chosenId == nil && !isLastQuestion
 
         return VStack(spacing: 8) {
-            bookmarkButton(question: question)
+            if !canGo {
+                Text("Choose an answer to reveal the explanation")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
 
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 Button {
-                    HapticManager.light()
-                    currentIndex -= 1
-                    resetTimerForQuestion()
+                    goBack()
                 } label: {
-                    Label("Back", systemImage: "chevron.left")
-                        .labelStyle(.titleAndIcon)
-                        .frame(minHeight: 44)
+                    Image(systemName: "chevron.left")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
                 .disabled(currentIndex == 0)
+                .accessibilityLabel("Previous question")
 
-                if payload.mode == .exam && responses[question.id] == nil {
+                if showSkip {
                     Button {
                         HapticManager.light()
                         nextQuestion()
                     } label: {
                         Text("Skip")
-                            .frame(minHeight: 44)
+                            .font(.subheadline.weight(.semibold))
+                            .frame(minWidth: 62, minHeight: 44)
                     }
                     .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
                 }
 
                 Button {
                     HapticManager.medium()
-                    if isLast {
+                    if isLastQuestion {
                         finishSitting()
                     } else {
                         nextQuestion()
                     }
                 } label: {
-                    Text(isLast ? "Finish" : "Next")
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                    HStack(spacing: 6) {
+                        Text(isLastQuestion ? "Finish" : "Next")
+                            .font(.subheadline.weight(.semibold))
+                        Image(systemName: isLastQuestion ? "checkmark" : "chevron.right")
+                            .font(.caption.weight(.bold))
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple)
-                .disabled(!canAdvance)
+                .buttonBorderShape(.capsule)
+                .tint(accent)
+                .disabled(!canGo)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
-        .medxNavigationGlass(cornerRadius: 20, tint: payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple)
-        .overlay(alignment: .top) {
-            Divider()
-        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .medxNavigationGlass(cornerRadius: 20, tint: accent)
         .safeAreaPadding(.bottom, 4)
-    }
-
-    private func bookmarkButton(question: Question) -> some View {
-        let uid = AuthService.shared.currentSession?.uid
-        let isBookmarked = activityStore.isBookmarked(questionId: question.id, sourceId: payload.id, uid: uid)
-
-        return Button {
-            guard uid != nil else { return }
-            activityStore.toggleBookmark(question: question, payload: payload, uid: uid)
-            HapticManager.selection()
-        } label: {
-            Label(isBookmarked ? "Bookmarked" : "Bookmark question", systemImage: isBookmarked ? "bookmark.fill" : "bookmark")
-                .frame(maxWidth: .infinity, minHeight: 44)
-        }
-        .buttonStyle(.bordered)
-        .tint(isBookmarked ? MedxTheme.primaryPurple : .secondary)
-        .accessibilityValue(isBookmarked ? "Saved" : "Not saved")
     }
 
     private var horizontalQuestionGesture: some Gesture {
@@ -352,29 +513,133 @@ public struct QuizRunnerView: View {
 
                 if value.translation.width < 0 {
                     guard let question = currentQuestion else { return }
-                    let canAdvance = payload.mode == .exam || revealedQuestions[question.id] == true
-                    guard canAdvance else {
+                    let isRevealed = payload.mode == .revision && revealedQuestions[question.id] == true
+                    guard canAdvance(isRevealed: isRevealed), !isLastQuestion else {
                         HapticManager.error()
                         return
                     }
                     nextQuestion()
                 } else if currentIndex > 0 {
-                    currentIndex -= 1
-                    resetTimerForQuestion()
-                    HapticManager.light()
+                    goBack()
                 }
             }
     }
 
-    private var ambientBackground: some View {
-        Color(uiColor: .systemGroupedBackground)
-            .ignoresSafeArea()
+    // MARK: - Navigator
+
+    private var navigatorSheet: some View {
+        QuestionNavigatorSheet(
+            questionCount: questions.count,
+            currentIndex: currentIndex,
+            furthestIndex: furthestIndex,
+            statuses: questionStatuses,
+            accent: accent,
+            lockAhead: payload.mode == .revision
+        ) { index in
+            showNavigator = false
+            jump(to: index)
+        }
+    }
+
+    // MARK: - Loading & unavailable states
+
+    private var loadingState: some View {
+        VStack(spacing: 0) {
+            dismissRow
+
+            Spacer()
+
+            VStack(spacing: 14) {
+                ProgressView()
+                    .controlSize(.large)
+                Text("Preparing your sitting")
+                    .font(.headline)
+                Text(payload.name)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 32)
+
+            Spacer()
+            Spacer()
+        }
+    }
+
+    private func unavailableState(message: String) -> some View {
+        VStack(spacing: 0) {
+            dismissRow
+
+            Spacer()
+
+            ContentUnavailableView {
+                Label("Sitting unavailable", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(message)
+            } actions: {
+                VStack(spacing: 10) {
+                    Button {
+                        HapticManager.light()
+                        loadState = .loading
+                        Task { await loadSittingQuestions() }
+                    } label: {
+                        Text("Try Again")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(minWidth: 150, minHeight: 44)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.capsule)
+                    .tint(accent)
+
+                    Button("Close") {
+                        dismiss()
+                    }
+                    .font(.subheadline.weight(.semibold))
+                }
+            }
+
+            Spacer()
+            Spacer()
+        }
+    }
+
+    private var dismissRow: some View {
+        HStack {
+            RunnerCircleButton(icon: "xmark", accessibilityLabel: "Close sitting") {
+                HapticManager.light()
+                dismiss()
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 10)
+    }
+
+    // MARK: - Actions
+
+    private func toggleBookmark(_ question: Question) {
+        guard uid != nil else { return }
+        activityStore.toggleBookmark(question: question, payload: payload, uid: uid)
+        HapticManager.selection()
     }
 
     private func handlePickOption(question: Question, chosenId: Int) {
+        // Revision locks once the key has been shown; there is no un-seeing it.
+        if payload.mode == .revision, responses[question.id] != nil { return }
+
+        // Exam mode: tapping the chosen option again clears the answer.
+        if payload.mode == .exam, responses[question.id]?.chosenId == chosenId {
+            responses.removeValue(forKey: question.id)
+            HapticManager.light()
+            return
+        }
+
         let isCorrect = question.correctIds.contains(chosenId)
-        let resp = QuestionResponse(questionId: question.id, chosenId: chosenId, correct: isCorrect)
-        responses[question.id] = resp
+        responses[question.id] = QuestionResponse(
+            questionId: question.id,
+            chosenId: chosenId,
+            correct: isCorrect
+        )
 
         if payload.mode == .revision {
             revealedQuestions[question.id] = true
@@ -383,49 +648,80 @@ public struct QuizRunnerView: View {
             } else {
                 HapticManager.error()
             }
+        } else {
+            HapticManager.selection()
         }
     }
 
     private func handleTimeout() {
         if payload.mode == .exam {
             finishSitting()
-        } else if let q = currentQuestion {
-            let resp = QuestionResponse(questionId: q.id, chosenId: nil, correct: false, timedOut: true)
-            responses[q.id] = resp
-            revealedQuestions[q.id] = true
+        } else if let question = currentQuestion, responses[question.id] == nil {
+            responses[question.id] = QuestionResponse(
+                questionId: question.id,
+                chosenId: nil,
+                correct: false,
+                timedOut: true
+            )
+            revealedQuestions[question.id] = true
             HapticManager.warning()
         }
     }
 
-    private func nextQuestion() {
-        if currentIndex + 1 < questions.count {
-            currentIndex += 1
-            resetTimerForQuestion()
+    private func tick() {
+        guard loadState == .ready, !isFinished, !isTimerPaused else { return }
+        if remainingSeconds > 0 {
+            remainingSeconds -= 1
+        } else {
+            handleTimeout()
         }
     }
 
-    private func resetTimerForQuestion() {
-        if payload.mode == .revision {
-            remainingSeconds = 60
-        }
+    private func goBack() {
+        guard currentIndex > 0 else { return }
+        HapticManager.light()
+        currentIndex -= 1
+        resetTimerForCurrentQuestion()
+    }
+
+    private func nextQuestion() {
+        guard currentIndex + 1 < questions.count else { return }
+        currentIndex += 1
+        furthestIndex = max(furthestIndex, currentIndex)
+        resetTimerForCurrentQuestion()
+    }
+
+    private func jump(to index: Int) {
+        guard questions.indices.contains(index), index != currentIndex else { return }
+        HapticManager.light()
+        currentIndex = index
+        furthestIndex = max(furthestIndex, index)
+        resetTimerForCurrentQuestion()
+    }
+
+    /// Revision runs a 60s clock per question; re-arm it only when the question is still open.
+    private func resetTimerForCurrentQuestion() {
+        guard payload.mode == .revision else { return }
+        if let question = currentQuestion, responses[question.id] != nil { return }
+        remainingSeconds = 60
     }
 
     private func finishSitting() {
+        completedSeconds = Int(Date().timeIntervalSince(startedAt))
         isFinished = true
         HapticManager.success()
         saveSittingAttempt()
     }
 
     private func saveSittingAttempt() {
-        guard let session = AuthService.shared.currentSession else { return }
+        guard let session = authService.currentSession else { return }
         let score = responses.values.filter { $0.correct }.count
         let attempted = responses.values.filter { $0.chosenId != nil }.count
-        let duration = Int(Date().timeIntervalSince(startedAt))
 
         let attempt = SittingAttempt(
             id: nil,
             uid: session.uid,
-            profile: AuthService.shared.currentProfile?.handle,
+            profile: authService.currentProfile?.handle,
             kind: payload.kind,
             sourceId: payload.id,
             name: payload.name,
@@ -435,7 +731,7 @@ public struct QuizRunnerView: View {
             total: questions.count,
             score: score,
             attempted: attempted,
-            durationSeconds: duration,
+            durationSeconds: completedSeconds,
             finishedAt: ISO8601DateFormatter().string(from: Date()),
             responses: Array(responses.values)
         )
@@ -445,7 +741,7 @@ public struct QuizRunnerView: View {
                 let token = try await AuthService.shared.getValidIdToken()
                 try await FirestoreService.shared.saveAttempt(attempt, idToken: token)
             } catch {
-                // Saved locally
+                // Kept locally; the activity log still reflects the sitting.
             }
         }
     }
@@ -453,29 +749,295 @@ public struct QuizRunnerView: View {
     private func loadSittingQuestions() async {
         do {
             let token = try await AuthService.shared.getValidIdToken()
+            let loaded: [Question]
             if payload.kind == "qbank" {
-                let mod = try await FirestoreService.shared.fetchQBankModule(moduleId: payload.id, idToken: token)
-                self.questions = mod.questions ?? []
+                let module = try await FirestoreService.shared.fetchQBankModule(moduleId: payload.id, idToken: token)
+                loaded = module.questions ?? []
             } else {
-                let qs = try await FirestoreService.shared.fetchTestQuestions(testId: payload.id, idToken: token)
-                self.questions = qs
+                loaded = try await FirestoreService.shared.fetchTestQuestions(testId: payload.id, idToken: token)
             }
 
-            if payload.mode == .exam {
-                self.remainingSeconds = max(questions.count * 60, 60)
-            } else {
-                self.remainingSeconds = 60
+            guard !loaded.isEmpty else {
+                loadState = .unavailable("This paper has no questions yet. Please check back later.")
+                return
             }
-            self.startedAt = Date()
-            self.isLoading = false
+
+            questions = loaded
+            currentIndex = 0
+            furthestIndex = 0
+            responses = [:]
+            revealedQuestions = [:]
+            remainingSeconds = payload.mode == .exam ? max(loaded.count * 60, 60) : 60
+            startedAt = Date()
+            loadState = .ready
         } catch {
-            self.isLoading = false
+            loadState = .unavailable("We couldn't load this sitting. Check your connection and try again.")
         }
     }
 
-    private func formatTime(_ secs: Int) -> String {
-        let m = secs / 60
-        let s = secs % 60
-        return String(format: "%02d:%02d", m, s)
+    private func formatTime(_ seconds: Int) -> String {
+        let clamped = max(seconds, 0)
+        return String(format: "%02d:%02d", clamped / 60, clamped % 60)
+    }
+}
+
+// MARK: - Load state
+
+enum RunnerLoadState: Equatable {
+    case loading
+    case ready
+    case unavailable(String)
+}
+
+// MARK: - Small circular icon button
+
+/// 34pt glyph in a neutral circle with a 44pt hit target. Used for close and
+/// bookmark in the runner header and for bookmark in the review cards.
+struct RunnerCircleButton: View {
+    let icon: String
+    var tint: Color?
+    let accessibilityLabel: String
+    var accessibilityValue: String?
+    let action: () -> Void
+
+    init(
+        icon: String,
+        tint: Color? = nil,
+        accessibilityLabel: String,
+        accessibilityValue: String? = nil,
+        action: @escaping () -> Void
+    ) {
+        self.icon = icon
+        self.tint = tint
+        self.accessibilityLabel = accessibilityLabel
+        self.accessibilityValue = accessibilityValue
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(tint ?? Color.primary)
+                .frame(width: 34, height: 34)
+                .background(
+                    (tint ?? Color.primary).opacity(tint == nil ? 0.06 : 0.14),
+                    in: Circle()
+                )
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(accessibilityValue ?? "")
+    }
+}
+
+// MARK: - Chip
+
+struct RunnerChip: View {
+    let text: String
+    let tint: Color
+
+    var body: some View {
+        Text(text)
+            .font(MedxFont.mono(10, weight: .bold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(tint.opacity(0.14), in: Capsule())
+    }
+}
+
+// MARK: - Per-question status
+
+enum RunnerQuestionStatus {
+    case unanswered
+    case answered
+    case correct
+    case wrong
+    case timedOut
+
+    func trackColor(accent: Color, isCurrent: Bool) -> Color {
+        if isCurrent { return accent }
+        switch self {
+        case .unanswered: return Color(uiColor: .quaternaryLabel)
+        case .answered: return accent.opacity(0.55)
+        case .correct: return MedxTheme.successGreen.opacity(0.75)
+        case .wrong: return MedxTheme.destructiveRed.opacity(0.75)
+        case .timedOut: return MedxTheme.warningOrange.opacity(0.75)
+        }
+    }
+
+    func chipFill(accent: Color) -> Color {
+        switch self {
+        case .unanswered: return Color(uiColor: .tertiarySystemFill)
+        case .answered: return accent.opacity(0.16)
+        case .correct: return MedxTheme.successGreen.opacity(0.16)
+        case .wrong: return MedxTheme.destructiveRed.opacity(0.16)
+        case .timedOut: return MedxTheme.warningOrange.opacity(0.16)
+        }
+    }
+
+    func chipForeground(accent: Color) -> Color {
+        switch self {
+        case .unanswered: return .secondary
+        case .answered: return accent
+        case .correct: return MedxTheme.successGreen
+        case .wrong: return MedxTheme.destructiveRed
+        case .timedOut: return MedxTheme.warningOrange
+        }
+    }
+
+    var legendLabel: String {
+        switch self {
+        case .unanswered: return "Not answered"
+        case .answered: return "Answered"
+        case .correct: return "Correct"
+        case .wrong: return "Wrong"
+        case .timedOut: return "Timed out"
+        }
+    }
+
+    var voiceOverLabel: String { legendLabel }
+}
+
+// MARK: - Outcome banner
+
+enum RunnerOutcome: Equatable {
+    case correct
+    case incorrect
+    case timedOut
+    case unanswered
+
+    init(response: QuestionResponse?) {
+        guard let response else {
+            self = .unanswered
+            return
+        }
+        if response.timedOut == true {
+            self = .timedOut
+        } else if response.chosenId == nil {
+            self = .unanswered
+        } else {
+            self = response.correct ? .correct : .incorrect
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .correct: return "Correct"
+        case .incorrect: return "Incorrect"
+        case .timedOut: return "Time up"
+        case .unanswered: return "Not answered"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .correct: return "checkmark.circle.fill"
+        case .incorrect: return "xmark.circle.fill"
+        case .timedOut: return "clock.badge.exclamationmark.fill"
+        case .unanswered: return "minus.circle.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .correct: return MedxTheme.successGreen
+        case .incorrect: return MedxTheme.destructiveRed
+        case .timedOut: return MedxTheme.warningOrange
+        case .unanswered: return MedxTheme.warningOrange
+        }
+    }
+}
+
+// MARK: - Question navigator
+
+struct QuestionNavigatorSheet: View {
+    let questionCount: Int
+    let currentIndex: Int
+    let furthestIndex: Int
+    let statuses: [RunnerQuestionStatus]
+    let accent: Color
+    /// Revision reveals answers as you go, so jumping past the frontier is not allowed.
+    let lockAhead: Bool
+    let onSelect: (Int) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    private var legend: [RunnerQuestionStatus] {
+        lockAhead
+            ? [.unanswered, .correct, .wrong, .timedOut]
+            : [.unanswered, .answered]
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 54), spacing: 10)], spacing: 10) {
+                        ForEach(0..<questionCount, id: \.self) { index in
+                            tile(for: index)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Legend")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        ForEach(Array(legend.enumerated()), id: \.offset) { _, status in
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(status.chipFill(accent: accent))
+                                    .overlay(Circle().strokeBorder(status.chipForeground(accent: accent).opacity(0.5), lineWidth: 1))
+                                    .frame(width: 14, height: 14)
+                                Text(status.legendLabel)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .navigationTitle("Questions")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .font(.body.weight(.semibold))
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func tile(for index: Int) -> some View {
+        let status = statuses.indices.contains(index) ? statuses[index] : .unanswered
+        let isCurrent = index == currentIndex
+        let isLocked = lockAhead && index > furthestIndex
+
+        return Button {
+            onSelect(index)
+        } label: {
+            Text("\(index + 1)")
+                .font(MedxFont.mono(15, weight: .bold))
+                .foregroundStyle(isCurrent ? accent : status.chipForeground(accent: accent))
+                .frame(minWidth: 48, minHeight: 48)
+                .background(status.chipFill(accent: accent), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(isCurrent ? accent : Color.clear, lineWidth: 2)
+                )
+                .opacity(isLocked ? 0.35 : 1)
+                .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(isLocked)
+        .accessibilityLabel("Question \(index + 1)")
+        .accessibilityValue(isCurrent ? "Current, \(status.voiceOverLabel)" : status.voiceOverLabel)
     }
 }

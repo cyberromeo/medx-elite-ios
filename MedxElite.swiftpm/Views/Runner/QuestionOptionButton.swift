@@ -6,6 +6,8 @@ public struct QuestionOptionButton: View {
     public let isCorrect: Bool
     public let isRevealed: Bool
     public let isLocked: Bool
+    public let accent: Color
+    public let isDimmed: Bool
     public let onSelect: () -> Void
 
     public init(
@@ -14,6 +16,8 @@ public struct QuestionOptionButton: View {
         isCorrect: Bool,
         isRevealed: Bool,
         isLocked: Bool,
+        accent: Color = MedxTheme.primaryBlue,
+        isDimmed: Bool = false,
         onSelect: @escaping () -> Void
     ) {
         self.option = option
@@ -21,27 +25,17 @@ public struct QuestionOptionButton: View {
         self.isCorrect = isCorrect
         self.isRevealed = isRevealed
         self.isLocked = isLocked
+        self.accent = accent
+        self.isDimmed = isDimmed
         self.onSelect = onSelect
     }
 
     public var body: some View {
-        Button {
-            if !isLocked {
-                HapticManager.selection()
-                onSelect()
-            }
-        } label: {
-            HStack(alignment: .center, spacing: 14) {
-                // Option Letter Badge
-                Text(option.label)
-                    .font(MedxFont.mono(14, weight: .bold))
-                    .foregroundColor(letterTextColor)
-                    .frame(width: 32, height: 32)
-                    .background(letterBgColor)
-                    .clipShape(Circle())
-                    .shadow(color: (isRevealed ? (isCorrect ? MedxTheme.successGreen : MedxTheme.destructiveRed) : (isChosen ? MedxTheme.primaryBlue : Color.clear)).opacity(0.4), radius: 4)
+        // Haptics are owned by the runner so revision mode doesn't buzz twice.
+        Button(action: onSelect) {
+            HStack(alignment: .center, spacing: 13) {
+                letterBadge
 
-                // Option HTML Text
                 HTMLRichTextView(html: option.text, fontSize: 15, weight: .regular)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -49,63 +43,94 @@ public struct QuestionOptionButton: View {
 
                 Spacer(minLength: 0)
 
-                // State indicator icon
-                if isRevealed {
-                    if isCorrect {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.title3)
-                            .foregroundColor(MedxTheme.successGreen)
-                            .symbolEffect(.pulse)
-                    } else if isChosen {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
-                            .foregroundColor(MedxTheme.destructiveRed)
-                    }
-                } else if isChosen {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title3)
-                        .foregroundColor(MedxTheme.primaryBlue)
-                }
+                trailingGlyph
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .frame(minHeight: 56, alignment: .center)
-            .liquidGlassTile(
-                cornerRadius: 18,
-                accentColor: activeAccentColor,
-                isSelected: isChosen || (isRevealed && isCorrect)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(minHeight: 58, alignment: .center)
+            .liquidGlassTile(cornerRadius: 18, accentColor: stateColor, isSelected: isEmphasized)
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(stateColor?.opacity(0.85) ?? Color.clear, lineWidth: isEmphasized ? 1.5 : 0)
             )
+            .opacity(isDimmed ? 0.55 : 1)
+            .contentShape(Rectangle())
         }
         .buttonStyle(BouncyButtonStyle())
         .disabled(isLocked)
+        .animation(.easeOut(duration: 0.18), value: isChosen)
+        .animation(.easeOut(duration: 0.18), value: isRevealed)
+        .accessibilityLabel("Option \(option.label)")
+        .accessibilityValue(accessibilityState)
+        .accessibilityAddTraits(isChosen ? [.isSelected] : [])
     }
 
-    private var activeAccentColor: Color? {
+    // MARK: - Pieces
+
+    private var letterBadge: some View {
+        Text(option.label)
+            .font(MedxFont.mono(14, weight: .bold))
+            .foregroundStyle(isFilledBadge ? Color.white : Color.primary)
+            .frame(width: 30, height: 30)
+            .background(
+                Circle().fill(isFilledBadge ? (stateColor ?? accent) : Color(uiColor: .tertiarySystemFill))
+            )
+            .overlay(
+                Circle().strokeBorder(
+                    isFilledBadge ? Color.clear : Color(uiColor: .quaternaryLabel),
+                    lineWidth: 1
+                )
+            )
+    }
+
+    @ViewBuilder
+    private var trailingGlyph: some View {
+        if isRevealed, isCorrect {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title3)
+                .foregroundStyle(MedxTheme.successGreen)
+        } else if isRevealed, isChosen {
+            Image(systemName: "xmark.circle.fill")
+                .font(.title3)
+                .foregroundStyle(MedxTheme.destructiveRed)
+        } else if isChosen {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title3)
+                .foregroundStyle(accent)
+        } else if !isRevealed {
+            // A real radio affordance: an untouched option used to show nothing at all.
+            Image(systemName: "circle")
+                .font(.title3)
+                .foregroundStyle(Color(uiColor: .quaternaryLabel))
+        }
+    }
+
+    // MARK: - Derived state
+
+    /// The colour that describes this row's current meaning, or nil when it is neutral.
+    private var stateColor: Color? {
         if isRevealed {
             if isCorrect { return MedxTheme.successGreen }
             if isChosen { return MedxTheme.destructiveRed }
-        } else if isChosen {
-            return MedxTheme.primaryBlue
+            return nil
         }
-        return nil
+        return isChosen ? accent : nil
     }
 
-    private var letterTextColor: Color {
-        if isRevealed {
-            if isCorrect || isChosen { return .white }
-        } else if isChosen {
-            return .white
-        }
-        return .primary
+    private var isEmphasized: Bool {
+        isChosen || (isRevealed && isCorrect)
     }
 
-    private var letterBgColor: Color {
+    private var isFilledBadge: Bool {
+        stateColor != nil
+    }
+
+    private var accessibilityState: String {
         if isRevealed {
-            if isCorrect { return MedxTheme.successGreen }
-            if isChosen { return MedxTheme.destructiveRed }
-        } else if isChosen {
-            return MedxTheme.primaryBlue
+            if isCorrect { return isChosen ? "Your answer, correct" : "Correct answer" }
+            if isChosen { return "Your answer, incorrect" }
+            return "Not selected"
         }
-        return Color.primary.opacity(0.08)
+        return isChosen ? "Selected" : "Not selected"
     }
 }
