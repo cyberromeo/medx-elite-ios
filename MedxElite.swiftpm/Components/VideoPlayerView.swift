@@ -18,6 +18,9 @@ public struct VideoPlayerView: View {
     @State private var showResumeToast = false
     @State private var resumedFromSeconds: Double = 0
     @State private var lastCloudSyncTime: Date = Date()
+    @State private var usingOfflineCopy = false
+    @State private var forceOnlinePlayback = false
+    @State private var showOfflineBadge = false
     @ObservedObject private var activityStore = ActivityStore.shared
     @ObservedObject private var authService = AuthService.shared
     @Environment(\.dismiss) private var dismiss
@@ -53,6 +56,20 @@ public struct VideoPlayerView: View {
                 ProxiedVideoPlayerController(player: currentPlayer)
                     .ignoresSafeArea()
 
+                if showOfflineBadge {
+                    VStack {
+                        HStack {
+                            offlineBadgeView
+                            Spacer()
+                        }
+                        Spacer()
+                    }
+                    .padding(.top, 18)
+                    .padding(.leading, 20)
+                    .transition(.opacity)
+                    .zIndex(9)
+                }
+
                 if showResumeToast {
                     VStack {
                         resumeToastView
@@ -74,6 +91,17 @@ public struct VideoPlayerView: View {
         }
         .statusBarHidden(true)
         .background(Color.black)
+    }
+
+    private var offlineBadgeView: some View {
+        Label("Playing your download", systemImage: "arrow.down.circle.fill")
+            .font(MedxFont.label(11))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(Capsule().strokeBorder(MedxTheme.successGreen.opacity(0.45), lineWidth: 1))
+            .accessibilityLabel("Playing the offline download")
     }
 
     private var resumeToastView: some View {
@@ -216,7 +244,15 @@ public struct VideoPlayerView: View {
 
     private func createPlayer() {
         let playbackURL: URL?
-        if let proxied = proxy.proxiedURL(for: streamUrl) {
+        var isOffline = false
+
+        if !forceOnlinePlayback,
+           let video,
+           let offlineURL = VideoDownloadStore.offlinePlaylistURL(for: video.id) {
+            playbackURL = offlineURL
+            isOffline = true
+            print("[VideoPlayer] Using offline download")
+        } else if let proxied = proxy.proxiedURL(for: streamUrl) {
             playbackURL = proxied
             print("[VideoPlayer] Using proxied URL on port \(proxy.port)")
         } else if let direct = URL(string: streamUrl) {
@@ -230,6 +266,8 @@ public struct VideoPlayerView: View {
         }
 
         guard let url = playbackURL else { return }
+
+        usingOfflineCopy = isOffline
 
         let asset = AVURLAsset(url: url)
         let item = AVPlayerItem(asset: asset)
@@ -281,6 +319,10 @@ public struct VideoPlayerView: View {
             object: item,
             queue: .main
         ) { notification in
+            if self.usingOfflineCopy {
+                self.fallBackToOnlinePlayback()
+                return
+            }
             if let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error {
                 self.hasError = true
                 self.errorMessage = error.localizedDescription
@@ -289,6 +331,49 @@ public struct VideoPlayerView: View {
 
         self.player = player
         isLoading = false
+
+        if isOffline {
+            withAnimation(.easeOut(duration: 0.3)) {
+                showOfflineBadge = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    self.showOfflineBadge = false
+                }
+            }
+            // A rewritten local playlist can still be rejected by AVFoundation, so give it
+            // a few seconds and quietly fall back to streaming instead of dead-ending.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                guard self.usingOfflineCopy, let current = self.player?.currentItem else { return }
+                if current.status == .failed {
+                    self.fallBackToOnlinePlayback()
+                }
+            }
+        }
+    }
+
+    /// Swaps a failed offline copy for the live stream without touching saved progress.
+    private func fallBackToOnlinePlayback() {
+        guard usingOfflineCopy else { return }
+        print("[VideoPlayer] Offline copy unplayable, falling back to the stream")
+        usingOfflineCopy = false
+        forceOnlinePlayback = true
+        showOfflineBadge = false
+
+        if let token = timeObserverToken, let player {
+            player.removeTimeObserver(token)
+        }
+        timeObserverToken = nil
+        player?.pause()
+        player?.replaceCurrentItem(with: nil)
+        player = nil
+
+        if proxy.isRunning == false {
+            proxy.start()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            createPlayer()
+        }
     }
 
     private func restartFromBeginning() {

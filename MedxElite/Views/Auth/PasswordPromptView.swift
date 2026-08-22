@@ -18,18 +18,9 @@ public struct PasswordPromptView: View {
             VStack(spacing: 0) {
                 // MARK: - Profile Header
                 VStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(profile.accentColor.opacity(0.14))
-                            .frame(width: 80, height: 80)
-                            .overlay(Circle().strokeBorder(profile.accentColor.opacity(0.34), lineWidth: 1))
-
-                        Text(String(profile.displayName.prefix(1)).uppercased())
-                            .font(.largeTitle.weight(.semibold))
-                            .foregroundStyle(profile.accentColor)
-                    }
-                    .scaleEffect(hasAppeared ? 1 : 0.8)
-                    .opacity(hasAppeared ? 1 : 0)
+                    ProfileAvatarView(profile: profile, size: 80)
+                        .scaleEffect(hasAppeared ? 1 : 0.8)
+                        .opacity(hasAppeared ? 1 : 0)
 
                     VStack(spacing: 4) {
                         Text(profile.displayName)

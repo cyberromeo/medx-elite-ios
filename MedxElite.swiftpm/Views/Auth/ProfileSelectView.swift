@@ -100,17 +100,7 @@ public struct ProfileSelectView: View {
             handleProfileTap(profile)
         } label: {
             HStack(spacing: 16) {
-                // Avatar with gradient ring
-                ZStack {
-                    Circle()
-                        .fill(profile.accentColor.opacity(0.14))
-                        .frame(width: 56, height: 56)
-                        .overlay(Circle().strokeBorder(profile.accentColor.opacity(0.36), lineWidth: 1))
-
-                    Text(String(profile.displayName.prefix(1)).uppercased())
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(profile.accentColor)
-                }
+                ProfileAvatarView(profile: profile, size: 56)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(profile.displayName)

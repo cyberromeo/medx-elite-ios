@@ -137,11 +137,8 @@ public struct HomeView: View {
             showSettings = true
         } label: {
             if let profile = authService.currentProfile {
-                Text(String(profile.displayName.prefix(1)).uppercased())
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(profile.accentColor)
+                ProfileAvatarView(profile: profile, size: 36)
                     .frame(width: 44, height: 44)
-                    .liquidGlassCircle(tintColor: profile.accentColor)
             } else {
                 Image(systemName: "person.crop.circle.fill")
                     .font(.title3)

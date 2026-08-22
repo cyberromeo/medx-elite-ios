@@ -1,11 +1,16 @@
 import SwiftUI
+import PhotosUI
 
 public struct SettingsView: View {
     @ObservedObject var authService = AuthService.shared
     @ObservedObject private var activityStore = ActivityStore.shared
+    @ObservedObject private var avatars = AvatarStore.shared
+    @ObservedObject private var downloads = VideoDownloadStore.shared
     @State private var attempts: [SittingAttempt] = []
     @State private var showSignOutConfirm = false
     @State private var showForgetCachedConfirm = false
+    @State private var showDeleteDownloadsConfirm = false
+    @State private var photoItem: PhotosPickerItem?
     @State private var cacheCleared = false
     @State private var cacheSize: String = "Calculating…"
     @State private var isManualSyncing = false
@@ -20,19 +25,7 @@ public struct SettingsView: View {
                 if let profile = authService.currentProfile {
                     Section {
                         HStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .strokeBorder(profile.gradient, lineWidth: 2)
-                                    .frame(width: 64, height: 64)
-
-                                Circle()
-                                    .fill(profile.gradient)
-                                    .frame(width: 56, height: 56)
-
-                                Text(String(profile.displayName.prefix(1)))
-                                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white)
-                            }
+                            ProfileAvatarView(profile: profile, size: 64)
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(profile.displayName)
@@ -44,13 +37,56 @@ public struct SettingsView: View {
                                     .font(MedxFont.caption(12))
                                     .foregroundColor(Color(uiColor: .tertiaryLabel))
                             }
+
+                            Spacer(minLength: 0)
                         }
                         .padding(.vertical, 6)
+
+                        PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
+                            Label {
+                                Text(avatars.hasImage(for: profile.id) ? "Change Profile Photo" : "Add Profile Photo")
+                                    .font(MedxFont.body(15))
+                            } icon: {
+                                Image(systemName: "person.crop.circle.badge.plus")
+                                    .foregroundColor(MedxTheme.primaryBlue)
+                            }
+                            .frame(minHeight: 44)
+                        }
+
+                        if avatars.hasImage(for: profile.id) {
+                            Button(role: .destructive) {
+                                HapticManager.medium()
+                                avatars.removeImage(for: profile.id)
+                            } label: {
+                                Label {
+                                    Text("Remove Photo")
+                                        .font(MedxFont.body(15))
+                                } icon: {
+                                    Image(systemName: "person.crop.circle.badge.xmark")
+                                        .foregroundColor(MedxTheme.destructiveRed)
+                                }
+                                .frame(minHeight: 44)
+                            }
+                        }
+                    } footer: {
+                        Text("Your photo is stored only on this device.")
+                            .font(MedxFont.caption(11))
                     }
                 }
 
                 // MARK: - Library & Study History
                 Section("Library") {
+                    NavigationLink {
+                        DownloadsView()
+                    } label: {
+                        settingsRow(
+                            title: "Offline Downloads",
+                            icon: "arrow.down.circle.fill",
+                            color: MedxTheme.successGreen,
+                            value: "\(downloads.completedItems.count)"
+                        )
+                    }
+
                     NavigationLink {
                         BookmarkedQuestionsView(uid: authService.currentSession?.uid)
                     } label: {
@@ -142,6 +178,39 @@ public struct SettingsView: View {
 
                 // MARK: - Storage
                 Section("Storage") {
+                    HStack {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Offline Videos")
+                                    .font(MedxFont.body(15))
+                                Text("\(downloads.completedItems.count) classes saved in the app")
+                                    .font(MedxFont.caption(11))
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .foregroundColor(MedxTheme.successGreen)
+                        }
+                        Spacer()
+                        Text(downloads.formattedTotalSize)
+                            .font(MedxFont.mono(13))
+                            .foregroundColor(.secondary)
+                    }
+
+                    if !downloads.allItems.isEmpty {
+                        Button(role: .destructive) {
+                            showDeleteDownloadsConfirm = true
+                        } label: {
+                            Label {
+                                Text("Delete All Downloads")
+                                    .font(MedxFont.body(15))
+                            } icon: {
+                                Image(systemName: "trash")
+                                    .foregroundColor(MedxTheme.destructiveRed)
+                            }
+                        }
+                    }
+
                     HStack {
                         Label {
                             Text("Offline Cache")
@@ -276,6 +345,24 @@ public struct SettingsView: View {
                 }
             } message: {
                 Text("This will remove your saved password from this device's Keychain.")
+            }
+            .confirmationDialog("Delete All Downloads?", isPresented: $showDeleteDownloadsConfirm) {
+                Button("Delete \(downloads.allItems.count) Downloads", role: .destructive) {
+                    HapticManager.warning()
+                    downloads.removeAll()
+                }
+            } message: {
+                Text("This frees \(downloads.formattedTotalSize) on this device. Your watch progress is kept and you can download the classes again any time.")
+            }
+            .onChange(of: photoItem) { _, newItem in
+                guard let newItem, let profileId = authService.currentProfile?.id else { return }
+                Task { @MainActor in
+                    if let data = try? await newItem.loadTransferable(type: Data.self) {
+                        AvatarStore.shared.setImage(data: data, for: profileId)
+                        HapticManager.success()
+                    }
+                    photoItem = nil
+                }
             }
             .task {
                 if let uid = authService.currentSession?.uid {

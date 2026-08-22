@@ -68,11 +68,8 @@ public struct ProfileSettingsButton: View {
             showSettings = true
         } label: {
             if let profile = authService.currentProfile {
-                Text(String(profile.displayName.prefix(1)).uppercased())
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(profile.accentColor)
+                ProfileAvatarView(profile: profile, size: 34)
                     .frame(width: 44, height: 44)
-                    .liquidGlassCircle(tintColor: profile.accentColor)
             } else {
                 Image(systemName: "person.crop.circle.fill")
                     .font(.title3)
@@ -90,5 +87,50 @@ public struct ProfileSettingsButton: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+    }
+}
+
+// MARK: - Profile Avatar
+
+/// Circular profile picture with an initials-over-gradient fallback when the
+/// user has not chosen a photo yet.
+public struct ProfileAvatarView: View {
+    public let profile: Profile
+    public let size: CGFloat
+    public let showsRing: Bool
+
+    @ObservedObject private var avatars = AvatarStore.shared
+
+    public init(profile: Profile, size: CGFloat = 44, showsRing: Bool = true) {
+        self.profile = profile
+        self.size = size
+        self.showsRing = showsRing
+    }
+
+    public var body: some View {
+        ZStack {
+            if let image = avatars.images[profile.id] {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                profile.gradient
+
+                Text(profile.initials)
+                    .font(.system(size: size * 0.4, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .overlay {
+            if showsRing {
+                Circle()
+                    .strokeBorder(profile.accentColor.opacity(0.45), lineWidth: max(1, size * 0.04))
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
