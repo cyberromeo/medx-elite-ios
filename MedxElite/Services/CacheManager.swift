@@ -44,6 +44,21 @@ public actor CacheManager {
         try? fileManager.createDirectory(at: cacheDir, withIntermediateDirectories: true)
     }
 
+    /// Total bytes the cached JSON payloads currently occupy on disk.
+    public func diskSize() -> Int64 {
+        guard let contents = try? fileManager.contentsOfDirectory(
+            at: cacheDir,
+            includingPropertiesForKeys: [.fileSizeKey]
+        ) else { return 0 }
+
+        var total: Int64 = 0
+        for url in contents {
+            let values = try? url.resourceValues(forKeys: [.fileSizeKey])
+            total += Int64(values?.fileSize ?? 0)
+        }
+        return total
+    }
+
     private func sanitizedKey(_ key: String) -> String {
         key.replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: ":", with: "_")

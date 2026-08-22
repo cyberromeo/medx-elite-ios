@@ -231,8 +231,8 @@ public struct SettingsView: View {
                             HapticManager.success()
                             withAnimation {
                                 cacheCleared = true
-                                cacheSize = "0 KB"
                             }
+                            await refreshCacheSize()
                         }
                     } label: {
                         HStack {
@@ -365,6 +365,7 @@ public struct SettingsView: View {
                 }
             }
             .task {
+                await refreshCacheSize()
                 if let uid = authService.currentSession?.uid {
                     await activityStore.syncWithCloud(uid: uid)
                 }
@@ -401,6 +402,12 @@ public struct SettingsView: View {
         } catch {
             attempts = []
         }
+    }
+
+    @MainActor
+    private func refreshCacheSize() async {
+        let bytes = await CacheManager.shared.diskSize()
+        cacheSize = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 }
 
