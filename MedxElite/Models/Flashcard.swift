@@ -24,10 +24,10 @@ public struct FlashcardSubject: Identifiable, Hashable, Codable, Sendable {
         } else {
             subjectId = 0
         }
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
-        slug = try container.decodeIfPresent(String.self, forKey: .slug)
-        cardCount = try container.decodeIfPresent(Int.self, forKey: .cardCount) ?? 0
-        cards = try container.decodeIfPresent([FlashcardCard].self, forKey: .cards)
+        name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? ""
+        slug = try? container.decodeIfPresent(String.self, forKey: .slug)
+        cardCount = (try? container.decodeIfPresent(Int.self, forKey: .cardCount)) ?? 0
+        cards = try? container.decodeIfPresent([FlashcardCard].self, forKey: .cards)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -68,10 +68,10 @@ public struct FlashcardCard: Identifiable, Hashable, Codable, Sendable {
         } else {
             id = 0
         }
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
-        description = try container.decodeIfPresent(String.self, forKey: .description)
-        chapter = try container.decodeIfPresent(String.self, forKey: .chapter)
-        variants = try container.decodeIfPresent(FlashcardVariants.self, forKey: .variants)
+        name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? ""
+        description = try? container.decodeIfPresent(String.self, forKey: .description)
+        chapter = try? container.decodeIfPresent(String.self, forKey: .chapter)
+        variants = try? container.decodeIfPresent(FlashcardVariants.self, forKey: .variants)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -174,5 +174,78 @@ public struct FlashcardLayout: Hashable, Sendable {
     /// Shown as a read-only hint — there is no picker to change it any more.
     public var label: String {
         "\(device.rawValue) · \(orientation.rawValue)"
+    }
+}
+
+// MARK: - Artwork preference
+
+/// Which artwork variant to draw. `auto` keeps the old device/window detection; the
+/// explicit cases exist because the detection cannot know what the student wants — a
+/// landscape card is often easier to read as landscape artwork rotated on a portrait
+/// phone than as the phone-portrait crop.
+public enum FlashcardArtworkPreference: String, CaseIterable, Identifiable, Sendable {
+    case auto
+    case phonePortrait
+    case phoneLandscape
+    case tabletPortrait
+    case tabletLandscape
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .auto: return "Automatic"
+        case .phonePortrait: return "Phone · Portrait"
+        case .phoneLandscape: return "Phone · Landscape"
+        case .tabletPortrait: return "Tablet · Portrait"
+        case .tabletLandscape: return "Tablet · Landscape"
+        }
+    }
+
+    public var iconName: String {
+        switch self {
+        case .auto: return "wand.and.stars"
+        case .phonePortrait: return "iphone"
+        case .phoneLandscape: return "iphone.landscape"
+        case .tabletPortrait: return "ipad"
+        case .tabletLandscape: return "ipad.landscape"
+        }
+    }
+
+    /// Resolves against what the app detected for the current window.
+    public func layout(detected: FlashcardLayout) -> FlashcardLayout {
+        switch self {
+        case .auto: return detected
+        case .phonePortrait: return FlashcardLayout(device: .mobile, orientation: .portrait)
+        case .phoneLandscape: return FlashcardLayout(device: .mobile, orientation: .landscape)
+        case .tabletPortrait: return FlashcardLayout(device: .tablet, orientation: .portrait)
+        case .tabletLandscape: return FlashcardLayout(device: .tablet, orientation: .landscape)
+        }
+    }
+}
+
+/// One place for the flashcard viewing preferences so the contact sheet and the
+/// full-screen viewer can never disagree about which artwork is on screen.
+@MainActor
+public final class FlashcardSettings: ObservableObject {
+    public static let shared = FlashcardSettings()
+
+    private static let artworkKey = "medx.flashcards.artwork"
+    private static let rotationKey = "medx.flashcards.rotateLandscape"
+
+    @Published public var artwork: FlashcardArtworkPreference {
+        didSet { UserDefaults.standard.set(artwork.rawValue, forKey: Self.artworkKey) }
+    }
+
+    /// Rotates landscape artwork a quarter turn so it fills a portrait screen. Off by
+    /// default — it is a reading aid, not the default presentation.
+    @Published public var rotatesLandscapeArtwork: Bool {
+        didSet { UserDefaults.standard.set(rotatesLandscapeArtwork, forKey: Self.rotationKey) }
+    }
+
+    private init() {
+        let raw = UserDefaults.standard.string(forKey: Self.artworkKey) ?? ""
+        artwork = FlashcardArtworkPreference(rawValue: raw) ?? .auto
+        rotatesLandscapeArtwork = UserDefaults.standard.bool(forKey: Self.rotationKey)
     }
 }

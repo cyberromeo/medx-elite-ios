@@ -15,44 +15,72 @@ public actor FirestoreService {
         useCache: Bool = true
     ) async throws -> [T] {
         let cacheKey = "col_\(collection)"
-        if useCache, let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self) {
+        // An empty cached array is treated as a miss. A single bad decode used to poison
+        // the cache with `[]` and the screen stayed blank until the app was reinstalled.
+        if useCache, let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
             return cached
         }
 
-        let urlString = "\(FirebaseConfig.firestoreRestBase)/\(collection)?pageSize=1000"
-        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
-
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            if let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self) {
-                return cached
-            }
-            throw URLError(.badServerResponse)
-        }
-
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw URLError(.cannotParseResponse)
-        }
-
-        let rawDocs = json["documents"] as? [[String: Any]] ?? []
         var decodedItems: [T] = []
+        var pageToken: String?
+        var pagesFetched = 0
 
-        for rawDoc in rawDocs {
-            if let fields = rawDoc["fields"] as? [String: Any] {
-                let normalized = Self.normalizeFirestoreMap(fields)
-                if let normData = try? JSONSerialization.data(withJSONObject: normalized),
-                   let item = try? JSONDecoder().decode(T.self, from: normData) {
-                    decodedItems.append(item)
-                }
+        repeat {
+            var components = "\(FirebaseConfig.firestoreRestBase)/\(collection)?pageSize=300"
+            if let pageToken, let encoded = pageToken.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+                components += "&pageToken=\(encoded)"
             }
-        }
+            guard let url = URL(string: components) else { throw URLError(.badURL) }
 
-        await cache.set(decodedItems, forKey: cacheKey)
+            var request = URLRequest(url: url)
+            request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                if let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
+                    return cached
+                }
+                throw URLError(.badServerResponse)
+            }
+
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw URLError(.cannotParseResponse)
+            }
+
+            decodedItems.append(contentsOf: Self.decodeDocuments(json["documents"] as? [[String: Any]] ?? []) as [T])
+            pageToken = json["nextPageToken"] as? String
+            pagesFetched += 1
+            // A guard against a server that keeps handing back the same token.
+        } while (pageToken?.isEmpty == false) && pagesFetched < 40
+
+        if !decodedItems.isEmpty {
+            await cache.set(decodedItems, forKey: cacheKey)
+        }
         return decodedItems
     }
+
+    /// Shared document → model step. Firestore's REST shape is normalised first, and the
+    /// document id is injected so models keyed on `id` still resolve.
+    private static func decodeDocuments<T: Codable>(_ rawDocs: [[String: Any]]) -> [T] {
+        var items: [T] = []
+        let decoder = JSONDecoder()
+
+        for rawDoc in rawDocs {
+            guard let fields = rawDoc["fields"] as? [String: Any] else { continue }
+            var normalized = normalizeFirestoreMap(fields)
+            if normalized["id"] == nil || normalized["id"] is NSNull,
+               let name = rawDoc["name"] as? String,
+               let docId = name.split(separator: "/").last {
+                normalized["id"] = String(docId)
+            }
+            guard let normData = try? JSONSerialization.data(withJSONObject: normalized),
+                  let item = try? decoder.decode(T.self, from: normData) else { continue }
+            items.append(item)
+        }
+
+        return items
+    }
+
 
     public func fetchDocument<T: Codable>(
         collection: String,
@@ -103,7 +131,7 @@ public actor FirestoreService {
         useCache: Bool = true
     ) async throws -> [T] {
         let cacheKey = "query_\(collection)_\(field)_\(stringValue)"
-        if useCache, let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self) {
+        if useCache, let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
             return cached
         }
 
@@ -132,7 +160,7 @@ public actor FirestoreService {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            if let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self) {
+            if let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
                 return cached
             }
             throw URLError(.badServerResponse)
@@ -142,22 +170,12 @@ public actor FirestoreService {
             throw URLError(.cannotParseResponse)
         }
 
-        var items: [T] = []
-        for res in results {
-            if let doc = res["document"] as? [String: Any],
-               let fields = doc["fields"] as? [String: Any] {
-                var normalized = Self.normalizeFirestoreMap(fields)
-                if let name = doc["name"] as? String, let docId = name.split(separator: "/").last {
-                    normalized["id"] = String(docId)
-                }
-                if let normData = try? JSONSerialization.data(withJSONObject: normalized),
-                   let item = try? JSONDecoder().decode(T.self, from: normData) {
-                    items.append(item)
-                }
-            }
-        }
+        let documents = results.compactMap { $0["document"] as? [String: Any] }
+        let items: [T] = Self.decodeDocuments(documents)
 
-        await cache.set(items, forKey: cacheKey)
+        if !items.isEmpty {
+            await cache.set(items, forKey: cacheKey)
+        }
         return items
     }
 
@@ -439,6 +457,14 @@ public actor FirestoreService {
         return result
     }
 
+    /// Firestore's REST value wrapper → plain JSON.
+    ///
+    /// This used to fall through to `""` for anything it did not recognise, including
+    /// `nullValue`, `{"arrayValue":{}}` (an empty array) and `{"mapValue":{}}` (an empty
+    /// map). A `String` where the model expects an object or array is a `typeMismatch`,
+    /// `try?` swallowed it, and the whole document was dropped — which is why the Tests
+    /// tab rendered nothing at all. Unknown and null values now become `NSNull`, which
+    /// `decodeIfPresent` correctly reads as "absent".
     public static func normalizeFirestoreValue(_ valDict: [String: Any]) -> Any {
         if let str = valDict["stringValue"] as? String {
             return str
@@ -458,19 +484,26 @@ public actor FirestoreService {
         if let boolVal = valDict["booleanValue"] as? Bool {
             return boolVal
         }
-        if let arrayObj = valDict["arrayValue"] as? [String: Any],
-           let values = arrayObj["values"] as? [[String: Any]] {
+        if let arrayObj = valDict["arrayValue"] as? [String: Any] {
+            let values = arrayObj["values"] as? [[String: Any]] ?? []
             return values.map { normalizeFirestoreValue($0) }
         }
-        if let mapObj = valDict["mapValue"] as? [String: Any],
-           let fields = mapObj["fields"] as? [String: Any] {
+        if let mapObj = valDict["mapValue"] as? [String: Any] {
+            let fields = mapObj["fields"] as? [String: Any] ?? [:]
             return normalizeFirestoreMap(fields)
         }
         if let ts = valDict["timestampValue"] as? String {
             return ts
         }
-        return ""
+        if let bytes = valDict["bytesValue"] as? String {
+            return bytes
+        }
+        if let reference = valDict["referenceValue"] as? String {
+            return reference
+        }
+        return NSNull()
     }
+
 
     public static func convertToFirestoreValue(_ val: Any) -> [String: Any]? {
         if let str = val as? String {

@@ -1,52 +1,34 @@
 import SwiftUI
 
+/// Full-width primary action button. Uses the system prominent style so it picks up the
+/// platform's current material and press behaviour rather than a hand-rolled gradient.
 public struct ModernButton: View {
     public let title: String
     public var icon: String?
-    public var gradient: LinearGradient
-    public var height: CGFloat
-    public var cornerRadius: CGFloat
+    public var tint: Color
     public var isBusy: Bool
     public var action: () -> Void
 
     public init(
         title: String,
         icon: String? = nil,
-        gradient: LinearGradient = LinearGradient(
-            colors: [MedxTheme.primaryBlue, MedxTheme.cyanAccent],
-            startPoint: .leading,
-            endPoint: .trailing
-        ),
-        height: CGFloat = 52,
-        cornerRadius: CGFloat = 14,
+        tint: Color = .accentColor,
         isBusy: Bool = false,
         action: @escaping () -> Void
     ) {
         self.title = title
         self.icon = icon
-        self.gradient = gradient
-        self.height = height
-        self.cornerRadius = cornerRadius
+        self.tint = tint
         self.isBusy = isBusy
         self.action = action
     }
 
     public var body: some View {
-        if #available(iOS 26.0, *) {
-            baseButton
-                .buttonStyle(.glassProminent)
-        } else {
-            baseButton
-                .buttonStyle(.borderedProminent)
-        }
-    }
-
-    private var baseButton: some View {
         Button {
             HapticManager.medium()
             action()
         } label: {
-            Group {
+            HStack(spacing: 8) {
                 if isBusy {
                     ProgressView()
                         .controlSize(.small)
@@ -58,23 +40,25 @@ public struct ModernButton: View {
                 }
             }
             .font(.body.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: max(height, 44))
+            .frame(maxWidth: .infinity, minHeight: 50)
         }
-        .tint(MedxTheme.primaryBlue)
-        .controlSize(.large)
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .tint(tint)
         .disabled(isBusy)
-        .accessibilityHint(isBusy ? "Please wait" : "Activates this action")
+        .accessibilityHint(isBusy ? "Please wait" : "")
     }
 }
 
-/// Compatibility style for existing call sites. It now uses a restrained
-/// native press response rather than a springy game-like animation.
+/// Press feedback for custom card-shaped buttons. Restrained on purpose: a subtle dim and
+/// a hair of scale, matching how system cells respond.
 public struct BouncyButtonStyle: ButtonStyle {
     public init() {}
 
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .opacity(configuration.isPressed ? 0.72 : 1)
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }

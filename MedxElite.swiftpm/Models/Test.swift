@@ -33,20 +33,22 @@ public struct BatchTest: Identifiable, Hashable, Codable, Sendable {
         } else {
             testId = UUID().uuidString
         }
-        batchId = try container.decodeIfPresent(String.self, forKey: .batchId)
-        batch = try container.decodeIfPresent(String.self, forKey: .batch)
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Test"
-        subject = try container.decodeIfPresent(String.self, forKey: .subject) ?? ""
-        mode = try container.decodeIfPresent(String.self, forKey: .mode)
-        testType = try container.decodeIfPresent(String.self, forKey: .testType)
-        section = try container.decodeIfPresent(String.self, forKey: .section)
-        questionCount = try container.decodeIfPresent(Int.self, forKey: .questionCount) ?? 0
-        officialTimeMins = try container.decodeIfPresent(Int.self, forKey: .officialTimeMins) ?? questionCount
-        gradable = try container.decodeIfPresent(Bool.self, forKey: .gradable) ?? false
-        gradedCount = try container.decodeIfPresent(Int.self, forKey: .gradedCount)
-        priorAttempt = try container.decodeIfPresent(PriorAttemptInfo.self, forKey: .priorAttempt)
-        performanceStats = try container.decodeIfPresent([String: AnyCodableSendable].self, forKey: .performanceStats)
-        rankInfo = try container.decodeIfPresent([String: AnyCodableSendable].self, forKey: .rankInfo)
+        batchId = try? container.decodeIfPresent(String.self, forKey: .batchId)
+        batch = try? container.decodeIfPresent(String.self, forKey: .batch)
+        name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? "Test"
+        subject = (try? container.decodeIfPresent(String.self, forKey: .subject)) ?? ""
+        mode = try? container.decodeIfPresent(String.self, forKey: .mode)
+        testType = try? container.decodeIfPresent(String.self, forKey: .testType)
+        section = try? container.decodeIfPresent(String.self, forKey: .section)
+        questionCount = (try? container.decodeIfPresent(Int.self, forKey: .questionCount)) ?? 0
+        officialTimeMins = (try? container.decodeIfPresent(Int.self, forKey: .officialTimeMins)) ?? questionCount
+        gradable = (try? container.decodeIfPresent(Bool.self, forKey: .gradable)) ?? false
+        gradedCount = try? container.decodeIfPresent(Int.self, forKey: .gradedCount)
+        // Arise writes these three as free-form maps and sometimes not at all. A shape we
+        // do not model must not take the whole test down with it, so they decode leniently.
+        priorAttempt = try? container.decodeIfPresent(PriorAttemptInfo.self, forKey: .priorAttempt)
+        performanceStats = try? container.decodeIfPresent([String: AnyCodableSendable].self, forKey: .performanceStats)
+        rankInfo = try? container.decodeIfPresent([String: AnyCodableSendable].self, forKey: .rankInfo)
     }
 
     public func encode(to encoder: Encoder) throws {

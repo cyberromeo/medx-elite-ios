@@ -12,7 +12,8 @@ public struct SettingsView: View {
     @State private var showDeleteDownloadsConfirm = false
     @State private var photoItem: PhotosPickerItem?
     @State private var cacheCleared = false
-    @State private var cacheSize: String = "Calculating…"
+    @State private var cacheSize: String = "…"
+    @State private var imageCacheSize: String = "…"
     @State private var isManualSyncing = false
     @Environment(\.dismiss) private var dismiss
 
@@ -29,12 +30,12 @@ public struct SettingsView: View {
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(profile.displayName)
-                                    .font(MedxFont.headline(18))
+                                    .font(.title3.weight(.semibold))
                                 Text("@\(profile.handle)")
-                                    .font(MedxFont.caption(14))
+                                    .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 Text(profile.email)
-                                    .font(MedxFont.caption(12))
+                                    .font(.caption)
                                     .foregroundColor(Color(uiColor: .tertiaryLabel))
                             }
 
@@ -45,7 +46,7 @@ public struct SettingsView: View {
                         PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
                             Label {
                                 Text(avatars.hasImage(for: profile.id) ? "Change Profile Photo" : "Add Profile Photo")
-                                    .font(MedxFont.body(15))
+                                    .font(.body)
                             } icon: {
                                 Image(systemName: "person.crop.circle.badge.plus")
                                     .foregroundColor(MedxTheme.primaryBlue)
@@ -60,7 +61,7 @@ public struct SettingsView: View {
                             } label: {
                                 Label {
                                     Text("Remove Photo")
-                                        .font(MedxFont.body(15))
+                                        .font(.body)
                                 } icon: {
                                     Image(systemName: "person.crop.circle.badge.xmark")
                                         .foregroundColor(MedxTheme.destructiveRed)
@@ -70,7 +71,7 @@ public struct SettingsView: View {
                         }
                     } footer: {
                         Text("Your photo is stored only on this device.")
-                            .font(MedxFont.caption(11))
+                            .font(.caption)
                     }
                 }
 
@@ -130,14 +131,14 @@ public struct SettingsView: View {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Firebase Cloud Sync")
-                                    .font(MedxFont.body(15))
+                                    .font(.body)
                                 if let lastSync = activityStore.lastSyncedAt {
                                     Text("Last synced \(RelativeDateTimeFormatter().localizedString(for: lastSync, relativeTo: Date()))")
-                                        .font(MedxFont.caption(11))
+                                        .font(.caption)
                                         .foregroundColor(.secondary)
                                 } else {
                                     Text("Automatic sync on changes")
-                                        .font(MedxFont.caption(11))
+                                        .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
                             }
@@ -164,7 +165,7 @@ public struct SettingsView: View {
                                     .controlSize(.small)
                             } else {
                                 Text("Sync Now")
-                                    .font(MedxFont.label(12))
+                                    .font(.caption.weight(.semibold))
                                     .foregroundColor(MedxTheme.primaryBlue)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 4)
@@ -177,14 +178,14 @@ public struct SettingsView: View {
                 }
 
                 // MARK: - Storage
-                Section("Storage") {
+                Section {
                     HStack {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Offline Videos")
-                                    .font(MedxFont.body(15))
+                                    .font(.body)
                                 Text("\(downloads.completedItems.count) classes saved in the app")
-                                    .font(MedxFont.caption(11))
+                                    .font(.caption)
                                     .foregroundColor(.secondary)
                             }
                         } icon: {
@@ -193,7 +194,7 @@ public struct SettingsView: View {
                         }
                         Spacer()
                         Text(downloads.formattedTotalSize)
-                            .font(MedxFont.mono(13))
+                            .font(.footnote.monospacedDigit())
                             .foregroundColor(.secondary)
                     }
 
@@ -203,7 +204,7 @@ public struct SettingsView: View {
                         } label: {
                             Label {
                                 Text("Delete All Downloads")
-                                    .font(MedxFont.body(15))
+                                    .font(.body)
                             } icon: {
                                 Image(systemName: "trash")
                                     .foregroundColor(MedxTheme.destructiveRed)
@@ -213,32 +214,49 @@ public struct SettingsView: View {
 
                     HStack {
                         Label {
-                            Text("Offline Cache")
-                                .font(MedxFont.body(15))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Question & Card Images")
+                                    .font(.body)
+                                Text("Figures and flashcard artwork kept for offline viewing")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .foregroundColor(MedxTheme.indigoAccent)
+                        }
+                        Spacer()
+                        Text(imageCacheSize)
+                            .font(.footnote.monospacedDigit())
+                            .foregroundColor(.secondary)
+                    }
+
+                    HStack {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Offline Question Cache")
+                                    .font(.body)
+                                Text("Modules and papers available with no signal")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         } icon: {
                             Image(systemName: "internaldrive.fill")
                                 .foregroundColor(MedxTheme.primaryBlue)
                         }
                         Spacer()
                         Text(cacheSize)
-                            .font(MedxFont.mono(13))
+                            .font(.footnote.monospacedDigit())
                             .foregroundColor(.secondary)
                     }
 
                     Button {
-                        Task {
-                            await CacheManager.shared.clearAll()
-                            HapticManager.success()
-                            withAnimation {
-                                cacheCleared = true
-                            }
-                            await refreshCacheSize()
-                        }
+                        Task { await clearCaches() }
                     } label: {
                         HStack {
                             Label {
-                                Text("Clear Offline Cache")
-                                    .font(MedxFont.body(15))
+                                Text("Clear Cached Data")
+                                    .font(.body)
                             } icon: {
                                 Image(systemName: "trash")
                                     .foregroundColor(MedxTheme.warningOrange)
@@ -251,6 +269,11 @@ public struct SettingsView: View {
                             }
                         }
                     }
+                } header: {
+                    Text("Storage")
+                } footer: {
+                    Text("Clearing cached data keeps your downloads, bookmarks and history — only the re-downloadable copies of questions and images are removed.")
+                        .font(.caption)
                 }
 
                 // MARK: - Account Actions
@@ -260,7 +283,7 @@ public struct SettingsView: View {
                     } label: {
                         Label {
                             Text("Sign Out")
-                                .font(MedxFont.body(15))
+                                .font(.body)
                         } icon: {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
                                 .foregroundColor(MedxTheme.destructiveRed)
@@ -273,7 +296,7 @@ public struct SettingsView: View {
                         } label: {
                             Label {
                                 Text("Sign Out & Forget Password")
-                                    .font(MedxFont.body(15))
+                                    .font(.body)
                             } icon: {
                                 Image(systemName: "key.slash")
                                     .foregroundColor(MedxTheme.destructiveRed)
@@ -287,33 +310,33 @@ public struct SettingsView: View {
                     HStack {
                         Label {
                             Text("Version")
-                                .font(MedxFont.body(15))
+                                .font(.body)
                         } icon: {
                             Image(systemName: "info.circle.fill")
                                 .foregroundColor(MedxTheme.cyanAccent)
                         }
                         Spacer()
                         Text("1.0.0")
-                            .font(MedxFont.mono(13))
+                            .font(.footnote.monospacedDigit())
                             .foregroundColor(.secondary)
                     }
 
                     HStack {
                         Label {
                             Text("Platform")
-                                .font(MedxFont.body(15))
+                                .font(.body)
                         } icon: {
                             Image(systemName: "swift")
                                 .foregroundColor(MedxTheme.warningOrange)
                         }
                         Spacer()
                         Text("Swift Native iOS 17")
-                            .font(MedxFont.caption(13))
+                            .font(.footnote)
                             .foregroundColor(.secondary)
                     }
                 } footer: {
                     Text("MedX Elite · Built with SwiftUI & Apple HIG")
-                        .font(MedxFont.caption(11))
+                        .font(.caption)
                 }
             }
             .navigationTitle("Settings")
@@ -323,7 +346,7 @@ public struct SettingsView: View {
                     Button("Done") {
                         dismiss()
                     }
-                    .font(MedxFont.headline(16))
+                    .font(.headline)
                 }
             }
             .confirmationDialog("Sign Out?", isPresented: $showSignOutConfirm) {
@@ -381,7 +404,7 @@ public struct SettingsView: View {
         HStack {
             Label {
                 Text(title)
-                    .font(MedxFont.body(15))
+                    .font(.body)
             } icon: {
                 Image(systemName: icon)
                     .foregroundStyle(color)
@@ -406,8 +429,22 @@ public struct SettingsView: View {
 
     @MainActor
     private func refreshCacheSize() async {
-        let bytes = await CacheManager.shared.diskSize()
-        cacheSize = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        let documentBytes = await CacheManager.shared.diskSize()
+        cacheSize = ByteCountFormatter.string(fromByteCount: documentBytes, countStyle: .file)
+
+        let imageBytes = MedxImageLoader.shared.diskSize()
+        imageCacheSize = ByteCountFormatter.string(fromByteCount: imageBytes, countStyle: .file)
+    }
+
+    /// Clears the two re-downloadable caches. Saved videos, bookmarks and history are
+    /// untouched, which is what the footer promises.
+    @MainActor
+    private func clearCaches() async {
+        await CacheManager.shared.clearAll()
+        MedxImageLoader.shared.clear()
+        HapticManager.success()
+        withAnimation { cacheCleared = true }
+        await refreshCacheSize()
     }
 }
 
@@ -466,7 +503,7 @@ struct BookmarkedQuestionsView: View {
                                             selectedSubject = subj
                                         } label: {
                                             Text(subj)
-                                                .font(MedxFont.label(12))
+                                                .font(.caption.weight(.semibold))
                                                 .foregroundColor(selectedSubject == subj ? .white : .primary)
                                                 .padding(.horizontal, 12)
                                                 .padding(.vertical, 6)
@@ -496,7 +533,7 @@ struct BookmarkedQuestionsView: View {
                                     HStack(spacing: 6) {
                                         if !bookmark.subject.isEmpty {
                                             Text(bookmark.subject)
-                                                .font(MedxFont.mono(10, weight: .bold))
+                                                .font(.caption2.weight(.bold).monospacedDigit())
                                                 .foregroundColor(MedxTheme.primaryPurple)
                                                 .padding(.horizontal, 7)
                                                 .padding(.vertical, 2)
@@ -511,7 +548,7 @@ struct BookmarkedQuestionsView: View {
                                         Spacer()
 
                                         Text(bookmark.formattedDate)
-                                            .font(MedxFont.caption(11))
+                                            .font(.caption)
                                             .foregroundStyle(Color(uiColor: .tertiaryLabel))
                                     }
                                 }
@@ -528,7 +565,7 @@ struct BookmarkedQuestionsView: View {
                         }
                     } footer: {
                         Text("\(filteredBookmarks.count) of \(allBookmarks.count) bookmarked questions")
-                            .font(MedxFont.caption(12))
+                            .font(.caption)
                     }
                 }
                 .searchable(text: $searchText, prompt: "Search bookmarks…")
@@ -581,7 +618,7 @@ private struct BookmarkedQuestionDetailView: View {
                 HStack {
                     if !bookmark.subject.isEmpty {
                         Text(bookmark.subject)
-                            .font(MedxFont.mono(11, weight: .bold))
+                            .font(.caption.weight(.bold).monospacedDigit())
                             .foregroundColor(MedxTheme.primaryPurple)
                             .padding(.horizontal, 9)
                             .padding(.vertical, 4)
@@ -589,13 +626,13 @@ private struct BookmarkedQuestionDetailView: View {
                     }
 
                     Text(bookmark.sourceName)
-                        .font(MedxFont.caption(12))
+                        .font(.caption)
                         .foregroundColor(.secondary)
 
                     Spacer()
 
                     Text(bookmark.formattedDate)
-                        .font(MedxFont.caption(11))
+                        .font(.caption)
                         .foregroundColor(Color(uiColor: .tertiaryLabel))
                 }
 
@@ -618,7 +655,7 @@ private struct BookmarkedQuestionDetailView: View {
 
                         HStack(alignment: .center, spacing: 12) {
                             Text(option.label)
-                                .font(MedxFont.mono(13, weight: .bold))
+                                .font(.footnote.weight(.bold).monospacedDigit())
                                 .foregroundColor(isCorrect ? .white : .primary)
                                 .frame(width: 28, height: 28)
                                 .background(isCorrect ? MedxTheme.successGreen : Color.primary.opacity(0.08))
@@ -650,12 +687,13 @@ private struct BookmarkedQuestionDetailView: View {
                 if let explanation = bookmark.question.explanation, !explanation.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Explanation", systemImage: "lightbulb.fill")
-                            .font(.headline)
-                            .foregroundColor(MedxTheme.warningOrange)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(MedxTheme.warningOrange)
                         HTMLRichTextView(html: explanation, fontSize: 15, weight: .regular, textColor: .secondary)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
-                    .glassCard(cornerRadius: 16)
+                    .medxCard()
                 }
 
                 // Remove Bookmark Button
@@ -723,19 +761,19 @@ private struct WatchHistoryView: View {
 
                                     HStack(spacing: 6) {
                                         Text(entry.video.subject)
-                                            .font(MedxFont.caption(12))
+                                            .font(.caption)
                                             .foregroundStyle(.secondary)
 
                                         if let faculty = entry.video.faculty, !faculty.isEmpty {
                                             Text("· \(faculty)")
-                                                .font(MedxFont.caption(12))
+                                                .font(.caption)
                                                 .foregroundStyle(Color(uiColor: .tertiaryLabel))
                                         }
 
                                         Spacer()
 
                                         Text(entry.formattedDate)
-                                            .font(MedxFont.caption(11))
+                                            .font(.caption)
                                             .foregroundStyle(Color(uiColor: .tertiaryLabel))
                                     }
 
@@ -745,16 +783,16 @@ private struct WatchHistoryView: View {
                                     HStack {
                                         if entry.isCompleted {
                                             Label("Completed", systemImage: "checkmark.circle.fill")
-                                                .font(MedxFont.mono(11, weight: .bold))
+                                                .font(.caption.weight(.bold).monospacedDigit())
                                                 .foregroundColor(MedxTheme.successGreen)
                                         } else {
                                             Label("Resume at \(entry.formattedResumeTime)", systemImage: "arrow.counterclockwise.circle.fill")
-                                                .font(MedxFont.mono(11, weight: .bold))
+                                                .font(.caption.weight(.bold).monospacedDigit())
                                                 .foregroundColor(MedxTheme.cyanAccent)
                                         }
                                         Spacer()
                                         Text("\(Int(entry.progress * 100))%")
-                                            .font(MedxFont.mono(11))
+                                            .font(.caption.monospacedDigit())
                                             .foregroundStyle(.secondary)
                                     }
                                 }
@@ -900,7 +938,7 @@ private struct ActivityLogView: View {
                                         .foregroundStyle(.secondary)
 
                                     Text(item.formattedDate)
-                                        .font(MedxFont.caption(11))
+                                        .font(.caption)
                                         .foregroundStyle(Color(uiColor: .tertiaryLabel))
                                 }
 
@@ -927,7 +965,7 @@ private struct ActivityLogView: View {
                         }
                     } footer: {
                         Text("\(filteredItems.count) activity entries")
-                            .font(MedxFont.caption(12))
+                            .font(.caption)
                     }
                 }
                 .searchable(text: $searchText, prompt: "Search activity log…")

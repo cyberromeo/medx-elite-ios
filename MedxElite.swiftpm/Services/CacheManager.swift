@@ -59,10 +59,27 @@ public actor CacheManager {
         return total
     }
 
+    /// Bumped whenever the decoding rules change. Firestore payloads cached by an older
+    /// build can hold values that the current models would reject (or, worse, an empty
+    /// array left behind by a decode that used to fail), so the whole namespace is
+    /// abandoned rather than migrated.
+    private static let schemaVersion = "v2"
+
     private func sanitizedKey(_ key: String) -> String {
-        key.replacingOccurrences(of: "/", with: "_")
+        Self.schemaVersion + "_" + key.replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: ":", with: "_")
             .replacingOccurrences(of: "?", with: "_")
             .replacingOccurrences(of: "&", with: "_") + ".json"
+    }
+
+    /// Removes cache files written by an earlier schema version. Cheap enough to run at
+    /// launch and it keeps `diskSize()` honest.
+    public func pruneStaleVersions() {
+        guard let contents = try? fileManager.contentsOfDirectory(at: cacheDir, includingPropertiesForKeys: nil) else {
+            return
+        }
+        for url in contents where !url.lastPathComponent.hasPrefix(Self.schemaVersion + "_") {
+            try? fileManager.removeItem(at: url)
+        }
     }
 }

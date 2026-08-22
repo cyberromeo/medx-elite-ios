@@ -1,123 +1,53 @@
 import SwiftUI
 
 public struct VideosBatchListView: View {
-    @ObservedObject var authService = AuthService.shared
-    @State private var videos: [RecordedVideo] = []
-    @State private var isLoading = true
-    @State private var searchText = ""
-    @State private var expandedBatches: Set<String> = []
-    @State private var activeVideo: RecordedVideo?
+    @ObservedObject private var authService = AuthService.shared
     @ObservedObject private var activityStore = ActivityStore.shared
     @ObservedObject private var downloads = VideoDownloadStore.shared
 
+    @State private var videos: [RecordedVideo] = []
+    @State private var groups: [VideoBatchGroup] = []
+    @State private var loadState: MedxLoadState = .loading
+    @State private var searchText = ""
+    @State private var activeVideo: RecordedVideo?
+
     public init() {}
 
-    private var batchGroups: [VideoBatchGroup] {
-        var batchMap: [String: (name: String, totalSeconds: Int, count: Int, subjects: [String: (name: String, totalSeconds: Int, videos: [RecordedVideo])])] = [:]
-
-        let filteredVideos = searchText.isEmpty ? videos : videos.filter {
-            $0.title.localizedCaseInsensitiveContains(searchText) ||
-            $0.subject.localizedCaseInsensitiveContains(searchText) ||
-            ($0.faculty ?? "").localizedCaseInsensitiveContains(searchText)
-        }
-
-        for v in filteredVideos {
-            let bId = v.batchId ?? "default"
-            let bName = v.batch ?? "Batch"
-            let sId = v.subjectId ?? "sub"
-            let sName = v.subject
-            let dur = v.durationSeconds ?? 0
-
-            var batchEntry = batchMap[bId] ?? (name: bName, totalSeconds: 0, count: 0, subjects: [:])
-            batchEntry.totalSeconds += dur
-            batchEntry.count += 1
-
-            var subEntry = batchEntry.subjects[sId] ?? (name: sName, totalSeconds: 0, videos: [])
-            subEntry.totalSeconds += dur
-            subEntry.videos.append(v)
-            batchEntry.subjects[sId] = subEntry
-
-            batchMap[bId] = batchEntry
-        }
-
-        return batchMap.map { (bId, bData) in
-            let subjectGroups = bData.subjects.map { (sId, sData) in
-                VideoSubjectGroup(
-                    subjectId: sId,
-                    name: sData.name,
-                    totalSeconds: sData.totalSeconds,
-                    totalClasses: sData.videos.count,
-                    videos: sData.videos
-                )
-            }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-
-            return VideoBatchGroup(
-                batchId: bId,
-                name: bData.name,
-                totalSeconds: bData.totalSeconds,
-                totalClasses: bData.count,
-                subjects: subjectGroups
-            )
-        }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-    }
+    private var uid: String? { authService.currentSession?.uid }
 
     public var body: some View {
-        ZStack {
-            ambientBackground
-
-            if isLoading {
-                ScrollView {
-                    VStack(spacing: 16) {
-                        ForEach(0..<4, id: \.self) { _ in
-                            skeletonCard
-                        }
+        Group {
+            switch loadState {
+            case .loading:
+                loadingState
+            case .failed(let message):
+                ContentUnavailableView {
+                    Label("Couldn't Load Classes", systemImage: "wifi.exclamationmark")
+                } description: {
+                    Text(message)
+                } actions: {
+                    Button("Try Again") {
+                        HapticManager.light()
+                        loadState = .loading
+                        Task { await loadVideos() }
                     }
-                    .padding(20)
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.capsule)
                 }
-            } else if videos.isEmpty {
-                ContentUnavailableView(
-                    "No Videos",
-                    systemImage: "play.tv",
-                    description: Text("Videos will appear here once loaded.")
-                )
-            } else {
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // Stats header
-                        MedxMetricsRow {
-                            MedxMetric(
-                                icon: "play.rectangle.fill",
-                                value: "\(videos.count)",
-                                label: "classes",
-                                color: MedxTheme.primaryBlue
-                            )
-
-                            MedxMetric(
-                                icon: "clock.fill",
-                                value: totalDurationFormatted,
-                                label: "total",
-                                color: MedxTheme.primaryPurple
-                            )
-
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 6)
-
-                        continueWatchingSection
-
-                        // Batch groups
-                        ForEach(batchGroups) { batch in
-                            batchSection(batch)
-                        }
-                    }
-                    .padding(.bottom, 24)
-                }
-                .refreshable {
-                    await loadVideos()
+            case .loaded:
+                if videos.isEmpty {
+                    ContentUnavailableView(
+                        "No Classes",
+                        systemImage: "play.tv",
+                        description: Text("Recorded classes will appear here once they are published.")
+                    )
+                } else {
+                    content
                 }
             }
         }
-        .navigationTitle("Videos")
+        .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .navigationTitle("Classes")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -133,185 +63,222 @@ public struct VideosBatchListView: View {
                 ProfileSettingsButton()
             }
         }
-        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search videos")
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .automatic),
+            prompt: "Search classes"
+        )
         .task {
+            guard case .loading = loadState else { return }
             await loadVideos()
         }
+        .onChange(of: searchText) { _, _ in
+            regroup()
+        }
         .fullScreenCover(item: $activeVideo) { video in
-            VideoPlayerView(video: video) {
-                activeVideo = nil
+            VideoPlayerView(video: video) { activeVideo = nil }
+        }
+    }
+
+    // MARK: - Content
+
+    private var content: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 20) {
+                MedxMetricsRow {
+                    MedxMetric(
+                        icon: "play.rectangle.fill",
+                        value: "\(videos.count)",
+                        label: "classes",
+                        color: MedxTheme.primaryBlue
+                    )
+                    MedxMetric(
+                        icon: "clock.fill",
+                        value: totalDurationFormatted,
+                        label: "total runtime",
+                        color: MedxTheme.primaryPurple
+                    )
+                    MedxMetric(
+                        icon: "arrow.down.circle.fill",
+                        value: "\(downloads.completedItems.count)",
+                        label: "offline",
+                        color: MedxTheme.successGreen
+                    )
+                }
+
+                continueWatchingSection
+
+                if groups.isEmpty {
+                    ContentUnavailableView {
+                        Label("No Matches", systemImage: "magnifyingglass")
+                    } description: {
+                        Text("No class matches “\(searchText)”.")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 32)
+                } else {
+                    ForEach(groups) { batch in
+                        batchSection(batch)
+                    }
+                }
+            }
+            .padding(.horizontal, MedxSurface.gutter)
+            .padding(.top, 6)
+            .padding(.bottom, 28)
+        }
+        .refreshable {
+            await loadVideos()
+        }
+    }
+
+    private func batchSection(_ batch: VideoBatchGroup) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            MedxSectionHeader(batch.name, subtitle: "\(batch.totalClasses) classes")
+
+            ForEach(batch.subjects) { subject in
+                NavigationLink {
+                    VideoSubjectView(subjectGroup: subject)
+                } label: {
+                    subjectRow(subject)
+                }
+                .buttonStyle(.plain)
+                .contextMenu {
+                    ForEach(DownloadQuality.allCases) { quality in
+                        Button {
+                            HapticManager.light()
+                            downloads.startAll(subject.videos, quality: quality)
+                        } label: {
+                            Label("Save all · \(quality.label)", systemImage: quality.icon)
+                        }
+                    }
+                }
             }
         }
     }
 
-    // MARK: - Batch Section
+    private func subjectRow(_ subject: VideoSubjectGroup) -> some View {
+        let offline = subject.videos.filter { downloads.items[$0.id]?.state == .completed }.count
 
-    private func batchSection(_ batch: VideoBatchGroup) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // Batch header
-            HStack {
-                Text(batch.name)
-                    .font(MedxFont.headline(18))
+        return HStack(spacing: 14) {
+            Image(systemName: "play.rectangle.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(MedxTheme.primaryBlue)
+                .frame(width: 38, height: 38)
+                .background(MedxTheme.primaryBlue.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-                Spacer()
+            VStack(alignment: .leading, spacing: 3) {
+                Text(subject.name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
 
-                Text("\(batch.totalClasses) classes")
-                    .font(MedxFont.caption(12))
-                    .foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 20)
+                HStack(spacing: 6) {
+                    Text("\(subject.totalClasses) classes · \(subject.formattedDuration)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
-            LazyVStack(spacing: 10) {
-                ForEach(batch.subjects) { subject in
-                    NavigationLink {
-                        VideoSubjectView(subjectGroup: subject)
-                    } label: {
-                        subjectRow(subject)
+                    if offline > 0 {
+                        Text("· \(offline) offline")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(MedxTheme.successGreen)
                     }
-                    .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 20)
+
+            Spacer(minLength: 0)
+
+            MedxDisclosure()
         }
+        .padding(14)
+        .frame(minHeight: 64)
+        .medxCard()
+        .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(subject.name)
+        .accessibilityValue("\(subject.totalClasses) classes, \(subject.formattedDuration)")
     }
 
     @ViewBuilder
     private var continueWatchingSection: some View {
-        let entries = Array(activityStore.watchHistory(for: authService.currentSession?.uid).prefix(5))
+        let entries = Array(activityStore.watchHistory(for: uid).prefix(6))
         if !entries.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Label("Continue Watching", systemImage: "play.circle.fill")
-                        .font(MedxFont.headline(16))
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    Text("Resume")
-                        .font(MedxFont.caption(12))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 20)
+                MedxSectionHeader("Continue watching")
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
                         ForEach(entries) { entry in
-                            Button {
-                                HapticManager.light()
-                                activeVideo = entry.video
-                            } label: {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Image(systemName: entry.isCompleted ? "checkmark.circle.fill" : "play.circle.fill")
-                                        .font(.title2)
-                                        .foregroundStyle(entry.isCompleted ? MedxTheme.successGreen : MedxTheme.primaryBlue)
-                                    Text(entry.video.title)
-                                        .font(MedxFont.headline(13))
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(2)
-                                        .frame(width: 170, alignment: .leading)
-                                    ProgressView(value: entry.progress)
-                                        .tint(entry.isCompleted ? MedxTheme.successGreen : MedxTheme.primaryBlue)
-                                    Text(entry.isCompleted ? "Completed" : "Resume at \(entry.formattedResumeTime)")
-                                        .font(MedxFont.caption(11))
-                                        .foregroundStyle(.secondary)
-                                }
-                                .padding(14)
-                                .frame(width: 198, alignment: .leading)
-                                .glassCard(cornerRadius: 16, shadowLevel: 1)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("\(entry.video.title), \(Int(entry.progress * 100)) percent watched")
+                            continueCard(entry)
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, 2)
+                    .padding(.vertical, 2)
                 }
+                .scrollClipDisabled()
             }
         }
     }
 
-    // MARK: - Subject Row
-
-    private func subjectRow(_ subject: VideoSubjectGroup) -> some View {
-        HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [MedxTheme.primaryBlue.opacity(0.2), MedxTheme.cyanAccent.opacity(0.1)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 48, height: 48)
-
-                Image(systemName: "play.rectangle.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(MedxTheme.primaryBlue)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(subject.name)
-                    .font(MedxFont.headline(16))
-                    .foregroundColor(.primary)
-                    .lineLimit(2)
-
+    private func continueCard(_ entry: WatchHistoryEntry) -> some View {
+        Button {
+            HapticManager.light()
+            activeVideo = entry.video
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
-                    Text("\(subject.totalClasses) classes")
-                        .font(MedxFont.caption(12))
-                        .foregroundColor(.secondary)
+                    Image(systemName: entry.isCompleted ? "checkmark.circle.fill" : "play.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(entry.isCompleted ? MedxTheme.successGreen : Color.accentColor)
 
-                    Text("·")
-                        .foregroundColor(Color(uiColor: .quaternaryLabel))
+                    Spacer(minLength: 0)
 
-                    Text(subject.formattedDuration)
-                        .font(MedxFont.mono(12, weight: .semibold))
-                        .foregroundColor(MedxTheme.primaryBlue)
+                    if downloads.items[entry.video.id]?.state == .completed {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(MedxTheme.successGreen)
+                            .accessibilityLabel("Available offline")
+                    }
                 }
+
+                Text(entry.video.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Spacer(minLength: 0)
+
+                ProgressView(value: entry.progress)
+                    .tint(entry.isCompleted ? MedxTheme.successGreen : Color.accentColor)
+
+                Text(entry.isCompleted ? "Completed" : "Resume at \(entry.formattedResumeTime)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Color(uiColor: .tertiaryLabel))
+            .padding(14)
+            .frame(width: 196, height: 152, alignment: .topLeading)
+            .medxCard(cornerRadius: 14)
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .padding(14)
-        .frame(minHeight: 68)
-        .glassCard(cornerRadius: 18, shadowLevel: 1)
-    }
-
-    private var skeletonCard: some View {
-        HStack(spacing: 14) {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.primary.opacity(0.06))
-                .frame(width: 46, height: 46)
-
-            VStack(alignment: .leading, spacing: 6) {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
-                    .frame(height: 14)
-                    .frame(maxWidth: 180)
-
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(Color.primary.opacity(0.04))
-                    .frame(height: 10)
-                    .frame(maxWidth: 120)
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) {
+                activityStore.removeWatchHistory(entry, uid: uid)
+            } label: {
+                Label("Remove from history", systemImage: "trash")
             }
-            Spacer()
         }
-        .padding(16)
-        .liquidGlassCard(cornerRadius: 18)
-        .redacted(reason: .placeholder)
-    }
-
-    private var ambientBackground: some View {
-        Color(uiColor: .systemGroupedBackground)
-            .ignoresSafeArea()
+        .accessibilityLabel(entry.video.title)
+        .accessibilityValue("\(Int(entry.progress * 100)) percent watched")
     }
 
     /// Toolbar entry point for the offline library. The dot appears while anything is still fetching.
     private var downloadsToolbarIcon: some View {
         Image(systemName: downloads.completedItems.isEmpty ? "arrow.down.circle" : "arrow.down.circle.fill")
             .font(.system(size: 17, weight: .semibold))
-            .foregroundStyle(MedxTheme.primaryBlue)
             .overlay(alignment: .topTrailing) {
                 if downloads.activeCount > 0 {
                     Circle()
@@ -323,28 +290,123 @@ public struct VideosBatchListView: View {
             .frame(width: 40, height: 40)
     }
 
+    private var loadingState: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                ForEach(0..<6, id: \.self) { _ in
+                    HStack(spacing: 14) {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.primary.opacity(0.07))
+                            .frame(width: 38, height: 38)
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(Color.primary.opacity(0.07))
+                                .frame(height: 14)
+                                .frame(maxWidth: 190)
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(Color.primary.opacity(0.05))
+                                .frame(height: 10)
+                                .frame(maxWidth: 120)
+                        }
+                        Spacer()
+                    }
+                    .padding(14)
+                    .medxCard()
+                }
+            }
+            .padding(.horizontal, MedxSurface.gutter)
+            .padding(.top, 8)
+        }
+        .redacted(reason: .placeholder)
+        .allowsHitTesting(false)
+        .accessibilityLabel("Loading classes")
+    }
+
     private var totalDurationFormatted: String {
-        let total = videos.compactMap { $0.durationSeconds }.reduce(0, +)
+        let total = videos.compactMap(\.durationSeconds).reduce(0, +)
         let hours = total / 3600
         let minutes = (total % 3600) / 60
-        if hours > 0 { return "\(hours)h \(minutes)m" }
-        return "\(minutes)m"
+        return hours > 0 ? "\(hours)h \(minutes)m" : "\(minutes)m"
     }
+
+    // MARK: - Data
 
     private func loadVideos() async {
         do {
             let token = try await authService.getValidIdToken()
-            self.videos = try await FirestoreService.shared.fetchVideos(idToken: token)
-            self.isLoading = false
+            videos = try await FirestoreService.shared.fetchVideos(idToken: token)
+            regroup()
+            loadState = .loaded
         } catch {
-            self.isLoading = false
+            loadState = videos.isEmpty
+                ? .failed("Check your connection and try again.")
+                : .loaded
         }
+    }
+
+    /// Grouping walks every class, so it runs when the data or the query changes rather
+    /// than on every `body` evaluation.
+    private func regroup() {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let matching = query.isEmpty ? videos : videos.filter {
+            $0.title.localizedCaseInsensitiveContains(query)
+                || $0.subject.localizedCaseInsensitiveContains(query)
+                || ($0.faculty ?? "").localizedCaseInsensitiveContains(query)
+                || ($0.batch ?? "").localizedCaseInsensitiveContains(query)
+        }
+
+        var batchOrder: [String] = []
+        var batchNames: [String: String] = [:]
+        var subjectOrder: [String: [String]] = [:]
+        var subjectNames: [String: String] = [:]
+        var bucket: [String: [RecordedVideo]] = [:]
+
+        for video in matching {
+            let batchId = video.batchId ?? "default"
+            let subjectId = video.subjectId ?? video.subject
+            let key = "\(batchId)|\(subjectId)"
+
+            if batchNames[batchId] == nil {
+                batchNames[batchId] = video.batch ?? "Batch"
+                batchOrder.append(batchId)
+            }
+            if subjectNames[key] == nil {
+                subjectNames[key] = video.subject
+                subjectOrder[batchId, default: []].append(subjectId)
+            }
+            bucket[key, default: []].append(video)
+        }
+
+        groups = batchOrder.map { batchId in
+            let subjects = (subjectOrder[batchId] ?? []).compactMap { subjectId -> VideoSubjectGroup? in
+                let key = "\(batchId)|\(subjectId)"
+                guard let items = bucket[key] else { return nil }
+                return VideoSubjectGroup(
+                    subjectId: subjectId,
+                    name: subjectNames[key] ?? items.first?.subject ?? "Subject",
+                    totalSeconds: items.compactMap(\.durationSeconds).reduce(0, +),
+                    totalClasses: items.count,
+                    videos: items
+                )
+            }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+
+            return VideoBatchGroup(
+                batchId: batchId,
+                name: batchNames[batchId] ?? "Batch",
+                totalSeconds: subjects.reduce(0) { $0 + $1.totalSeconds },
+                totalClasses: subjects.reduce(0) { $0 + $1.totalClasses },
+                subjects: subjects
+            )
+        }
+        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 }
 
-// MARK: - Download Control
+// MARK: - Download control
 
-/// One compact control that covers every download state: save, pause, resume, retry, delete.
+/// One compact control covering every download state: save, pause, resume, retry, delete.
 /// Used in the subject list, the offline library, and anywhere else a class row appears.
 struct VideoDownloadButton: View {
     let video: RecordedVideo
@@ -363,8 +425,6 @@ struct VideoDownloadButton: View {
         .accessibilityLabel("Offline download for \(video.title)")
         .accessibilityValue(item?.statusLabel ?? "Not downloaded")
     }
-
-    // MARK: Menu
 
     @ViewBuilder
     private var menuItems: some View {
@@ -430,12 +490,10 @@ struct VideoDownloadButton: View {
         }
     }
 
-    // MARK: Glyph
-
     private var glyph: some View {
         ZStack {
             Circle()
-                .fill(Color(uiColor: .tertiarySystemFill))
+                .fill(MedxSurface.fieldFill)
                 .frame(width: diameter, height: diameter)
 
             stateGlyph
@@ -455,13 +513,13 @@ struct VideoDownloadButton: View {
             case .downloading:
                 ZStack {
                     Circle()
-                        .stroke(MedxTheme.primaryBlue.opacity(0.2), lineWidth: 2.5)
+                        .stroke(Color.accentColor.opacity(0.2), lineWidth: 2.5)
                     Circle()
                         .trim(from: 0, to: max(0.03, item.progress))
-                        .stroke(MedxTheme.primaryBlue, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                     RoundedRectangle(cornerRadius: 1, style: .continuous)
-                        .fill(MedxTheme.primaryBlue)
+                        .fill(Color.accentColor)
                         .frame(width: 7, height: 7)
                 }
                 .frame(width: diameter - 9, height: diameter - 9)
@@ -469,7 +527,7 @@ struct VideoDownloadButton: View {
             case .paused:
                 Image(systemName: "play.fill")
                     .font(.system(size: 11, weight: .black))
-                    .foregroundStyle(MedxTheme.primaryBlue)
+                    .foregroundStyle(Color.accentColor)
             case .failed:
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 12, weight: .bold))
@@ -482,12 +540,12 @@ struct VideoDownloadButton: View {
         } else {
             Image(systemName: "arrow.down.to.line")
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(MedxTheme.primaryBlue)
+                .foregroundStyle(Color.accentColor)
         }
     }
 }
 
-// MARK: - Offline Library
+// MARK: - Offline library
 
 /// Browse and manage everything saved on this device. Files live in the app's own
 /// container — nothing is exported to Files or Photos.
@@ -502,24 +560,48 @@ struct DownloadsView: View {
     var body: some View {
         Group {
             if downloads.items.isEmpty {
-                emptyState
+                ContentUnavailableView {
+                    Label("No Downloads Yet", systemImage: "arrow.down.circle")
+                } description: {
+                    Text("Tap the download icon on any class to keep it on this device. Downloads play inside the app, even with no signal.")
+                }
             } else {
                 List {
-                    summarySection
+                    Section {
+                        MedxMetricsRow {
+                            MedxMetric(
+                                icon: "internaldrive.fill",
+                                value: downloads.formattedTotalSize,
+                                label: "on device",
+                                color: MedxTheme.primaryBlue
+                            )
+                            MedxMetric(
+                                icon: "checkmark.circle.fill",
+                                value: "\(finished.count)",
+                                label: "ready",
+                                color: MedxTheme.successGreen
+                            )
+                            MedxMetric(
+                                icon: "arrow.down.circle.fill",
+                                value: "\(inProgress.count)",
+                                label: "in queue",
+                                color: MedxTheme.warningOrange
+                            )
+                        }
+                        .padding(.vertical, 4)
+                    } footer: {
+                        Text("Saved classes stay inside MedX Elite and are excluded from device backups. Watch progress is shared with the streaming copy of the same class.")
+                    }
 
                     if !inProgress.isEmpty {
                         Section("Downloading") {
-                            ForEach(inProgress) { item in
-                                row(item)
-                            }
+                            ForEach(inProgress) { row($0) }
                         }
                     }
 
                     if !finished.isEmpty {
                         Section("Saved on this device") {
-                            ForEach(finished) { item in
-                                row(item)
-                            }
+                            ForEach(finished) { row($0) }
                         }
                     }
                 }
@@ -558,76 +640,26 @@ struct DownloadsView: View {
             Text("This frees \(downloads.formattedTotalSize) on this device. You can download them again any time.")
         }
         .fullScreenCover(item: $activeVideo) { video in
-            VideoPlayerView(video: video) {
-                activeVideo = nil
-            }
+            VideoPlayerView(video: video) { activeVideo = nil }
         }
     }
-
-    // MARK: Empty state
-
-    private var emptyState: some View {
-        ContentUnavailableView {
-            Label("No Downloads Yet", systemImage: "arrow.down.circle")
-        } description: {
-            Text("Tap the download icon on any class to keep it on this device. Downloads play inside the app, even with no signal.")
-        }
-    }
-
-    // MARK: Summary
-
-    private var summarySection: some View {
-        Section {
-            MedxMetricsRow {
-                MedxMetric(
-                    icon: "internaldrive.fill",
-                    value: downloads.formattedTotalSize,
-                    label: "on device",
-                    color: MedxTheme.primaryBlue
-                )
-
-                MedxMetric(
-                    icon: "checkmark.circle.fill",
-                    value: "\(finished.count)",
-                    label: "ready",
-                    color: MedxTheme.successGreen
-                )
-
-                MedxMetric(
-                    icon: "arrow.down.circle.fill",
-                    value: "\(inProgress.count)",
-                    label: "in queue",
-                    color: MedxTheme.warningOrange
-                )
-            }
-            .padding(.vertical, 4)
-        } footer: {
-            Text("Saved videos stay inside MedX Elite and are excluded from device backups.")
-        }
-    }
-
-    // MARK: Row
 
     private func row(_ item: DownloadedVideo) -> some View {
         HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(statusColor(item).opacity(0.14))
-                    .frame(width: 42, height: 42)
-
-                Image(systemName: item.state == .completed ? "play.fill" : "arrow.down")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(statusColor(item))
-            }
+            Image(systemName: item.state == .completed ? "play.fill" : "arrow.down")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(statusColor(item))
+                .frame(width: 38, height: 38)
+                .background(statusColor(item).opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.video.title)
-                    .font(MedxFont.headline(15))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(2)
 
                 Text(subtitle(for: item))
-                    .font(MedxFont.caption(11))
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
@@ -637,7 +669,7 @@ struct DownloadsView: View {
                 }
 
                 Text(item.statusLabel)
-                    .font(MedxFont.caption(11))
+                    .font(.caption)
                     .foregroundStyle(item.state == .failed ? MedxTheme.warningOrange : .secondary)
                     .lineLimit(2)
             }
@@ -675,7 +707,8 @@ struct DownloadsView: View {
         case .completed: return MedxTheme.successGreen
         case .failed: return MedxTheme.warningOrange
         case .paused: return MedxTheme.primaryPurple
-        case .queued, .downloading: return MedxTheme.primaryBlue
+        case .queued, .downloading: return Color.accentColor
         }
     }
 }
+

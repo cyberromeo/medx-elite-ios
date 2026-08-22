@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Post-sitting review. A score header, a filter, then one flat card per question with its
+/// key and explanation.
 public struct SittingReviewView: View {
     public let sourceId: String
     public let name: String
@@ -12,8 +14,9 @@ public struct SittingReviewView: View {
 
     @State private var filter: ReviewFilter = .all
 
-    public enum ReviewFilter {
+    public enum ReviewFilter: String, CaseIterable, Identifiable {
         case all, wrong, skipped
+        public var id: String { rawValue }
     }
 
     public init(
@@ -55,62 +58,50 @@ public struct SittingReviewView: View {
         case .all:
             return questions
         case .wrong:
-            return questions.filter { q in
-                if let r = responses[q.id], r.chosenId != nil, !r.correct { return true }
-                return false
+            return questions.filter { question in
+                guard let response = responses[question.id] else { return false }
+                return response.chosenId != nil && !response.correct
             }
         case .skipped:
-            return questions.filter { q in
-                if let r = responses[q.id], r.chosenId == nil { return true }
-                return responses[q.id] == nil
-            }
+            return questions.filter { responses[$0.id]?.chosenId == nil }
         }
     }
 
     public var body: some View {
         NavigationStack {
-            ZStack {
-                ambientBackground
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    heroCard
 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        heroCard
-                            .padding(.horizontal, 20)
-                            .padding(.top, 10)
+                    Picker("Filter", selection: $filter) {
+                        Text("All (\(totalCount))").tag(ReviewFilter.all)
+                        Text("Wrong (\(wrongCount))").tag(ReviewFilter.wrong)
+                        Text("Skipped (\(skippedCount))").tag(ReviewFilter.skipped)
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: filter) { _, _ in HapticManager.selection() }
 
-                        Picker("Filter", selection: $filter) {
-                            Text("All (\(totalCount))").tag(ReviewFilter.all)
-                            Text("Wrong (\(wrongCount))").tag(ReviewFilter.wrong)
-                            Text("Skipped (\(skippedCount))").tag(ReviewFilter.skipped)
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal, 20)
+                    if filteredQuestions.isEmpty, filter != .all {
+                        emptyFilterState
+                            .padding(.top, 24)
+                    }
 
-                        if filteredQuestions.isEmpty, filter != .all {
-                            emptyFilterState
-                                .padding(.horizontal, 20)
-                                .padding(.top, 24)
-                        }
-
-                        LazyVStack(spacing: 16) {
-                            ForEach(Array(filteredQuestions.enumerated()), id: \.element.id) { _, q in
-                                let originalIndex = (questions.firstIndex(where: { $0.id == q.id }) ?? 0) + 1
-
-                                QuestionReviewCard(
-                                    questionNumber: originalIndex,
-                                    question: q,
-                                    response: responses[q.id],
-                                    sourceId: sourceId,
-                                    sourceName: name,
-                                    subject: subject
-                                )
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 30)
+                    ForEach(Array(filteredQuestions.enumerated()), id: \.element.id) { _, question in
+                        QuestionReviewCard(
+                            questionNumber: (questions.firstIndex { $0.id == question.id } ?? 0) + 1,
+                            question: question,
+                            response: responses[question.id],
+                            sourceId: sourceId,
+                            sourceName: name,
+                            subject: subject
+                        )
                     }
                 }
+                .padding(.horizontal, MedxSurface.gutter)
+                .padding(.top, 10)
+                .padding(.bottom, 28)
             }
+            .background(MedxSurface.groupedBackground.ignoresSafeArea())
             .navigationTitle(name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -130,40 +121,37 @@ public struct SittingReviewView: View {
     private var heroCard: some View {
         VStack(spacing: 16) {
             if gradable {
-                let pct = totalCount > 0 ? Int(round(Double(scoreCount) / Double(totalCount) * 100.0)) : 0
+                let percent = totalCount > 0
+                    ? Int((Double(scoreCount) / Double(totalCount) * 100).rounded())
+                    : 0
 
                 HStack(spacing: 20) {
                     ProgressRingView(
                         progress: Double(scoreCount) / Double(max(totalCount, 1)),
-                        strokeWidth: 10,
-                        size: 96,
-                        gradient: LinearGradient(
-                            colors: [MedxTheme.successGreen, MedxTheme.cyanAccent],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
+                        strokeWidth: 9,
+                        size: 92,
+                        tint: MedxTheme.successGreen,
                         centerContent: AnyView(
                             VStack(spacing: 0) {
-                                Text("\(pct)%")
-                                    .font(MedxFont.mono(22, weight: .heavy))
+                                Text("\(percent)%")
+                                    .font(.title3.weight(.bold).monospacedDigit())
                                 Text("score")
-                                    .font(MedxFont.label(10))
+                                    .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
                         )
                     )
 
-                    VStack(alignment: .leading, spacing: 5) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("\(scoreCount) / \(totalCount)")
-                            .font(MedxFont.mono(26, weight: .bold))
+                            .font(.title2.weight(.bold).monospacedDigit())
                         Text(subject.isEmpty ? "Sitting complete" : subject)
-                            .font(MedxFont.caption(12))
+                            .font(.footnote)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
-
                         if skippedCount > 0 {
                             Text("\(skippedCount) unattempted")
-                                .font(MedxFont.caption(12))
+                                .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -172,11 +160,12 @@ public struct SittingReviewView: View {
                 }
             } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Practice Complete")
-                        .font(MedxFont.title(22))
-                    Text("This paper has no official answer key and is not graded. You completed \(attemptedCount) of \(totalCount) questions.")
-                        .font(MedxFont.body(14))
+                    Text("Practice complete")
+                        .font(.title3.weight(.semibold))
+                    Text("This paper has no official answer key, so it isn't graded. You answered \(attemptedCount) of \(totalCount) questions.")
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -191,30 +180,22 @@ public struct SittingReviewView: View {
                 MedxMetric(icon: "clock.fill", value: formattedElapsed, label: "time taken", color: MedxTheme.primaryBlue)
             }
         }
-        .padding(20)
-        .liquidGlassCard(cornerRadius: 24, glowColor: MedxTheme.successGreen)
+        .padding(18)
+        .medxCard(cornerRadius: 20)
     }
 
     private var emptyFilterState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: filter == .wrong ? "checkmark.seal.fill" : "checkmark.circle.fill")
-                .font(.largeTitle)
-                .foregroundStyle(MedxTheme.successGreen)
-            Text(filter == .wrong ? "Nothing wrong here" : "Nothing skipped")
-                .font(.headline)
+        ContentUnavailableView {
+            Label(
+                filter == .wrong ? "Nothing wrong here" : "Nothing skipped",
+                systemImage: filter == .wrong ? "checkmark.seal.fill" : "checkmark.circle.fill"
+            )
+        } description: {
             Text(filter == .wrong
                  ? "You didn't get any question wrong in this sitting."
                  : "You attempted every question in this sitting.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private var ambientBackground: some View {
-        Color(uiColor: .systemGroupedBackground)
-            .ignoresSafeArea()
     }
 }
 
@@ -248,13 +229,11 @@ private struct QuestionReviewCard: View {
         VStack(alignment: .leading, spacing: 14) {
             header
 
-            HTMLRichTextView(html: question.displayText, fontSize: 15, weight: .semibold)
+            HTMLRichTextView(html: question.displayText, fontSize: 16, weight: .semibold)
 
             if let images = question.images, !images.isEmpty {
-                ForEach(images, id: \.self) { imageUrl in
-                    CachedAsyncImage(url: URL(string: imageUrl))
-                        .frame(maxHeight: 220)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                ForEach(images, id: \.self) { raw in
+                    RunnerFigure(raw: raw)
                 }
             }
 
@@ -262,43 +241,56 @@ private struct QuestionReviewCard: View {
 
             explanationSection
         }
-        .padding(18)
-        .liquidGlassCard(cornerRadius: 20)
+        .padding(16)
+        .medxCard()
+        .contextMenu {
+            Button {
+                toggleBookmark()
+            } label: {
+                Label(
+                    isBookmarked ? "Remove bookmark" : "Bookmark question",
+                    systemImage: isBookmarked ? "bookmark.slash" : "bookmark"
+                )
+            }
+        }
     }
 
     private var header: some View {
         HStack(spacing: 8) {
             Text("Q\(questionNumber)")
-                .font(MedxFont.mono(12, weight: .bold))
+                .font(.caption.weight(.bold).monospacedDigit())
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
+                .background(MedxSurface.fieldFill, in: Capsule())
 
-            RunnerCircleButton(
+            Label(outcome.title, systemImage: outcome.icon)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(outcome.color)
+
+            Spacer(minLength: 0)
+
+            MedxCircleButton(
                 icon: isBookmarked ? "bookmark.fill" : "bookmark",
                 tint: isBookmarked ? MedxTheme.warningOrange : nil,
                 accessibilityLabel: isBookmarked ? "Remove bookmark" : "Bookmark question",
                 accessibilityValue: isBookmarked ? "Saved" : "Not saved"
             ) {
-                guard let uid else { return }
-                activityStore.toggleBookmark(
-                    question: question,
-                    sourceId: sourceId,
-                    sourceName: sourceName,
-                    subject: subject,
-                    uid: uid
-                )
-                HapticManager.selection()
+                toggleBookmark()
             }
-
-            Spacer(minLength: 0)
-
-            Label(outcome.title, systemImage: outcome.icon)
-                .font(MedxFont.label(12))
-                .foregroundStyle(outcome.color)
-                .labelStyle(.titleAndIcon)
         }
+    }
+
+    private func toggleBookmark() {
+        guard let uid else { return }
+        activityStore.toggleBookmark(
+            question: question,
+            sourceId: sourceId,
+            sourceName: sourceName,
+            subject: subject,
+            uid: uid
+        )
+        HapticManager.selection()
     }
 
     private var optionList: some View {
@@ -310,36 +302,37 @@ private struct QuestionReviewCard: View {
                     ? MedxTheme.successGreen
                     : (isChosen ? MedxTheme.destructiveRed : nil)
 
-                HStack(alignment: .center, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
                     Text(option.label)
-                        .font(MedxFont.mono(13, weight: .bold))
+                        .font(.footnote.weight(.bold))
                         .foregroundStyle(tint == nil ? Color.primary : Color.white)
-                        .frame(width: 28, height: 28)
-                        .background(Circle().fill(tint ?? Color(uiColor: .tertiarySystemFill)))
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(tint ?? MedxSurface.fieldFill))
 
-                    HTMLRichTextView(html: option.text, fontSize: 14, weight: .regular)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .layoutPriority(1)
-
-                    Spacer(minLength: 0)
+                    HTMLRichTextView(
+                        html: option.text,
+                        fontSize: 15,
+                        weight: .regular,
+                        maxImageHeight: 180,
+                        interactive: false
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
 
                     if isCorrect {
                         Image(systemName: "checkmark")
-                            .font(.subheadline.weight(.bold))
+                            .font(.footnote.weight(.bold))
                             .foregroundStyle(MedxTheme.successGreen)
                     } else if isChosen {
                         Image(systemName: "xmark")
-                            .font(.subheadline.weight(.bold))
+                            .font(.footnote.weight(.bold))
                             .foregroundStyle(MedxTheme.destructiveRed)
                     }
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
-                .background(
-                    (tint ?? Color.primary).opacity(tint == nil ? 0.03 : 0.10),
-                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                )
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                .medxTile(cornerRadius: 12, accentColor: tint, isSelected: tint != nil)
             }
         }
     }
@@ -355,11 +348,11 @@ private struct QuestionReviewCard: View {
                 } label: {
                     HStack {
                         Text("Explanation")
-                            .font(MedxFont.headline(14))
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
                         Spacer()
                         Image(systemName: isExplanationExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption)
+                            .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
                     .contentShape(Rectangle())
@@ -368,7 +361,7 @@ private struct QuestionReviewCard: View {
 
                 if isExplanationExpanded {
                     if let explanation = question.explanation, !explanation.isEmpty {
-                        HTMLRichTextView(html: explanation, fontSize: 14, weight: .regular, textColor: .secondary)
+                        HTMLRichTextView(html: explanation, fontSize: 15, weight: .regular, textColor: .secondary)
                             .padding(.top, 2)
                     }
 
@@ -380,7 +373,7 @@ private struct QuestionReviewCard: View {
                 }
             }
             .padding(14)
-            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(MedxSurface.tileFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 }

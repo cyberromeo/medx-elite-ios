@@ -1,5 +1,10 @@
 import SwiftUI
 
+/// The app's five top-level destinations.
+///
+/// (File name is historical: this used to also hold a custom floating glass tab bar.
+/// `MainTabView` now uses the system `TabView`, which brings the platform's own
+/// appearance, accessibility, and iPad/Mac behaviour for free.)
 public enum TabItem: String, CaseIterable, Identifiable {
     case home = "Home"
     case qbank = "QBank"
@@ -27,57 +32,5 @@ public enum TabItem: String, CaseIterable, Identifiable {
         case .flashcards: return "rectangle.stack.fill"
         case .videos: return "play.rectangle.fill"
         }
-    }
-}
-
-public struct FloatingTabBar: View {
-    @Binding public var selectedTab: TabItem
-    @Namespace private var animationNamespace
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    public init(selectedTab: Binding<TabItem>) {
-        self._selectedTab = selectedTab
-    }
-
-    public var body: some View {
-        HStack(spacing: 0) {
-            ForEach(TabItem.allCases) { tab in
-                let isSelected = selectedTab == tab
-                Button {
-                    HapticManager.selection()
-                    withAnimation(reduceMotion ? .none : .spring(response: 0.35, dampingFraction: 0.7)) {
-                        selectedTab = tab
-                    }
-                } label: {
-                    VStack(spacing: 4) {
-                        ZStack {
-                            if isSelected {
-                                Capsule()
-                                    .fill(MedxTheme.primaryBlue.opacity(0.15))
-                                    .matchedGeometryEffect(id: "TabPill", in: animationNamespace)
-                                    .frame(height: 36)
-                            }
-                            Image(systemName: isSelected ? tab.selectedIcon : tab.icon)
-                                .font(.system(size: 18, weight: isSelected ? .bold : .medium))
-                                .foregroundColor(isSelected ? MedxTheme.primaryBlue : .secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-
-                        Text(tab.rawValue)
-                            .font(MedxFont.label(10))
-                            .foregroundColor(isSelected ? MedxTheme.primaryBlue : .secondary)
-                    }
-                }
-                .buttonStyle(PlainButtonStyle())
-                .frame(minHeight: 44)
-                .accessibilityLabel(tab.rawValue)
-                .accessibilityValue(isSelected ? "Selected" : "")
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .liquidGlassFloating(cornerRadius: 32)
-        .padding(.horizontal, 20)
-        .padding(.bottom, 8)
     }
 }

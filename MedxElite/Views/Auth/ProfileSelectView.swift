@@ -1,169 +1,120 @@
 import SwiftUI
 
+/// Profile chooser. Two known accounts, a saved-password fast path, and nothing else.
 public struct ProfileSelectView: View {
-    @ObservedObject var authService = AuthService.shared
+    @ObservedObject private var authService = AuthService.shared
     @State private var selectedProfile: Profile?
-    @State private var showPasswordPrompt = false
-    @State private var hasAppeared = false
 
     public init() {}
 
     public var body: some View {
         NavigationStack {
-            ZStack {
-                Color(uiColor: .systemBackground)
-                    .ignoresSafeArea()
+            VStack(spacing: 0) {
+                Spacer(minLength: 24)
 
-                VStack(spacing: 0) {
-                    Spacer()
+                branding
 
-                    // App branding
-                    VStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.accentColor.opacity(0.12))
-                                .frame(width: 84, height: 84)
-                                .overlay(Circle().strokeBorder(Color.accentColor.opacity(0.24), lineWidth: 1))
-
-                            Image(systemName: "heart.text.clipboard.fill")
-                                .font(.system(size: 36, weight: .semibold))
-                                .foregroundStyle(Color.accentColor)
-                        }
-                        .opacity(hasAppeared ? 1 : 0)
-                        .scaleEffect(hasAppeared ? 1 : 0.8)
-
-                        Text("MedX Elite")
-                            .font(.largeTitle.weight(.bold))
-                            .foregroundColor(.primary)
-                            .opacity(hasAppeared ? 1 : 0)
-                            .offset(y: hasAppeared ? 0 : 10)
-
-                        Text("Choose your profile to continue")
-                            .font(.body)
-                            .foregroundColor(.secondary)
-                            .opacity(hasAppeared ? 1 : 0)
-                            .offset(y: hasAppeared ? 0 : 10)
+                VStack(spacing: 12) {
+                    ForEach(Profile.allProfiles) { profile in
+                        profileCard(profile)
                     }
-                    .padding(.bottom, 36)
-
-                    // Profile Cards
-                    VStack(spacing: 16) {
-                        ForEach(Array(Profile.allProfiles.enumerated()), id: \.element.id) { index, profile in
-                            profileCard(profile, delay: Double(index) * 0.1)
-                        }
-                    }
-                    .padding(.horizontal, 28)
-
-                    // Error message
-                    if let err = authService.errorMessage {
-                        HStack(spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                                .font(.system(size: 14))
-                            Text(err)
-                                .font(MedxFont.caption(13))
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.horizontal, 28)
-                        .padding(.top, 16)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-
-                    Spacer()
-
-                    // Footer
-                    HStack(spacing: 6) {
-                        Image(systemName: "lock.shield.fill")
-                            .font(.system(size: 11))
-                        Text("Credentials secured with iOS Keychain")
-                            .font(MedxFont.caption(12))
-                    }
-                    .foregroundColor(Color(uiColor: .tertiaryLabel))
-                    .padding(.bottom, 20)
                 }
+                .padding(.horizontal, 24)
+                .padding(.top, 32)
+
+                if let error = authService.errorMessage {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                        .padding(.top, 18)
+                        .transition(.opacity)
+                }
+
+                Spacer(minLength: 24)
+
+                Label("Credentials stored in the iOS Keychain", systemImage: "lock.shield")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(.bottom, 20)
             }
+            .frame(maxWidth: .infinity)
+            .background(MedxSurface.groupedBackground.ignoresSafeArea())
             .sheet(item: $selectedProfile) { profile in
                 PasswordPromptView(profile: profile)
             }
-            .onAppear {
-                withAnimation(.spring(response: 0.7, dampingFraction: 0.8).delay(0.1)) {
-                    hasAppeared = true
-                }
-            }
         }
     }
 
-    // MARK: - Profile Card
+    private var branding: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "heart.text.clipboard.fill")
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 78, height: 78)
+                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
 
-    private func profileCard(_ profile: Profile, delay: Double) -> some View {
+            Text("MedX Elite")
+                .font(.largeTitle.weight(.bold))
+
+            Text("Choose your profile to continue")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func profileCard(_ profile: Profile) -> some View {
         Button {
             handleProfileTap(profile)
         } label: {
-            HStack(spacing: 16) {
-                ProfileAvatarView(profile: profile, size: 56)
+            HStack(spacing: 14) {
+                ProfileAvatarView(profile: profile, size: 52)
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(profile.displayName)
-                        .font(MedxFont.headline(18))
-                        .foregroundColor(.primary)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
 
                     Text("@\(profile.handle)")
-                        .font(MedxFont.caption(14))
-                        .foregroundColor(.secondary)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
 
-                // Status indicator
-                if authService.isBusy && selectedProfile?.id == profile.id {
+                if authService.isBusy, selectedProfile?.id == profile.id {
                     ProgressView()
-                        .tint(profile.accentColor)
+                        .controlSize(.small)
                 } else if authService.hasSavedPassword(for: profile.id) {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 20))
+                    Image(systemName: "faceid")
+                        .font(.title3)
                         .foregroundStyle(MedxTheme.successGreen)
-                        .symbolEffect(.pulse, options: .repeating.speed(0.5))
+                        .accessibilityLabel("Password saved")
                 } else {
-                    Image(systemName: "arrow.right.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(Color(uiColor: .tertiaryLabel))
+                    MedxDisclosure()
                 }
             }
-            .padding(18)
+            .padding(16)
             .frame(minHeight: 76)
-            .medxNavigationGlass(cornerRadius: 18, tint: profile.accentColor)
+            .medxCard()
+            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
         }
-        .buttonStyle(.plain)
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .buttonStyle(BouncyButtonStyle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Choose profile \(profile.displayName)")
-        .accessibilityHint("Opens this profile")
-        .opacity(hasAppeared ? 1 : 0)
-        .offset(y: hasAppeared ? 0 : 20)
-        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.2 + delay), value: hasAppeared)
+        .accessibilityLabel("Sign in as \(profile.displayName)")
     }
-
-    // MARK: - Background
-
-    private var meshBackground: some View {
-        Color(uiColor: .systemBackground)
-            .ignoresSafeArea()
-    }
-
-    // MARK: - Actions
 
     private func handleProfileTap(_ profile: Profile) {
-        if authService.hasSavedPassword(for: profile.id) {
-            selectedProfile = profile
-            Task {
-                do {
-                    try await authService.signIn(profile: profile, password: nil)
-                } catch {
-                    selectedProfile = profile
-                }
-            }
-        } else {
-            selectedProfile = profile
+        HapticManager.light()
+        selectedProfile = profile
+
+        // With a saved password the sheet is a formality — try the silent sign-in first and
+        // let the sheet be the fallback if it fails.
+        guard authService.hasSavedPassword(for: profile.id) else { return }
+        Task {
+            try? await authService.signIn(profile: profile, password: nil)
         }
     }
 }

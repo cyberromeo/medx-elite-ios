@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// One batch-test row. Flat card, one primary action, and the history collapsed into a
+/// single line instead of a scrolling strip of pills.
 public struct TestDetailCard: View {
     public let test: BatchTest
     public let attempts: [SittingAttempt]
@@ -14,7 +16,8 @@ public struct TestDetailCard: View {
     }
 
     private var testAttempts: [SittingAttempt] {
-        attempts.filter { $0.sourceId == test.testId }
+        attempts
+            .filter { $0.sourceId == test.testId }
             .sorted { ($0.finishedAt ?? "") < ($1.finishedAt ?? "") }
     }
 
@@ -22,114 +25,63 @@ public struct TestDetailCard: View {
         testAttempts.reduce(0) { max($0, $1.score) }
     }
 
+    private var bestAttempt: SittingAttempt? {
+        testAttempts.max { $0.score < $1.score }
+    }
+
+    private var metaLine: String {
+        var parts: [String] = []
+        if !test.subject.isEmpty { parts.append(test.subject) }
+        parts.append("\(test.questionCount) questions")
+        parts.append("\(test.officialTimeMins) min")
+        return parts.joined(separator: " · ")
+    }
+
     public var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // Header
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(test.name)
-                        .font(MedxFont.headline(17))
-                        .foregroundColor(.primary)
+        VStack(alignment: .leading, spacing: 12) {
+            header
+            chips
 
-                    Text("\(test.subject) · \(test.questionCount) questions · \(test.officialTimeMins) mins")
-                        .font(MedxFont.caption(13))
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                if !testAttempts.isEmpty {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title3)
-                        .foregroundColor(MedxTheme.successGreen)
-                }
+            if let prior = test.priorAttempt, prior.status == "COMPLETED" {
+                priorAttemptLine(prior)
             }
 
-            // Tags
-            HStack(spacing: 8) {
-                if let mode = test.mode {
-                    Text(mode)
-                        .font(MedxFont.label(11))
-                        .foregroundColor(MedxTheme.primaryBlue)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(MedxTheme.primaryBlue.opacity(0.12))
-                        .clipShape(Capsule())
-                }
-
-                Text(test.gradable ? "Answer Key" : "Practice Only")
-                    .font(MedxFont.label(11))
-                    .foregroundColor(test.gradable ? MedxTheme.successGreen : MedxTheme.warningOrange)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background((test.gradable ? MedxTheme.successGreen : MedxTheme.warningOrange).opacity(0.12))
-                    .clipShape(Capsule())
+            if let bestAttempt {
+                historyLine(best: bestAttempt)
             }
 
             if !test.gradable {
-                Text("The source app withheld the official answer key for this test, so it can be answered for practice but isn't scored.")
-                    .font(MedxFont.caption(12))
-                    .foregroundColor(.secondary)
+                Text("Not scored — the source app withheld this paper's answer key, so it can be answered for practice only.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            if let prior = test.priorAttempt, prior.status == "COMPLETED" {
-                HStack(spacing: 4) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.caption)
-                    Text("On Arise: \(prior.correct ?? 0)/\(prior.questionCount ?? 0)\(prior.testRank != nil ? " · rank \(prior.testRank!)" : "")")
-                        .font(MedxFont.label(12))
-                }
-                .foregroundColor(.secondary)
+            startButton
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .medxCard()
+        .contextMenu {
+            Button {
+                HapticManager.light()
+                showStartSheet = true
+            } label: {
+                Label(testAttempts.isEmpty ? "Begin test" : "Reattempt", systemImage: "play.circle")
             }
-
-            // Attempt History Chips
-            if !testAttempts.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(Array(testAttempts.enumerated()), id: \.offset) { idx, a in
-                            let isBest = a.score == bestScore && test.gradable
-                            Text("attempt#\(idx + 1) \(test.gradable ? "\(a.score)/\(a.total)" : "\(a.attempted)/\(a.total) answered")")
-                                .font(MedxFont.mono(11, weight: .bold))
-                                .foregroundColor(isBest ? MedxTheme.successGreen : .secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(isBest ? MedxTheme.successGreen.opacity(0.15) : Color.primary.opacity(0.06))
-                                .clipShape(Capsule())
-                        }
-                    }
-                }
+            Button {
+                HapticManager.medium()
+                onStart(.revision)
+            } label: {
+                Label("Start in Revision mode", systemImage: "bolt")
             }
-
-            // Action Button
-            HStack {
-                Spacer()
-                if #available(iOS 26.0, *) {
-                    Button {
-                        HapticManager.light()
-                        showStartSheet = true
-                    } label: {
-                        Text(testAttempts.isEmpty ? "Begin Test" : "Reattempt")
-                            .font(.body.weight(.semibold))
-                            .frame(minWidth: 44, minHeight: 44)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(MedxTheme.primaryBlue)
-                } else {
-                    Button {
-                        HapticManager.light()
-                        showStartSheet = true
-                    } label: {
-                        Text(testAttempts.isEmpty ? "Begin Test" : "Reattempt")
-                            .font(.body.weight(.semibold))
-                            .frame(minWidth: 44, minHeight: 44)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(MedxTheme.primaryBlue)
-                }
+            Button {
+                HapticManager.medium()
+                onStart(.exam)
+            } label: {
+                Label("Start in Exam mode", systemImage: "timer")
             }
         }
-        .padding(18)
-        .liquidGlassCard(cornerRadius: 20)
         .sheet(isPresented: $showStartSheet) {
             StartSessionSheet(
                 title: test.name,
@@ -139,5 +91,85 @@ public struct TestDetailCard: View {
                 onStart(mode)
             }
         }
+    }
+
+    // MARK: - Pieces
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(test.name)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(metaLine)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+
+            if !testAttempts.isEmpty {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(MedxTheme.successGreen)
+                    .accessibilityLabel("Already attempted")
+            }
+        }
+    }
+
+    private var chips: some View {
+        HStack(spacing: 6) {
+            if let mode = test.mode, !mode.isEmpty {
+                MedxChip(mode.capitalized, tint: MedxTheme.primaryBlue)
+            }
+            MedxChip(
+                test.gradable ? "Answer key" : "No key",
+                icon: test.gradable ? "checkmark.seal.fill" : "exclamationmark.triangle.fill",
+                tint: test.gradable ? MedxTheme.successGreen : MedxTheme.warningOrange
+            )
+            if let batch = test.batch, !batch.isEmpty {
+                MedxChip(batch, tint: MedxTheme.indigoAccent)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func priorAttemptLine(_ prior: PriorAttemptInfo) -> some View {
+        var text = "On Arise: \(prior.correct ?? 0)/\(prior.questionCount ?? 0)"
+        if let rank = prior.testRank { text += " · rank \(rank)" }
+
+        return Label(text, systemImage: "clock.arrow.circlepath")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+
+    private func historyLine(best: SittingAttempt) -> some View {
+        let detail = test.gradable
+            ? "Best \(bestScore)/\(best.total) (\(best.totalPercentage)%)"
+            : "Best \(best.attempted)/\(best.total) answered"
+
+        return Label(
+            "\(testAttempts.count) sitting\(testAttempts.count == 1 ? "" : "s") · \(detail)",
+            systemImage: "chart.bar.fill"
+        )
+        .font(.caption)
+        .foregroundStyle(MedxTheme.successGreen)
+    }
+
+    private var startButton: some View {
+        Button {
+            HapticManager.light()
+            showStartSheet = true
+        } label: {
+            Text(testAttempts.isEmpty ? "Begin Test" : "Reattempt")
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .tint(test.gradable ? Color.accentColor : MedxTheme.warningOrange)
+        .padding(.top, 2)
     }
 }

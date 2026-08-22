@@ -1,8 +1,11 @@
 import SwiftUI
 
+/// The 23-subject × 6-stage revision matrix. Written straight to Firestore per cell, with
+/// the local value flipped first so the tap feels instant.
 public struct SyllabusTrackerSheet: View {
     public let uid: String
     @Binding public var trackerDoc: UserTrackerDoc?
+
     @State private var savingCell: String?
     @State private var errorMessage: String?
     @Environment(\.dismiss) private var dismiss
@@ -14,7 +17,8 @@ public struct SyllabusTrackerSheet: View {
 
     private var subjectsList: [(name: String, fields: SubjectTrackerFields)] {
         guard let subjects = trackerDoc?.subjects else { return [] }
-        return subjects.map { (name: $0.key, fields: $0.value) }
+        return subjects
+            .map { (name: $0.key, fields: $0.value) }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
@@ -22,112 +26,101 @@ public struct SyllabusTrackerSheet: View {
         var done = 0
         var total = 0
         for (_, fields) in subjectsList {
-            for f in TrackerField.allCases {
-                if let val = fields.value(for: f) {
-                    total += 1
-                    if val { done += 1 }
-                }
+            for field in TrackerField.allCases {
+                guard let value = fields.value(for: field) else { continue }
+                total += 1
+                if value { done += 1 }
             }
         }
-        return (done: done, total: total)
+        return (done, total)
     }
 
     public var body: some View {
         NavigationStack {
-            ZStack {
-                Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    summaryCard
 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        // Header Summary Card
-                        VStack(spacing: 14) {
-                            HStack {
-                                Text("Syllabus Progress")
-                                    .font(MedxFont.headline(16))
-                                Spacer()
-                                Text("\(totals.done) of \(totals.total) done")
-                                    .font(MedxFont.mono(14, weight: .bold))
-                                    .foregroundColor(MedxTheme.primaryBlue)
-                            }
-
-                            let progress = totals.total > 0 ? Double(totals.done) / Double(totals.total) : 0.0
-                            GeometryReader { geo in
-                                ZStack(alignment: .leading) {
-                                    Capsule()
-                                        .fill(Color.primary.opacity(0.08))
-                                        .frame(height: 8)
-
-                                    Capsule()
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [MedxTheme.primaryBlue, MedxTheme.cyanAccent],
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                        )
-                                        .frame(width: geo.size.width * CGFloat(progress), height: 8)
-                                        .animation(.spring(), value: progress)
-                                }
-                            }
-                            .frame(height: 8)
-
-                            Text("\(totals.total - totals.done) items left across \(subjectsList.count) subjects")
-                                .font(MedxFont.caption(13))
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(20)
-                        .liquidGlassCard(cornerRadius: 20, glowColor: MedxTheme.primaryBlue)
-                        .padding(.horizontal, 20)
-
-                        if let err = errorMessage {
-                            Text(err)
-                                .font(MedxFont.caption(13))
-                                .foregroundColor(MedxTheme.destructiveRed)
-                                .padding(.horizontal, 20)
-                        }
-
-                        // Subject Matrix Cards
-                        VStack(spacing: 12) {
-                            ForEach(subjectsList, id: \.name) { subject in
-                                SubjectTrackerRow(
-                                    subjectName: subject.name,
-                                    fields: subject.fields,
-                                    isSaving: savingCell?.starts(with: subject.name) == true
-                                ) { field, currentVal in
-                                    toggleCell(subject: subject.name, field: field, currentVal: currentVal)
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 30)
+                    if let errorMessage {
+                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                            .font(.footnote)
+                            .foregroundStyle(MedxTheme.destructiveRed)
+                            .padding(.horizontal, 2)
                     }
-                    .padding(.top, 16)
+
+                    if subjectsList.isEmpty {
+                        ContentUnavailableView(
+                            "No Checklist Yet",
+                            systemImage: "checklist",
+                            description: Text("Your syllabus matrix will appear here once it has been set up on your account.")
+                        )
+                        .padding(.top, 32)
+                    } else {
+                        ForEach(subjectsList, id: \.name) { subject in
+                            SubjectTrackerRow(
+                                subjectName: subject.name,
+                                fields: subject.fields,
+                                isSaving: savingCell?.hasPrefix(subject.name) == true
+                            ) { field, currentValue in
+                                toggleCell(subject: subject.name, field: field, currentValue: currentValue)
+                            }
+                        }
+                    }
                 }
+                .padding(.horizontal, MedxSurface.gutter)
+                .padding(.top, 12)
+                .padding(.bottom, 32)
             }
-            .navigationTitle("Syllabus Tracker")
+            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .navigationTitle("Syllabus")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .font(MedxFont.headline(16))
+                    Button("Done") { dismiss() }
+                        .font(.body.weight(.semibold))
                 }
             }
         }
+        .presentationDragIndicator(.visible)
     }
 
-    private func toggleCell(subject: String, field: TrackerField, currentVal: Bool) {
+    private var summaryCard: some View {
+        let counts = totals
+        let progress = counts.total > 0 ? Double(counts.done) / Double(counts.total) : 0
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Overall progress")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("\(counts.done) / \(counts.total)")
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(Color.accentColor)
+            }
+
+            ProgressView(value: progress)
+                .tint(Color.accentColor)
+
+            Text("\(max(counts.total - counts.done, 0)) items left across \(subjectsList.count) subjects")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .medxCard()
+    }
+
+    private func toggleCell(subject: String, field: TrackerField, currentValue: Bool) {
         let cellKey = "\(subject).\(field.rawValue)"
         savingCell = cellKey
         errorMessage = nil
         HapticManager.selection()
 
-        // Optimistic UI update
-        if var subs = trackerDoc?.subjects, var sFields = subs[subject] {
-            sFields.setValue(!currentVal, for: field)
-            subs[subject] = sFields
-            trackerDoc = UserTrackerDoc(subjects: subs)
+        // Optimistic local flip.
+        if var subjects = trackerDoc?.subjects, var fields = subjects[subject] {
+            fields.setValue(!currentValue, for: field)
+            subjects[subject] = fields
+            trackerDoc = UserTrackerDoc(subjects: subjects)
         }
 
         Task {
@@ -137,15 +130,22 @@ public struct SyllabusTrackerSheet: View {
                     uid: uid,
                     subject: subject,
                     field: field,
-                    value: !currentVal,
+                    value: !currentValue,
                     idToken: token
                 )
                 savingCell = nil
-                HapticManager.success()
             } catch {
-                errorMessage = "Failed to sync: \(error.localizedDescription)"
+                errorMessage = "Couldn't sync \(subject) · \(field.label). Check your connection."
                 savingCell = nil
                 HapticManager.error()
+
+                // Roll the optimistic flip back so the matrix never claims a save that
+                // did not happen.
+                if var subjects = trackerDoc?.subjects, var fields = subjects[subject] {
+                    fields.setValue(currentValue, for: field)
+                    subjects[subject] = fields
+                    trackerDoc = UserTrackerDoc(subjects: subjects)
+                }
             }
         }
     }
@@ -157,42 +157,82 @@ private struct SubjectTrackerRow: View {
     let isSaving: Bool
     let onToggle: (TrackerField, Bool) -> Void
 
+    private var done: Int {
+        TrackerField.allCases.filter { fields.value(for: $0) == true }.count
+    }
+
+    private var tracked: Int {
+        TrackerField.allCases.filter { fields.value(for: $0) != nil }.count
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(subjectName)
-                .font(MedxFont.headline(15))
-                .foregroundColor(.primary)
-
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
+                Text(subjectName)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Spacer(minLength: 8)
+
+                if isSaving {
+                    ProgressView()
+                        .controlSize(.mini)
+                } else if tracked > 0 {
+                    Text("\(done)/\(tracked)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(done == tracked ? MedxTheme.successGreen : .secondary)
+                }
+            }
+
+            HStack(spacing: 6) {
                 ForEach(TrackerField.allCases) { field in
-                    let hasValue = fields.value(for: field) != nil
-                    let isChecked = fields.value(for: field) == true
-
-                    Button {
-                        if hasValue {
-                            onToggle(field, isChecked)
-                        }
-                    } label: {
-                        VStack(spacing: 4) {
-                            Text(field.label)
-                                .font(MedxFont.label(11))
-                                .foregroundColor(isChecked ? .white : (hasValue ? .primary : .secondary.opacity(0.4)))
-
-                            Image(systemName: isChecked ? "checkmark" : (hasValue ? "circle" : "minus"))
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(isChecked ? .white : (hasValue ? .secondary : .secondary.opacity(0.3)))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(isChecked ? MedxTheme.primaryBlue : (hasValue ? Color.primary.opacity(0.04) : Color.clear))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .disabled(!hasValue)
+                    cell(field)
                 }
             }
         }
-        .padding(16)
-        .liquidGlassCard(cornerRadius: 16)
+        .padding(14)
+        .medxCard(cornerRadius: 14)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(subjectName)
+    }
+
+    private func cell(_ field: TrackerField) -> some View {
+        let value = fields.value(for: field)
+        let isTracked = value != nil
+        let isChecked = value == true
+
+        return Button {
+            guard isTracked else { return }
+            onToggle(field, isChecked)
+        } label: {
+            VStack(spacing: 3) {
+                Text(field.label)
+                    .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                Image(systemName: isChecked ? "checkmark" : (isTracked ? "circle" : "minus"))
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .foregroundStyle(isChecked ? Color.white : (isTracked ? Color.primary : Color.secondary.opacity(0.45)))
+            .frame(maxWidth: .infinity, minHeight: 42)
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(isChecked ? Color.accentColor : (isTracked ? MedxSurface.fieldFill : Color.clear))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(
+                        isTracked ? Color.clear : MedxSurface.separator.opacity(0.4),
+                        lineWidth: MedxSurface.hairline
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(!isTracked)
+        .accessibilityLabel(field.label)
+        .accessibilityValue(isTracked ? (isChecked ? "Done" : "Not done") : "Not tracked")
+        .accessibilityAddTraits(isChecked ? [.isSelected] : [])
     }
 }

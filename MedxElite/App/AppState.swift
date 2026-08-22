@@ -7,7 +7,24 @@ public final class AppState: ObservableObject {
 
     @Published public var isDarkMode: Bool = true
 
+    /// Owned here rather than by `MainTabView` so Home's shortcuts can move the selection.
+    @Published public var selectedTab: TabItem = .home
+
     private init() {}
+
+    public func open(tab: TabItem) {
+        guard selectedTab != tab else { return }
+        selectedTab = tab
+    }
+}
+
+/// The three states every data-backed screen can be in. Shared so no screen can forget
+/// one — an empty `ScrollView` shown because a fetch quietly failed is the bug that made
+/// the Tests tab look blank.
+public enum MedxLoadState: Equatable {
+    case loading
+    case loaded
+    case failed(String)
 }
 
 public struct BookmarkedQuestion: Identifiable, Codable, Hashable, Sendable {
@@ -176,10 +193,22 @@ public final class ActivityStore: ObservableObject {
 
     private let bookmarksKey = "medx.activity.bookmarks"
     private let watchHistoryKey = "medx.activity.watchHistory"
+    private let pendingHistoryKey = "medx.activity.pendingHistory"
+
+    /// Watch-history documents that have not made it to Firestore yet.
+    ///
+    /// A class watched from its offline download is watched with no network, so the
+    /// per-entry upload inside `recordVideoProgress` fails and used to be lost forever —
+    /// the progress lived only on this device and never appeared against the streaming
+    /// copy of the same class. Anything that fails to upload is remembered here and
+    /// retried on the next sync.
+    private var pendingHistoryDocIds: Set<String> = []
+    private var historySaveTask: Task<Void, Never>?
 
     private init() {
         bookmarks = Self.load([BookmarkedQuestion].self, key: bookmarksKey) ?? []
         watchHistory = Self.load([WatchHistoryEntry].self, key: watchHistoryKey) ?? []
+        pendingHistoryDocIds = Set(Self.load([String].self, key: pendingHistoryKey) ?? [])
     }
 
     // MARK: - Bookmarks
@@ -286,6 +315,11 @@ public final class ActivityStore: ObservableObject {
         return watchHistory.first { $0.video.id == videoId && $0.ownerId == uid }
     }
 
+    /// Records playback position for a class.
+    ///
+    /// Offline and streaming playback both land here with the same `video.id`, so the
+    /// resulting document id (`uid_videoId`) is identical — watching a download and
+    /// watching the stream share one history row by construction.
     public func recordVideoProgress(
         video: RecordedVideo,
         uid: String?,
@@ -296,35 +330,48 @@ public final class ActivityStore: ObservableObject {
         guard let uid else { return }
         let safePosition = position.isFinite ? max(position, 0) : 0
         let safeDuration = duration.isFinite ? max(duration, 0) : 0
-        let resolvedDuration = safeDuration > 0 ? safeDuration : Double(video.durationSeconds ?? 0)
+
+        let existing = watchHistory.first { $0.video.id == video.id && $0.ownerId == uid }
+        // A locally rewritten HLS playlist can report an indefinite duration for the first
+        // seconds. Falling back to 0 there would reset a half-watched class to 0%, so the
+        // last known duration wins over a zero.
+        let resolvedDuration = [safeDuration, Double(video.durationSeconds ?? 0), existing?.durationSeconds ?? 0]
+            .first { $0 > 0 } ?? 0
 
         let entry = WatchHistoryEntry(
             video: video,
             ownerId: uid,
             positionSeconds: safePosition,
-            durationSeconds: max(resolvedDuration, 0),
+            durationSeconds: resolvedDuration,
             watchedAt: Date()
         )
 
         watchHistory.removeAll { $0.video.id == video.id && $0.ownerId == uid }
         watchHistory.insert(entry, at: 0)
-        saveWatchHistory()
+        pendingHistoryDocIds.insert(entry.docId)
+        scheduleHistorySave()
 
-        if syncToCloud {
-            Task {
-                do {
-                    let token = try await AuthService.shared.getValidIdToken()
-                    try await FirestoreService.shared.saveWatchHistoryEntry(entry, idToken: token)
-                } catch {
-                    print("[ActivityStore] Cloud save watch history error: \(error)")
-                }
-            }
+        guard syncToCloud else { return }
+        Task { await uploadWatchHistory(entry) }
+    }
+
+    /// Pushes one entry up and clears its pending flag only if the write landed.
+    private func uploadWatchHistory(_ entry: WatchHistoryEntry) async {
+        do {
+            let token = try await AuthService.shared.getValidIdToken()
+            try await FirestoreService.shared.saveWatchHistoryEntry(entry, idToken: token)
+            pendingHistoryDocIds.remove(entry.docId)
+            scheduleHistorySave()
+        } catch {
+            // Stays pending; the next sync retries it.
+            print("[ActivityStore] Cloud save watch history error: \(error)")
         }
     }
 
     public func removeWatchHistory(_ entry: WatchHistoryEntry, uid: String? = nil) {
         let targetUid = uid ?? entry.ownerId
         watchHistory.removeAll { $0.video.id == entry.video.id && $0.ownerId == targetUid }
+        pendingHistoryDocIds.remove(entry.docId)
         saveWatchHistory()
 
         Task {
@@ -341,6 +388,7 @@ public final class ActivityStore: ObservableObject {
         guard let uid else { return }
         let toDelete = watchHistory.filter { $0.ownerId == uid }
         watchHistory.removeAll { $0.ownerId == uid }
+        for entry in toDelete { pendingHistoryDocIds.remove(entry.docId) }
         saveWatchHistory()
 
         Task {
@@ -412,18 +460,70 @@ public final class ActivityStore: ObservableObject {
             self.watchHistory = updatedHistory
             saveWatchHistory()
 
+            // Merging alone was a one-way street: a class watched offline stayed local
+            // forever, so the streaming copy of the same class never showed the progress
+            // on another device. Anything the cloud is missing or is behind on now goes up.
+            let cloudById = Dictionary(cloudHistory.map { ($0.docId, $0) }, uniquingKeysWith: { first, _ in first })
+            let needsUpload = mergedHistory.filter { local in
+                if pendingHistoryDocIds.contains(local.docId) { return true }
+                guard let remote = cloudById[local.docId] else { return true }
+                return local.watchedAt > remote.watchedAt || local.positionSeconds > remote.positionSeconds
+            }
+
+            for entry in needsUpload {
+                do {
+                    try await FirestoreService.shared.saveWatchHistoryEntry(entry, idToken: token)
+                    pendingHistoryDocIds.remove(entry.docId)
+                } catch {
+                    print("[ActivityStore] Watch history upload failed for \(entry.docId): \(error)")
+                }
+            }
+
+            let cloudBookmarkIds = Set(cloudBookmarks.map(\.docId))
+            for bookmark in mergedBookmarks where !cloudBookmarkIds.contains(bookmark.docId) {
+                try? await FirestoreService.shared.saveBookmark(bookmark, idToken: token)
+            }
+
+            saveWatchHistory()
             self.lastSyncedAt = Date()
         } catch {
             print("[ActivityStore] Cloud sync failed: \(error)")
         }
     }
 
+    // MARK: - Persistence
+
     private func saveBookmarks() {
         Self.save(bookmarks, key: bookmarksKey)
     }
 
+    /// Coalesces writes: the player reports progress every five seconds and re-encoding
+    /// the whole history to `UserDefaults` on each tick was a visible hitch during playback.
+    private func scheduleHistorySave() {
+        historySaveTask?.cancel()
+        historySaveTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            guard !Task.isCancelled else { return }
+            self?.persistHistory()
+        }
+    }
+
+    /// Writes immediately and drops any pending coalesced write.
     private func saveWatchHistory() {
+        historySaveTask?.cancel()
+        historySaveTask = nil
+        persistHistory()
+    }
+
+    private func persistHistory() {
         Self.save(watchHistory, key: watchHistoryKey)
+        Self.save(Array(pendingHistoryDocIds), key: pendingHistoryKey)
+    }
+
+    /// Called when the app leaves the foreground so nothing is lost on suspension.
+    public func flushPendingWrites() {
+        saveWatchHistory()
+        saveBookmarks()
     }
 
     private static func save<T: Encodable>(_ value: T, key: String) {

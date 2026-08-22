@@ -1,120 +1,125 @@
 import SwiftUI
 
+/// Question-bank coverage: how much of the bank has been seen, and how well.
 public struct QBankProgressCard: View {
     public let attempts: [SittingAttempt]
     public let totalQuestions: Int
     public var onOpenQBank: () -> Void
 
-    public init(attempts: [SittingAttempt], totalQuestions: Int = 17890, onOpenQBank: @escaping () -> Void) {
+    public init(attempts: [SittingAttempt], totalQuestions: Int = 17_890, onOpenQBank: @escaping () -> Void) {
         self.attempts = attempts
         self.totalQuestions = totalQuestions
         self.onOpenQBank = onOpenQBank
     }
 
-    private var stats: (unique: Int, answered: Int, correct: Int, sittings: Int) {
-        var seen = Set<Int>()
+    private struct Stats {
+        var unique = 0
         var answered = 0
         var correct = 0
-        var qbSittings = 0
+        var sittings = 0
+    }
 
-        for a in attempts where a.kind == "qbank" {
-            qbSittings += 1
-            for r in a.responses {
-                if r.chosenId != nil {
-                    answered += 1
-                    if r.correct { correct += 1 }
-                    seen.insert(r.questionId)
-                }
+    private var stats: Stats {
+        var result = Stats()
+        var seen = Set<Int>()
+
+        for attempt in attempts where attempt.kind == "qbank" {
+            result.sittings += 1
+            for response in attempt.responses where response.chosenId != nil {
+                result.answered += 1
+                if response.correct { result.correct += 1 }
+                seen.insert(response.questionId)
             }
         }
-        return (unique: seen.count, answered: answered, correct: correct, sittings: qbSittings)
+
+        result.unique = seen.count
+        return result
     }
 
     public var body: some View {
-        VStack(spacing: 18) {
+        let current = stats
+        let coverage = totalQuestions > 0 ? Double(current.unique) / Double(totalQuestions) : 0
+        let accuracy = current.answered > 0
+            ? Int((Double(current.correct) / Double(current.answered) * 100).rounded())
+            : 0
+
+        return VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Question Bank")
-                    .font(MedxFont.headline(16))
+                Text("Question bank")
+                    .font(.headline)
 
                 Spacer()
 
-                Button(action: {
+                Button {
                     HapticManager.light()
                     onOpenQBank()
-                }) {
-                    HStack(spacing: 4) {
+                } label: {
+                    HStack(spacing: 3) {
                         Text("Open")
-                            .font(MedxFont.headline(14))
-                        Image(systemName: "arrow.right")
-                            .font(.caption)
+                            .font(.subheadline.weight(.semibold))
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.bold))
                     }
-                    .foregroundColor(MedxTheme.primaryBlue)
                 }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                .accessibilityLabel("Open the question bank")
             }
-
-            let percentage = totalQuestions > 0 ? Double(stats.unique) / Double(totalQuestions) : 0.0
-            let accuracy = stats.answered > 0 ? Int(round(Double(stats.correct) / Double(stats.answered) * 100.0)) : 0
 
             HStack(spacing: 20) {
                 ProgressRingView(
-                    progress: percentage,
-                    strokeWidth: 9,
-                    size: 96,
-                    gradient: LinearGradient(
-                        colors: [MedxTheme.primaryBlue, MedxTheme.cyanAccent],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
+                    progress: coverage,
+                    strokeWidth: 8,
+                    size: 88,
+                    tint: .accentColor,
                     centerContent: AnyView(
                         VStack(spacing: 0) {
-                            Text("\(Int(percentage * 100))%")
-                                .font(MedxFont.mono(18, weight: .heavy))
-                            Text("coverage")
-                                .font(MedxFont.label(9))
-                                .foregroundColor(.secondary)
+                            Text("\(Int((coverage * 100).rounded()))%")
+                                .font(.headline.weight(.bold).monospacedDigit())
+                            Text("seen")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
                     )
                 )
 
                 VStack(alignment: .leading, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 1) {
                         HStack(alignment: .lastTextBaseline, spacing: 4) {
-                            Text("\(stats.unique.formatted())")
-                                .font(MedxFont.mono(20, weight: .bold))
-                            Text("/ \(totalQuestions.formatted())")
-                                .font(MedxFont.caption(13))
-                                .foregroundColor(.secondary)
+                            Text(current.unique.formatted())
+                                .font(.title3.weight(.semibold).monospacedDigit())
+                            Text("of \(totalQuestions.formatted())")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         }
                         Text("questions attempted")
-                            .font(MedxFont.caption(12))
-                            .foregroundColor(.secondary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
 
-                    HStack(spacing: 16) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("\(accuracy)%")
-                                .font(MedxFont.mono(16, weight: .bold))
-                                .foregroundColor(MedxTheme.successGreen)
-                            Text("accuracy")
-                                .font(MedxFont.label(11))
-                                .foregroundColor(.secondary)
-                        }
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("\(stats.sittings)")
-                                .font(MedxFont.mono(16, weight: .bold))
-                                .foregroundColor(MedxTheme.primaryBlue)
-                            Text("sittings")
-                                .font(MedxFont.label(11))
-                                .foregroundColor(.secondary)
-                        }
+                    HStack(spacing: 18) {
+                        figure(value: current.answered > 0 ? "\(accuracy)%" : "—", label: "accuracy")
+                        figure(value: "\(current.sittings)", label: "sittings")
                     }
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
             }
         }
-        .padding(20)
-        .liquidGlassCard(cornerRadius: 24, glowColor: MedxTheme.primaryBlue)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .medxCard(cornerRadius: 20)
+    }
+
+    private func figure(value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(value)
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(value) \(label)")
     }
 }

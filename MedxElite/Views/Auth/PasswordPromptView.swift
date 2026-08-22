@@ -1,11 +1,12 @@
 import SwiftUI
 
+/// Password entry for one profile. Sheet-sized, keyboard-first.
 public struct PasswordPromptView: View {
     public let profile: Profile
-    @ObservedObject var authService = AuthService.shared
+
+    @ObservedObject private var authService = AuthService.shared
     @State private var password = ""
     @State private var localError: String?
-    @State private var hasAppeared = false
     @FocusState private var isFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
@@ -16,128 +17,98 @@ public struct PasswordPromptView: View {
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // MARK: - Profile Header
-                VStack(spacing: 16) {
-                    ProfileAvatarView(profile: profile, size: 80)
-                        .scaleEffect(hasAppeared ? 1 : 0.8)
-                        .opacity(hasAppeared ? 1 : 0)
+                header
 
-                    VStack(spacing: 4) {
-                        Text(profile.displayName)
-                            .font(MedxFont.titleRounded(22))
+                VStack(alignment: .leading, spacing: 8) {
+                    SecureField("Password", text: $password)
+                        .focused($isFocused)
+                        .textContentType(.password)
+                        .submitLabel(.go)
+                        .onSubmit(handleSignIn)
+                        .font(.body)
+                        .padding(14)
+                        .background(MedxSurface.cardFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(
+                                    isFocused ? Color.accentColor.opacity(0.55) : MedxSurface.separator.opacity(0.35),
+                                    lineWidth: isFocused ? 1.5 : MedxSurface.hairline
+                                )
+                        )
+                        .animation(.easeInOut(duration: 0.18), value: isFocused)
 
-                        Text(profile.email)
-                            .font(MedxFont.caption(13))
-                            .foregroundColor(.secondary)
-                    }
-                    .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 8)
-                }
-                .padding(.top, 40)
-                .padding(.bottom, 36)
-
-                // MARK: - Password Field
-                VStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Password")
-                            .font(MedxFont.label(13))
-                            .foregroundColor(.secondary)
-
-                        SecureField("Enter your password", text: $password)
-                            .focused($isFocused)
-                            .textContentType(.password)
-                            .submitLabel(.go)
-                            .onSubmit { handleSignIn() }
-                            .font(MedxFont.body(16))
-                            .padding(16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(Color(uiColor: .tertiarySystemGroupedBackground))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .strokeBorder(
-                                        isFocused ? profile.accentColor.opacity(0.5) : Color.clear,
-                                        lineWidth: 1.5
-                                    )
-                            )
-                            .animation(.easeInOut(duration: 0.2), value: isFocused)
-                    }
-                    .padding(.horizontal, 28)
-                    .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 12)
-
-                    // Error
-                    if let err = localError ?? authService.errorMessage {
-                        HStack(spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                                .font(.system(size: 13))
-                            Text(err)
-                                .font(MedxFont.caption(13))
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.horizontal, 28)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    if let error = localError ?? authService.errorMessage {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .font(.footnote)
+                            .foregroundStyle(MedxTheme.destructiveRed)
+                            .transition(.opacity)
                     }
                 }
+                .padding(.horizontal, 24)
 
-                Spacer()
+                Spacer(minLength: 20)
 
-                // MARK: - Sign In Button
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     Button(action: handleSignIn) {
-                        Group {
+                        HStack(spacing: 8) {
                             if authService.isBusy {
                                 ProgressView()
                                     .controlSize(.small)
-                                Text("Signing In…")
+                                Text("Signing in…")
                             } else {
-                                Label("Sign In", systemImage: "arrow.right")
+                                Text("Sign In")
                             }
                         }
                         .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .frame(maxWidth: .infinity, minHeight: 48)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(profile.accentColor)
+                    .buttonBorderShape(.capsule)
                     .disabled(password.isEmpty || authService.isBusy)
-                    .padding(.horizontal, 28)
-                    .opacity(hasAppeared ? 1 : 0)
-                    .offset(y: hasAppeared ? 0 : 16)
 
-                    // Face ID hint
                     if authService.hasSavedPassword(for: profile.id) {
-                        Label("Password saved in Keychain", systemImage: "key.fill")
-                            .font(MedxFont.caption(12))
-                            .foregroundColor(.secondary)
+                        Label("Password saved in the Keychain", systemImage: "key.fill")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .padding(.bottom, 32)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 28)
             }
-            .background(Color(uiColor: .systemGroupedBackground))
+            .background(MedxSurface.groupedBackground.ignoresSafeArea())
             .navigationTitle("Sign In")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .font(MedxFont.body(16))
+                    Button("Cancel") { dismiss() }
                 }
             }
             .onAppear {
-                withAnimation(.spring(response: 0.6, dampingFraction: 0.85).delay(0.1)) {
-                    hasAppeared = true
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                // A short delay so the sheet finishes presenting before the keyboard rises.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                     isFocused = true
                 }
             }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .presentationCornerRadius(28)
+    }
+
+    private var header: some View {
+        VStack(spacing: 12) {
+            ProfileAvatarView(profile: profile, size: 72)
+
+            VStack(spacing: 3) {
+                Text(profile.displayName)
+                    .font(.title3.weight(.semibold))
+                Text(profile.email)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.top, 28)
+        .padding(.bottom, 28)
+        .accessibilityElement(children: .combine)
     }
 
     private func handleSignIn() {
@@ -150,6 +121,7 @@ public struct PasswordPromptView: View {
                 dismiss()
             } catch {
                 localError = error.localizedDescription
+                HapticManager.error()
             }
         }
     }

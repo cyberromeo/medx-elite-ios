@@ -1,124 +1,122 @@
 import SwiftUI
 
+/// Countdown to the exam. The days figure is the headline; hours/minutes/seconds are
+/// secondary and monospaced so they do not jitter the layout every tick.
 public struct CountdownWidgetView: View {
     public let targetDate: Date
+    public let title: String
 
-    public init(targetDate: Date = Calendar.current.date(from: DateComponents(year: 2027, month: 1, day: 9)) ?? Date()) {
+    public init(
+        targetDate: Date = Calendar.current.date(from: DateComponents(year: 2027, month: 1, day: 9)) ?? Date(),
+        title: String = "FMGE"
+    ) {
         self.targetDate = targetDate
+        self.title = title
     }
 
     public var body: some View {
+        // One second is the smallest unit shown, so that is the tick rate. `TimelineView`
+        // keeps the redraw scoped to this card instead of the whole Home screen.
         TimelineView(.periodic(from: Date(), by: 1.0)) { context in
-            let remaining = computeRemaining(at: context.date)
+            let remaining = TimeRemaining(until: targetDate, from: context.date)
 
-            VStack(spacing: 14) {
-                // Header Bar
-                HStack(alignment: .center) {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(MedxTheme.primaryPink)
-                            .frame(width: 7, height: 7)
+            VStack(alignment: .leading, spacing: 14) {
+                header(remaining: remaining)
 
-                        Text("FMGE · 9 JAN 2027")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(MedxTheme.primaryPink)
-                    }
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(remaining.days)")
+                        .font(MedxFont.display(44))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .foregroundStyle(.primary)
 
-                    Spacer()
-
-                    Text("\(remaining.weeks) weeks left")
-                        .font(.caption.monospacedDigit().weight(.semibold))
+                    Text(remaining.days == 1 ? "day" : "days")
+                        .font(.title3.weight(.semibold))
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
+
+                    Spacer(minLength: 8)
+
+                    clock(remaining: remaining)
                 }
+                .animation(.snappy, value: remaining.days)
 
-                // Countdown Cards Grid (4 responsive columns)
-                HStack(spacing: 8) {
-                    CountdownUnitCard(
-                        value: remaining.days,
-                        unit: "DAYS",
-                        isPrimary: true
-                    )
-
-                    CountdownUnitCard(
-                        value: remaining.hours,
-                        unit: "HRS",
-                        isPrimary: false
-                    )
-
-                    CountdownUnitCard(
-                        value: remaining.minutes,
-                        unit: "MINS",
-                        isPrimary: false
-                    )
-
-                    CountdownUnitCard(
-                        value: remaining.seconds,
-                        unit: "SECS",
-                        isPrimary: false
-                    )
-                }
+                ProgressView(value: remaining.elapsedFraction)
+                    .tint(MedxTheme.primaryPink)
+                    .accessibilityHidden(true)
             }
             .padding(18)
-            .liquidGlassCard(cornerRadius: 22, glowColor: MedxTheme.primaryPink)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .medxCard(cornerRadius: 20)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(title) countdown")
+            .accessibilityValue("\(remaining.days) days, \(remaining.hours) hours remaining")
         }
     }
 
-    private func computeRemaining(at date: Date) -> TimeRemaining {
-        let diff = targetDate.timeIntervalSince(date)
-        if diff <= 0 { return .zero }
-        let totalDays = Int(diff / 86400)
-        let hours = Int((diff.truncatingRemainder(dividingBy: 86400)) / 3600)
-        let minutes = Int((diff.truncatingRemainder(dividingBy: 3600)) / 60)
-        let seconds = Int(diff.truncatingRemainder(dividingBy: 60))
-        let weeks = totalDays / 7
-        return TimeRemaining(days: totalDays, hours: hours, minutes: minutes, seconds: seconds, weeks: weeks)
+    private func header(remaining: TimeRemaining) -> some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(MedxTheme.primaryPink)
+                .frame(width: 7, height: 7)
+
+            Text("\(title) · \(targetDate.formatted(.dateTime.day().month(.abbreviated).year()))")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(MedxTheme.primaryPink)
+
+            Spacer(minLength: 8)
+
+            Text("\(remaining.weeks) weeks left")
+                .font(.caption.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func clock(remaining: TimeRemaining) -> some View {
+        HStack(spacing: 4) {
+            unit(String(format: "%02d", remaining.hours), label: "hr")
+            Text(":")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.tertiary)
+            unit(String(format: "%02d", remaining.minutes), label: "min")
+            Text(":")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.tertiary)
+            unit(String(format: "%02d", remaining.seconds), label: "sec")
+        }
+    }
+
+    private func unit(_ value: String, label: String) -> some View {
+        VStack(spacing: 1) {
+            Text(value)
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.primary)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
     }
 }
 
 private struct TimeRemaining: Equatable {
-    var days: Int
-    var hours: Int
-    var minutes: Int
-    var seconds: Int
-    var weeks: Int
+    var days = 0
+    var hours = 0
+    var minutes = 0
+    var seconds = 0
+    var weeks = 0
+    /// How far through a nominal one-year run-up the student is, for the progress bar.
+    var elapsedFraction: Double = 1
 
-    static let zero = TimeRemaining(days: 0, hours: 0, minutes: 0, seconds: 0, weeks: 0)
-}
+    init(until target: Date, from now: Date) {
+        let diff = target.timeIntervalSince(now)
+        guard diff > 0 else { return }
 
-private struct CountdownUnitCard: View {
-    let value: Int
-    let unit: String
-    let isPrimary: Bool
+        days = Int(diff / 86_400)
+        hours = Int(diff.truncatingRemainder(dividingBy: 86_400) / 3_600)
+        minutes = Int(diff.truncatingRemainder(dividingBy: 3_600) / 60)
+        seconds = Int(diff.truncatingRemainder(dividingBy: 60))
+        weeks = days / 7
 
-    var body: some View {
-        VStack(spacing: 3) {
-            Text(isPrimary ? "\(value)" : String(format: "%02d", value))
-                .font(isPrimary ? MedxFont.mono(24, weight: .bold) : MedxFont.mono(20, weight: .bold))
-                .foregroundColor(isPrimary ? .primary : .secondary)
-                .contentTransition(.numericText())
-                .animation(.snappy, value: value)
-                .minimumScaleFactor(0.7)
-                .lineLimit(1)
-
-                Text(unit)
-                    .font(.caption2.monospaced().weight(.semibold))
-                    .foregroundStyle(isPrimary ? MedxTheme.primaryPink : .secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isPrimary ? MedxTheme.primaryPink.opacity(0.10) : Color(uiColor: .tertiarySystemFill))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(
-                    isPrimary ? MedxTheme.primaryPink.opacity(0.36) : Color(uiColor: .separator).opacity(0.4),
-                    lineWidth: 0.7
-                )
-        )
+        let window: Double = 365 * 86_400
+        elapsedFraction = min(max(1 - (diff / window), 0), 1)
     }
 }

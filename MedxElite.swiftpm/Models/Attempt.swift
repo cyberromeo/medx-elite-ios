@@ -44,6 +44,71 @@ public struct SittingAttempt: Identifiable, Hashable, Codable, Sendable {
         guard total > 0 else { return 0 }
         return Int(round(Double(score) / Double(total) * 100.0))
     }
+
+    enum CodingKeys: String, CodingKey {
+        case id, uid, profile, kind, sourceId, name, subject, mode, gradable
+        case total, score, attempted, durationSeconds, finishedAt, responses
+    }
+
+    public init(
+        id: String?,
+        uid: String,
+        profile: String?,
+        kind: String,
+        sourceId: String,
+        name: String,
+        subject: String?,
+        mode: String,
+        gradable: Bool?,
+        total: Int,
+        score: Int,
+        attempted: Int,
+        durationSeconds: Int?,
+        finishedAt: String?,
+        responses: [QuestionResponse]
+    ) {
+        self.id = id
+        self.uid = uid
+        self.profile = profile
+        self.kind = kind
+        self.sourceId = sourceId
+        self.name = name
+        self.subject = subject
+        self.mode = mode
+        self.gradable = gradable
+        self.total = total
+        self.score = score
+        self.attempted = attempted
+        self.durationSeconds = durationSeconds
+        self.finishedAt = finishedAt
+        self.responses = responses
+    }
+
+    /// Lenient on purpose: an attempt written by an older build with a missing field used
+    /// to be dropped wholesale, which silently deflated every stat on the Home screen.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try? container.decodeIfPresent(String.self, forKey: .id)
+        uid = (try? container.decodeIfPresent(String.self, forKey: .uid)) ?? ""
+        profile = try? container.decodeIfPresent(String.self, forKey: .profile)
+        kind = (try? container.decodeIfPresent(String.self, forKey: .kind)) ?? "qbank"
+        sourceId = (try? container.decodeIfPresent(String.self, forKey: .sourceId)) ?? ""
+        name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? "Sitting"
+        subject = try? container.decodeIfPresent(String.self, forKey: .subject)
+        mode = (try? container.decodeIfPresent(String.self, forKey: .mode)) ?? "exam"
+        gradable = try? container.decodeIfPresent(Bool.self, forKey: .gradable)
+        total = (try? container.decodeIfPresent(Int.self, forKey: .total)) ?? 0
+        score = (try? container.decodeIfPresent(Int.self, forKey: .score)) ?? 0
+        attempted = (try? container.decodeIfPresent(Int.self, forKey: .attempted)) ?? 0
+        durationSeconds = try? container.decodeIfPresent(Int.self, forKey: .durationSeconds)
+        finishedAt = try? container.decodeIfPresent(String.self, forKey: .finishedAt)
+        responses = container.decodeLenientArray(QuestionResponse.self, forKey: .responses) ?? []
+    }
+
+    public var finishedDate: Date? {
+        guard let finishedAt else { return nil }
+        return ISO8601DateFormatter().date(from: finishedAt)
+    }
 }
 
 public struct QuestionResponse: Identifiable, Hashable, Codable, Sendable {
@@ -66,9 +131,9 @@ public struct QuestionResponse: Identifiable, Hashable, Codable, Sendable {
         } else {
             questionId = 0
         }
-        chosenId = try container.decodeIfPresent(Int.self, forKey: .chosenId)
-        correct = try container.decodeIfPresent(Bool.self, forKey: .correct) ?? false
-        timedOut = try container.decodeIfPresent(Bool.self, forKey: .timedOut)
+        chosenId = try? container.decodeIfPresent(Int.self, forKey: .chosenId)
+        correct = (try? container.decodeIfPresent(Bool.self, forKey: .correct)) ?? false
+        timedOut = try? container.decodeIfPresent(Bool.self, forKey: .timedOut)
     }
 
     public init(questionId: Int, chosenId: Int?, correct: Bool, timedOut: Bool? = nil) {

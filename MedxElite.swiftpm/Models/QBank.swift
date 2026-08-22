@@ -1,5 +1,43 @@
 import Foundation
 
+// MARK: - Lenient array decoding
+
+/// Placeholder that decodes from any JSON value without ever throwing. Used to step past
+/// an element the real model rejected — an unkeyed container does not advance its cursor
+/// on a failed `decode`, so without this the skip loop would spin forever.
+struct MedxSkippedElement: Decodable {
+    init(from decoder: Decoder) throws {
+        _ = try? decoder.singleValueContainer()
+    }
+}
+
+extension KeyedDecodingContainer {
+    /// Decodes an array element by element and drops the ones that fail.
+    ///
+    /// Arise's exported modules occasionally carry one question with a field shape the
+    /// model does not expect. Decoding `[Question]` in one shot meant that single bad
+    /// entry made the whole 40-question module unavailable; now only it is lost.
+    func decodeLenientArray<T: Decodable>(_ type: T.Type, forKey key: Key) -> [T]? {
+        guard contains(key) else { return nil }
+        guard var container = try? nestedUnkeyedContainer(forKey: key) else { return nil }
+
+        var items: [T] = []
+        let bound = (container.count ?? 0) + 1
+        var iterations = 0
+
+        while !container.isAtEnd, iterations < bound {
+            iterations += 1
+            if let item = try? container.decode(T.self) {
+                items.append(item)
+            } else {
+                _ = try? container.decode(MedxSkippedElement.self)
+            }
+        }
+
+        return items
+    }
+}
+
 public struct QBankSubject: Identifiable, Hashable, Codable, Sendable {
     public var id: Int { subjectId }
     public let subjectId: Int
@@ -22,11 +60,11 @@ public struct QBankSubject: Identifiable, Hashable, Codable, Sendable {
         } else {
             subjectId = 0
         }
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
-        slug = try container.decodeIfPresent(String.self, forKey: .slug)
-        moduleCount = try container.decodeIfPresent(Int.self, forKey: .moduleCount) ?? 0
-        questionCount = try container.decodeIfPresent(Int.self, forKey: .questionCount)
-        chapters = try container.decodeIfPresent([QBankChapter].self, forKey: .chapters)
+        name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? ""
+        slug = try? container.decodeIfPresent(String.self, forKey: .slug)
+        moduleCount = (try? container.decodeIfPresent(Int.self, forKey: .moduleCount)) ?? 0
+        questionCount = try? container.decodeIfPresent(Int.self, forKey: .questionCount)
+        chapters = container.decodeLenientArray(QBankChapter.self, forKey: .chapters)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -67,8 +105,8 @@ public struct QBankChapter: Identifiable, Hashable, Codable, Sendable {
         } else {
             id = 0
         }
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
-        modules = try container.decodeIfPresent([QBankModuleSummary].self, forKey: .modules)
+        name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? ""
+        modules = container.decodeLenientArray(QBankModuleSummary.self, forKey: .modules)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -104,9 +142,9 @@ public struct QBankModuleSummary: Identifiable, Hashable, Codable, Sendable {
         } else {
             id = UUID().uuidString
         }
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
-        questionCount = try container.decodeIfPresent(Int.self, forKey: .questionCount) ?? 0
-        chapter = try container.decodeIfPresent(String.self, forKey: .chapter)
+        name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? ""
+        questionCount = (try? container.decodeIfPresent(Int.self, forKey: .questionCount)) ?? 0
+        chapter = try? container.decodeIfPresent(String.self, forKey: .chapter)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -161,6 +199,48 @@ public struct QBankModuleDetail: Identifiable, Hashable, Codable, Sendable {
         self.questions = questions
         self.partCount = partCount
     }
+
+    enum CodingKeys: String, CodingKey {
+        case id, moduleId, subjectId, subject, chapterId, chapter
+        case name, description, questionCount, questions, partCount
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let mid = try? container.decode(String.self, forKey: .moduleId) {
+            moduleId = mid
+        } else if let idVal = try? container.decode(String.self, forKey: .id) {
+            moduleId = idVal
+        } else {
+            moduleId = ""
+        }
+        subjectId = try? container.decodeIfPresent(Int.self, forKey: .subjectId)
+        subject = try? container.decodeIfPresent(String.self, forKey: .subject)
+        chapterId = try? container.decodeIfPresent(Int.self, forKey: .chapterId)
+        chapter = try? container.decodeIfPresent(String.self, forKey: .chapter)
+        name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? "Module"
+        description = try? container.decodeIfPresent(String.self, forKey: .description)
+        questions = container.decodeLenientArray(Question.self, forKey: .questions)
+        // Trust the questions actually decoded over the exported count, so the runner's
+        // timer and progress track cannot disagree with what is on screen.
+        let declared = (try? container.decodeIfPresent(Int.self, forKey: .questionCount)) ?? 0
+        questionCount = questions?.count ?? declared
+        partCount = try? container.decodeIfPresent(Int.self, forKey: .partCount)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(moduleId, forKey: .moduleId)
+        try container.encodeIfPresent(subjectId, forKey: .subjectId)
+        try container.encodeIfPresent(subject, forKey: .subject)
+        try container.encodeIfPresent(chapterId, forKey: .chapterId)
+        try container.encodeIfPresent(chapter, forKey: .chapter)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(description, forKey: .description)
+        try container.encode(questionCount, forKey: .questionCount)
+        try container.encodeIfPresent(questions, forKey: .questions)
+        try container.encodeIfPresent(partCount, forKey: .partCount)
+    }
 }
 
 public struct Question: Identifiable, Hashable, Codable, Sendable {
@@ -194,17 +274,17 @@ public struct Question: Identifiable, Hashable, Codable, Sendable {
         } else {
             id = 0
         }
-        lqId = try container.decodeIfPresent(Int.self, forKey: .lqId)
-        number = try container.decodeIfPresent(Int.self, forKey: .number)
-        html = try container.decodeIfPresent(String.self, forKey: .html)
-        plain = try container.decodeIfPresent(String.self, forKey: .plain)
-        type = try container.decodeIfPresent(String.self, forKey: .type)
-        answerType = try container.decodeIfPresent(String.self, forKey: .answerType)
-        options = try container.decodeIfPresent([QuestionOption].self, forKey: .options) ?? []
-        correctIds = try container.decodeIfPresent([Int].self, forKey: .correctIds) ?? []
-        explanation = try container.decodeIfPresent(String.self, forKey: .explanation)
-        reference = try container.decodeIfPresent(String.self, forKey: .reference)
-        images = try container.decodeIfPresent([String].self, forKey: .images)
+        lqId = try? container.decodeIfPresent(Int.self, forKey: .lqId)
+        number = try? container.decodeIfPresent(Int.self, forKey: .number)
+        html = try? container.decodeIfPresent(String.self, forKey: .html)
+        plain = try? container.decodeIfPresent(String.self, forKey: .plain)
+        type = try? container.decodeIfPresent(String.self, forKey: .type)
+        answerType = try? container.decodeIfPresent(String.self, forKey: .answerType)
+        options = container.decodeLenientArray(QuestionOption.self, forKey: .options) ?? []
+        correctIds = container.decodeLenientArray(Int.self, forKey: .correctIds) ?? []
+        explanation = try? container.decodeIfPresent(String.self, forKey: .explanation)
+        reference = try? container.decodeIfPresent(String.self, forKey: .reference)
+        images = container.decodeLenientArray(String.self, forKey: .images)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -271,9 +351,9 @@ public struct QuestionOption: Identifiable, Hashable, Codable, Sendable {
         } else {
             id = 0
         }
-        label = try container.decodeIfPresent(String.self, forKey: .label) ?? ""
-        text = try container.decodeIfPresent(String.self, forKey: .text) ?? ""
-        correct = try container.decodeIfPresent(Bool.self, forKey: .correct)
+        label = (try? container.decodeIfPresent(String.self, forKey: .label)) ?? ""
+        text = (try? container.decodeIfPresent(String.self, forKey: .text)) ?? ""
+        correct = try? container.decodeIfPresent(Bool.self, forKey: .correct)
     }
 
     public func encode(to encoder: Encoder) throws {

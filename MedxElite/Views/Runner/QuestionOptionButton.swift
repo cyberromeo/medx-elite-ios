@@ -1,13 +1,14 @@
 import SwiftUI
 
+/// One answer row. Reads as a native selectable cell: neutral fill, a hairline border, a
+/// letter badge and a radio glyph. State is carried by the badge and the border, not by a
+/// tinted glass sheet.
 public struct QuestionOptionButton: View {
     public let option: QuestionOption
     public let isChosen: Bool
     public let isCorrect: Bool
     public let isRevealed: Bool
     public let isLocked: Bool
-    public let accent: Color
-    public let isDimmed: Bool
     public let onSelect: () -> Void
 
     public init(
@@ -16,8 +17,6 @@ public struct QuestionOptionButton: View {
         isCorrect: Bool,
         isRevealed: Bool,
         isLocked: Bool,
-        accent: Color = MedxTheme.primaryBlue,
-        isDimmed: Bool = false,
         onSelect: @escaping () -> Void
     ) {
         self.option = option
@@ -25,41 +24,42 @@ public struct QuestionOptionButton: View {
         self.isCorrect = isCorrect
         self.isRevealed = isRevealed
         self.isLocked = isLocked
-        self.accent = accent
-        self.isDimmed = isDimmed
         self.onSelect = onSelect
     }
 
     public var body: some View {
         // Haptics are owned by the runner so revision mode doesn't buzz twice.
         Button(action: onSelect) {
-            HStack(alignment: .center, spacing: 13) {
+            HStack(alignment: .top, spacing: 12) {
                 letterBadge
 
-                HTMLRichTextView(html: option.text, fontSize: 15, weight: .regular)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .layoutPriority(1)
-
-                Spacer(minLength: 0)
+                // `interactive: false` — a button nested inside this one would never fire,
+                // and text selection would eat the row's tap.
+                HTMLRichTextView(
+                    html: option.text,
+                    fontSize: 16,
+                    weight: .regular,
+                    maxImageHeight: 180,
+                    interactive: false
+                )
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
 
                 trailingGlyph
+                    .padding(.top, 2)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .frame(minHeight: 58, alignment: .center)
-            .liquidGlassTile(cornerRadius: 18, accentColor: stateColor, isSelected: isEmphasized)
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(stateColor?.opacity(0.85) ?? Color.clear, lineWidth: isEmphasized ? 1.5 : 0)
-            )
+            .frame(minHeight: 56, alignment: .center)
+            .medxTile(cornerRadius: 14, accentColor: stateColor, isSelected: isEmphasized)
             .opacity(isDimmed ? 0.55 : 1)
-            .contentShape(Rectangle())
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(BouncyButtonStyle())
         .disabled(isLocked)
-        .animation(.easeOut(duration: 0.18), value: isChosen)
-        .animation(.easeOut(duration: 0.18), value: isRevealed)
+        .animation(.easeOut(duration: 0.16), value: isChosen)
+        .animation(.easeOut(duration: 0.16), value: isRevealed)
         .accessibilityLabel("Option \(option.label)")
         .accessibilityValue(accessibilityState)
         .accessibilityAddTraits(isChosen ? [.isSelected] : [])
@@ -69,11 +69,11 @@ public struct QuestionOptionButton: View {
 
     private var letterBadge: some View {
         Text(option.label)
-            .font(MedxFont.mono(14, weight: .bold))
+            .font(.subheadline.weight(.bold))
             .foregroundStyle(isFilledBadge ? Color.white : Color.primary)
-            .frame(width: 30, height: 30)
+            .frame(width: 28, height: 28)
             .background(
-                Circle().fill(isFilledBadge ? (stateColor ?? accent) : Color(uiColor: .tertiarySystemFill))
+                Circle().fill(isFilledBadge ? (stateColor ?? Color.accentColor) : MedxSurface.fieldFill)
             )
             .overlay(
                 Circle().strokeBorder(
@@ -96,9 +96,8 @@ public struct QuestionOptionButton: View {
         } else if isChosen {
             Image(systemName: "checkmark.circle.fill")
                 .font(.title3)
-                .foregroundStyle(accent)
+                .foregroundStyle(Color.accentColor)
         } else if !isRevealed {
-            // A real radio affordance: an untouched option used to show nothing at all.
             Image(systemName: "circle")
                 .font(.title3)
                 .foregroundStyle(Color(uiColor: .quaternaryLabel))
@@ -114,7 +113,7 @@ public struct QuestionOptionButton: View {
             if isChosen { return MedxTheme.destructiveRed }
             return nil
         }
-        return isChosen ? accent : nil
+        return isChosen ? Color.accentColor : nil
     }
 
     private var isEmphasized: Bool {
@@ -123,6 +122,11 @@ public struct QuestionOptionButton: View {
 
     private var isFilledBadge: Bool {
         stateColor != nil
+    }
+
+    /// Once the key is out, rows that are neither the answer nor the pick step back.
+    private var isDimmed: Bool {
+        isRevealed && !isChosen && !isCorrect
     }
 
     private var accessibilityState: String {

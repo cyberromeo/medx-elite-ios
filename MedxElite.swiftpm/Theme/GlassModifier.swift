@@ -1,44 +1,75 @@
 import SwiftUI
 
-// MARK: - Native Surface System
-// Liquid Glass is reserved for functional surfaces and controls. Static content
-// falls back to semantic system materials so the app remains legible on iOS 17–25.
+// MARK: - Surface System (Apple HIG)
+//
+// The app used to wrap almost every rectangle in Liquid Glass, which on iOS 26 turned
+// content into frosted soup and cost a blur pass per card. The rule now is the one
+// Apple actually uses in its own apps:
+//
+//   * Content sits on flat, semantic, grouped backgrounds.
+//   * Glass / materials are reserved for chrome that genuinely floats over content
+//     (nav bars, bottom action bars, media overlays).
+//   * Never put an `interactive()` glass effect inside a `Button` label — the effect
+//     takes the touch and the button stops firing.
+//
+// The old modifier names are kept as thin aliases so every existing call site keeps
+// working while rendering the new, quieter surface.
 
-public struct LiquidGlassCardModifier: ViewModifier {
+public enum MedxSurface {
+    /// Corner radii. Matched to the system's own grouped-list and widget geometry.
+    public static let cardRadius: CGFloat = 16
+    public static let tileRadius: CGFloat = 12
+    public static let hairline: CGFloat = 0.5
+
+    public static var cardFill: Color { Color(uiColor: .secondarySystemGroupedBackground) }
+    public static var tileFill: Color { Color(uiColor: .tertiarySystemGroupedBackground) }
+    public static var fieldFill: Color { Color(uiColor: .tertiarySystemFill) }
+    public static var groupedBackground: Color { Color(uiColor: .systemGroupedBackground) }
+    public static var separator: Color { Color(uiColor: .separator) }
+
+    /// Standard content inset for full-width cards on iPhone.
+    public static let gutter: CGFloat = 16
+}
+
+// MARK: - Cards
+
+/// A flat content card: grouped fill, hairline border, no tint, no glow.
+public struct MedxCardModifier: ViewModifier {
     public var cornerRadius: CGFloat
-    public var glowColor: Color?
-    public var shadowLevel: Int
+    /// A raised card gets a soft neutral shadow; the default sits flush on the page.
+    public var raised: Bool
 
-    public init(
-        cornerRadius: CGFloat = 16,
-        glowColor: Color? = nil,
-        shadowLevel: Int = 1
-    ) {
+    public init(cornerRadius: CGFloat = MedxSurface.cardRadius, raised: Bool = false) {
         self.cornerRadius = cornerRadius
-        self.glowColor = glowColor
-        self.shadowLevel = shadowLevel
+        self.raised = raised
     }
 
     public func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
         content
-            .background(shape.fill(Color(uiColor: .secondarySystemGroupedBackground)))
-            .overlay(shape.strokeBorder(Color(uiColor: .separator).opacity(0.32), lineWidth: 0.5))
+            .background(shape.fill(MedxSurface.cardFill))
+            .overlay(
+                shape.strokeBorder(
+                    MedxSurface.separator.opacity(raised ? 0.20 : 0.28),
+                    lineWidth: MedxSurface.hairline
+                )
+            )
             .shadow(
-                color: glowColor?.opacity(0.06) ?? Color.black.opacity(shadowLevel > 1 ? 0.08 : 0.025),
-                radius: shadowLevel > 1 ? 8 : 2,
-                y: shadowLevel > 1 ? 3 : 1
+                color: Color.black.opacity(raised ? 0.06 : 0),
+                radius: raised ? 8 : 0,
+                y: raised ? 3 : 0
             )
     }
 }
 
-public struct LiquidGlassTileModifier: ViewModifier {
+/// A secondary surface used inside a card — answer options, matrix cells, segment fills.
+public struct MedxTileModifier: ViewModifier {
     public var cornerRadius: CGFloat
     public var accentColor: Color?
     public var isSelected: Bool
 
-    public init(cornerRadius: CGFloat = 14, accentColor: Color? = nil, isSelected: Bool = false) {
+    public init(cornerRadius: CGFloat = MedxSurface.tileRadius, accentColor: Color? = nil, isSelected: Bool = false) {
         self.cornerRadius = cornerRadius
         self.accentColor = accentColor
         self.isSelected = isSelected
@@ -48,104 +79,94 @@ public struct LiquidGlassTileModifier: ViewModifier {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         let accent = accentColor ?? Color.accentColor
 
-        Group {
-            if #available(iOS 26.0, *) {
-                content
-                    .glassEffect(
-                        isSelected ? .regular.tint(accent) : .regular,
-                        in: shape
-                    )
-            } else {
-                content
-                    .background(shape.fill(isSelected ? accent.opacity(0.12) : Color(uiColor: .tertiarySystemGroupedBackground)))
-                    .overlay(
-                        shape.strokeBorder(
-                            isSelected ? accent.opacity(0.55) : Color(uiColor: .separator).opacity(0.38),
-                            lineWidth: isSelected ? 1 : 0.5
-                        )
-                    )
-            }
-        }
+        content
+            .background(shape.fill(isSelected ? accent.opacity(0.12) : MedxSurface.tileFill))
+            .overlay(
+                shape.strokeBorder(
+                    isSelected ? accent.opacity(0.75) : MedxSurface.separator.opacity(0.30),
+                    lineWidth: isSelected ? 1.5 : MedxSurface.hairline
+                )
+            )
     }
 }
 
 public extension View {
-    func liquidGlassCard(cornerRadius: CGFloat = 16, glowColor: Color? = nil, shadowLevel: Int = 1) -> some View {
-        modifier(LiquidGlassCardModifier(cornerRadius: cornerRadius, glowColor: glowColor, shadowLevel: shadowLevel))
+    /// Flat content card. The canonical container for anything that is not chrome.
+    func medxCard(cornerRadius: CGFloat = MedxSurface.cardRadius, raised: Bool = false) -> some View {
+        modifier(MedxCardModifier(cornerRadius: cornerRadius, raised: raised))
     }
 
-    func glassCard(cornerRadius: CGFloat = 16, shadowLevel: Int = 1) -> some View {
-        modifier(LiquidGlassCardModifier(cornerRadius: cornerRadius, shadowLevel: shadowLevel))
+    /// Secondary surface used *inside* a card — answer options, matrix cells, stat tiles.
+    func medxTile(cornerRadius: CGFloat = MedxSurface.tileRadius, accentColor: Color? = nil, isSelected: Bool = false) -> some View {
+        modifier(MedxTileModifier(cornerRadius: cornerRadius, accentColor: accentColor, isSelected: isSelected))
     }
 
-    func prominentCard(cornerRadius: CGFloat = 16, glowColor: Color? = nil) -> some View {
-        modifier(LiquidGlassCardModifier(cornerRadius: cornerRadius, glowColor: glowColor, shadowLevel: 2))
-    }
-
-    func liquidGlassTile(cornerRadius: CGFloat = 14, accentColor: Color? = nil, isSelected: Bool = false) -> some View {
-        modifier(LiquidGlassTileModifier(cornerRadius: cornerRadius, accentColor: accentColor, isSelected: isSelected))
-    }
-
-    @ViewBuilder
-    func liquidGlassFloating(cornerRadius: CGFloat = 20) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        if #available(iOS 26.0, *) {
-            self.glassEffect(.regular, in: shape)
-        } else {
-            self
-                .background(.bar, in: shape)
-                .overlay(shape.strokeBorder(Color(uiColor: .separator).opacity(0.55), lineWidth: 0.6))
-                .shadow(color: Color.black.opacity(0.10), radius: 8, y: 3)
-        }
-    }
-
-    @ViewBuilder
-    func medxNavigationGlass(cornerRadius: CGFloat = 16, tint: Color? = nil, interactive: Bool = true) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        if #available(iOS 26.0, *) {
-            if let tint {
-                self.glassEffect(interactive ? .regular.tint(tint).interactive() : .regular.tint(tint), in: shape)
-            } else {
-                self.glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
+    /// Bar-style chrome that floats over scrolling content: bottom action bars, toolbars.
+    ///
+    /// This is the only place in the app that uses a material. `.bar` is what a real
+    /// `UIToolbar` uses, and as a `ShapeStyle` background it extends into the safe area on
+    /// its own — so the bar reaches the bottom edge instead of leaving a stripe of page
+    /// above the home indicator.
+    func medxBar(topDivider: Bool = false) -> some View {
+        self
+            .background(.bar)
+            .overlay(alignment: .top) {
+                if topDivider {
+                    Rectangle()
+                        .fill(MedxSurface.separator.opacity(0.5))
+                        .frame(height: MedxSurface.hairline)
+                }
             }
-        } else {
-            self
-                .background(.thinMaterial, in: shape)
-                .overlay(shape.strokeBorder(Color(uiColor: .separator).opacity(0.52), lineWidth: 0.6))
-                .shadow(color: Color.black.opacity(0.08), radius: 6, y: 2)
-        }
-    }
-
-    @ViewBuilder
-    func liquidGlassCapsule(tintColor: Color? = nil) -> some View {
-        let tint = tintColor ?? Color.accentColor
-        if #available(iOS 26.0, *) {
-            self.glassEffect(.regular.tint(tint), in: Capsule())
-        } else {
-            self
-                .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
-                .overlay(Capsule().strokeBorder(tint.opacity(0.28), lineWidth: 0.6))
-        }
-    }
-
-    func elevatedCard(cornerRadius: CGFloat = 16) -> some View {
-        modifier(LiquidGlassCardModifier(cornerRadius: cornerRadius, shadowLevel: 2))
-    }
-
-    @ViewBuilder
-    func liquidGlassCircle(tintColor: Color? = nil) -> some View {
-        let tint = tintColor ?? Color.accentColor
-        if #available(iOS 26.0, *) {
-            self.glassEffect(.regular.tint(tint).interactive(), in: Circle())
-        } else {
-            self
-                .background(.thinMaterial, in: Circle())
-                .overlay(Circle().strokeBorder(tint.opacity(0.32), lineWidth: 0.6))
-                .shadow(color: Color.black.opacity(0.08), radius: 5, y: 2)
-        }
     }
 }
 
+// MARK: - Section header
+
+/// `Text` in the system's grouped-list header voice, for use above cards in a ScrollView.
+public struct MedxSectionHeader<Trailing: View>: View {
+    private let title: String
+    private let subtitle: String?
+    private let trailing: Trailing
+
+    public init(_ title: String, subtitle: String? = nil, @ViewBuilder trailing: () -> Trailing) {
+        self.title = title
+        self.subtitle = subtitle
+        self.trailing = trailing()
+    }
+
+    public var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            trailing
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
+public extension MedxSectionHeader where Trailing == EmptyView {
+    init(_ title: String, subtitle: String? = nil) {
+        self.init(title, subtitle: subtitle) { EmptyView() }
+    }
+}
+
+// MARK: - Metrics
+
+/// A single figure in a stats row. Quiet by default: the glyph carries the colour,
+/// the tile stays neutral so a row of them does not read as five different alerts.
 public struct MedxMetric: View {
     public let icon: String
     public let value: String
@@ -164,37 +185,41 @@ public struct MedxMetric: View {
     public var body: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
                     Image(systemName: icon)
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(color)
                     Text(value)
                         .font(.body.monospacedDigit().weight(.semibold))
                     Text(label.capitalized)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
                 }
             } else {
-                VStack(spacing: 3) {
-                    HStack(spacing: 5) {
-                        Image(systemName: icon)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(color)
-                        Text(value)
-                            .font(.subheadline.monospacedDigit().weight(.semibold))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
-                    }
-                    Text(label.capitalized)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Image(systemName: icon)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(color)
+
+                    Text(value)
+                        .font(.title3.monospacedDigit().weight(.semibold))
                         .lineLimit(1)
+                        .minimumScaleFactor(0.65)
+
+                    Text(label.capitalized)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 52)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .medxTile()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
         .accessibilityValue(value)
@@ -210,7 +235,7 @@ public struct MedxMetricsRow<Content: View>: View {
 
     public var body: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
                 content
             }
 
@@ -221,23 +246,88 @@ public struct MedxMetricsRow<Content: View>: View {
     }
 }
 
-@available(iOS 26.0, *)
-public struct MedxGlassControl<Label: View>: View {
-    private let tint: Color?
-    private let action: () -> Void
-    private let label: () -> Label
+// MARK: - Small controls
 
-    public init(tint: Color? = nil, action: @escaping () -> Void, @ViewBuilder label: @escaping () -> Label) {
+/// Circular icon button with a 44pt hit target — close, bookmark, overflow.
+public struct MedxCircleButton: View {
+    public let icon: String
+    public var tint: Color?
+    public var filled: Bool
+    public let accessibilityLabel: String
+    public var accessibilityValue: String?
+    public let action: () -> Void
+
+    public init(
+        icon: String,
+        tint: Color? = nil,
+        filled: Bool = false,
+        accessibilityLabel: String,
+        accessibilityValue: String? = nil,
+        action: @escaping () -> Void
+    ) {
+        self.icon = icon
         self.tint = tint
+        self.filled = filled
+        self.accessibilityLabel = accessibilityLabel
+        self.accessibilityValue = accessibilityValue
         self.action = action
-        self.label = label
     }
 
     public var body: some View {
         Button(action: action) {
-            label()
-                .frame(minWidth: 44, minHeight: 44)
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(filled ? Color.white : (tint ?? Color.primary))
+                .frame(width: 32, height: 32)
+                .background {
+                    Circle().fill(filled ? (tint ?? Color.accentColor) : MedxSurface.fieldFill)
+                }
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
         }
-        .buttonStyle(.glass(tint.map { .regular.tint($0) } ?? .regular))
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(accessibilityValue ?? "")
+    }
+}
+
+/// Compact status chip. One weight, one shape, everywhere.
+public struct MedxChip: View {
+    public let text: String
+    public var icon: String?
+    public var tint: Color
+
+    public init(_ text: String, icon: String? = nil, tint: Color = .secondary) {
+        self.text = text
+        self.icon = icon
+        self.tint = tint
+    }
+
+    public var body: some View {
+        HStack(spacing: 4) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .bold))
+            }
+            Text(text)
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(tint.opacity(0.14), in: Capsule())
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Trailing disclosure glyph matching the system's grouped-list chevron.
+public struct MedxDisclosure: View {
+    public init() {}
+
+    public var body: some View {
+        Image(systemName: "chevron.right")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.tertiary)
+            .accessibilityHidden(true)
     }
 }

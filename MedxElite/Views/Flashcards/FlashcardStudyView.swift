@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Contact-sheet of one subject's flashcards. The artwork variant is detected from the
-/// device and the live window size — there is no layout picker to get wrong.
+/// Contact sheet of one subject's flashcards. The artwork variant is detected from the
+/// device and the live window size, and can be overridden from the toolbar.
 public struct FlashcardStudyView: View {
     public let subject: FlashcardSubject
 
@@ -28,8 +28,8 @@ public struct FlashcardStudyView: View {
     public var body: some View {
         FlashcardLayoutReader { layout in
             ScrollView {
-                VStack(spacing: 14) {
-                    summaryBar(layout: layout)
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    countLine
 
                     if cards.isEmpty {
                         ContentUnavailableView(
@@ -49,12 +49,24 @@ public struct FlashcardStudyView: View {
                         grid(layout: layout)
                     }
                 }
-                .padding(.bottom, 36)
+                .padding(.horizontal, MedxSurface.gutter)
+                .padding(.top, 6)
+                .padding(.bottom, 32)
             }
-            .background(Color(uiColor: .systemGroupedBackground))
+            .background(MedxSurface.groupedBackground)
         }
         .navigationTitle(subject.name)
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                FlashcardArtworkMenu {
+                    Image(systemName: "rectangle.on.rectangle.angled")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+            }
+        }
         .searchable(
             text: $searchText,
             placement: .navigationBarDrawer(displayMode: .automatic),
@@ -65,31 +77,11 @@ public struct FlashcardStudyView: View {
         }
     }
 
-    // MARK: - Header
-
-    private func summaryBar(layout: FlashcardLayout) -> some View {
-        HStack(spacing: 10) {
-            Label("\(cards.count) cards", systemImage: "rectangle.stack.fill")
-                .font(MedxFont.label(12))
-                .foregroundStyle(MedxTheme.indigoAccent)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(MedxTheme.indigoAccent.opacity(0.10), in: Capsule())
-
-            Spacer(minLength: 8)
-
-            // Read-only: shows what the app picked, it is not a control.
-            Label(layout.label, systemImage: layout.iconName)
-                .font(MedxFont.label(11))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
-                .accessibilityLabel("Artwork detected for this device")
-                .accessibilityValue(layout.label)
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 6)
+    private var countLine: some View {
+        Text(cards.count == 1 ? "1 card" : "\(cards.count) cards")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 2)
     }
 
     // MARK: - Grid
@@ -100,8 +92,8 @@ public struct FlashcardStudyView: View {
         let maximum: CGFloat = layout.orientation == .landscape ? 320 : 210
 
         return LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: minimum, maximum: maximum), spacing: 14)],
-            spacing: 14
+            columns: [GridItem(.adaptive(minimum: minimum, maximum: maximum), spacing: 12)],
+            spacing: 12
         ) {
             ForEach(Array(filteredCards.enumerated()), id: \.element.id) { index, card in
                 Button {
@@ -111,19 +103,18 @@ public struct FlashcardStudyView: View {
                     cardTile(card, number: index + 1, layout: layout)
                 }
                 .buttonStyle(.plain)
-                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .accessibilityLabel("Flashcard \(index + 1), \(card.name)")
                 .accessibilityHint("Opens the full-screen viewer")
             }
         }
-        .padding(.horizontal, 20)
     }
 
     private func cardTile(_ card: FlashcardCard, number: Int, layout: FlashcardLayout) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topLeading) {
-                // `Color.clear` fixes the tile height to the artwork's aspect ratio, then the
-                // image fills that box — the thumbnail never jumps as images load in.
+                // `Color.clear` fixes the tile height to the artwork's aspect ratio, then
+                // the image fills that box — the thumbnail never jumps as images load in.
                 Color.clear
                     .aspectRatio(layout.aspectRatio, contentMode: .fit)
                     .overlay(
@@ -135,42 +126,42 @@ public struct FlashcardStudyView: View {
                     .clipped()
 
                 Text("\(number)")
-                    .font(MedxFont.mono(10, weight: .bold))
+                    .font(.caption2.weight(.bold).monospacedDigit())
                     .foregroundStyle(.white)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
-                    .background(Color.black.opacity(0.45), in: Capsule())
+                    .background(Color.black.opacity(0.5), in: Capsule())
                     .padding(8)
             }
             .clipShape(
                 UnevenRoundedRectangle(
-                    topLeadingRadius: 18,
+                    topLeadingRadius: 14,
                     bottomLeadingRadius: 0,
                     bottomTrailingRadius: 0,
-                    topTrailingRadius: 18,
+                    topTrailingRadius: 14,
                     style: .continuous
                 )
             )
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(card.name)
-                    .font(MedxFont.headline(13))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
                 if let chapter = card.chapter, !chapter.isEmpty {
                     Text(chapter)
-                        .font(MedxFont.caption(11))
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
         }
-        .glassCard(cornerRadius: 18, shadowLevel: 1)
+        .medxCard(cornerRadius: 14)
     }
 }
 

@@ -1,6 +1,8 @@
 import SwiftUI
 
 public extension Color {
+    /// Hex initialiser. Used by `Profile`, whose accent and gradient come from the
+    /// backend as hex strings.
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         var int: UInt64 = 0
@@ -25,14 +27,19 @@ public extension Color {
         )
     }
 
-    // Native iOS system label colors
+    // System label colours, spelled as SwiftUI colours.
     static let secondaryLabel = Color(uiColor: .secondaryLabel)
     static let tertiaryLabel = Color(uiColor: .tertiaryLabel)
     static let quaternaryLabel = Color(uiColor: .quaternaryLabel)
 }
 
+/// Semantic colour tokens.
+///
+/// Every one is a *system* colour, so the whole app inverts correctly in Dark Mode and
+/// respects Increase Contrast without a second palette. The tokens exist to give meaning
+/// a name — "correct" is green, "ungraded" is orange — not to invent brand colours. Plain
+/// UI accents use `Color.accentColor` directly.
 public enum MedxTheme {
-    // MARK: - Brand Accents (iOS Dynamic Colors)
     public static let primaryBlue = Color(uiColor: .systemBlue)
     public static let primaryPurple = Color(uiColor: .systemPurple)
     public static let primaryPink = Color(uiColor: .systemPink)
@@ -41,82 +48,36 @@ public enum MedxTheme {
     public static let destructiveRed = Color(uiColor: .systemRed)
     public static let cyanAccent = Color(uiColor: .systemCyan)
     public static let indigoAccent = Color(uiColor: .systemIndigo)
-    public static let mintAccent = Color(uiColor: .systemMint)
     public static let tealAccent = Color(uiColor: .systemTeal)
 
-    // MARK: - Semantic Backgrounds (System Dynamic)
-    public static let background = Color(uiColor: .systemBackground)
-    public static let secondaryBackground = Color(uiColor: .secondarySystemBackground)
-    public static let tertiaryBackground = Color(uiColor: .tertiarySystemBackground)
-    public static let groupedBackground = Color(uiColor: .systemGroupedBackground)
+    // MARK: - Rich-text colours
+    //
+    // Arise's question HTML carries hard-coded inline colours from a light-mode web
+    // editor: `color:#fff` on white, `background-color:#ffffff` highlights, black body
+    // text. Rendered verbatim, those words vanish in Dark Mode. `MedxRichText` maps them
+    // onto these dynamic tokens instead, so a highlight stays a highlight in both
+    // appearances and coloured emphasis keeps its meaning without failing contrast.
+    public enum RichText {
+        /// Body copy. Always the system label so it inverts with the appearance.
+        public static var label: UIColor { .label }
+        public static var secondaryLabel: UIColor { .secondaryLabel }
 
-    // MARK: - Semantic Card Fills
-    /// Adaptive card fill for grouped content
-    public static let cardFill = Color(uiColor: .secondarySystemGroupedBackground)
-    /// Elevated card fill for floating elements
-    public static let elevatedFill = Color(uiColor: .tertiarySystemBackground)
-    /// Subtle separator
-    public static let separator = Color(uiColor: .separator)
-
-    // MARK: - Vibrant Label Colors
-    public static let vibrancyPrimary = Color(uiColor: .label)
-    public static let vibrancySecondary = Color(uiColor: .secondaryLabel)
-    public static let vibrancyTertiary = Color(uiColor: .tertiaryLabel)
-    public static let vibrancyQuaternary = Color(uiColor: .quaternaryLabel)
-
-    // MARK: - Premium Gradients
-    public static let auroraGradient = LinearGradient(
-        colors: [
-            Color(hex: "#0A84FF").opacity(0.85),
-            Color(hex: "#BF5AF2").opacity(0.85),
-            Color(hex: "#FF375F").opacity(0.85)
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-
-    public static let oceanGradient = LinearGradient(
-        colors: [Color(hex: "#0A84FF"), Color(hex: "#5AC8FA"), Color(hex: "#64D2FF")],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-
-    public static let sunsetGradient = LinearGradient(
-        colors: [Color(hex: "#FF9F0A"), Color(hex: "#FF375F"), Color(hex: "#BF5AF2")],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-
-    public static let emeraldGradient = LinearGradient(
-        colors: [Color(hex: "#30D158"), Color(hex: "#63E6BE"), Color(hex: "#5AC8FA")],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-
-    // MARK: - Card Glass Gradients
-    public static let cardGlassGradient = LinearGradient(
-        colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-
-    public static let darkCardGlassGradient = LinearGradient(
-        colors: [Color(hex: "#1C1C1E").opacity(0.8), Color(hex: "#0E0E10").opacity(0.9)],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-
-    // MARK: - Shadow Presets
-    public enum Shadow {
-        /// Subtle shadow — elevation 1
-        public static let subtle = (color: Color.black.opacity(0.06), radius: CGFloat(4), y: CGFloat(2))
-        /// Medium shadow — elevation 2
-        public static let medium = (color: Color.black.opacity(0.10), radius: CGFloat(10), y: CGFloat(4))
-        /// Prominent shadow — elevation 3
-        public static let prominent = (color: Color.black.opacity(0.16), radius: CGFloat(20), y: CGFloat(8))
-        /// Colored shadow for accented elements
-        public static func colored(_ color: Color) -> (color: Color, radius: CGFloat, y: CGFloat) {
-            (color: color.opacity(0.35), radius: 16, y: 6)
+        /// Replaces any authored highlight (`<mark>`, `background-color`, white-on-white
+        /// spans): warm yellow in light, deep amber in dark, label-coloured text on top.
+        public static var highlightBackground: UIColor {
+            UIColor { traits in
+                traits.userInterfaceStyle == .dark
+                    ? UIColor(red: 0.62, green: 0.46, blue: 0.05, alpha: 0.45)
+                    : UIColor(red: 1.00, green: 0.91, blue: 0.45, alpha: 0.75)
+            }
         }
+
+        public static var highlightForeground: UIColor { .label }
+
+        public static var emphasisRed: UIColor { .systemRed }
+        public static var emphasisGreen: UIColor { .systemGreen }
+        public static var emphasisBlue: UIColor { .systemBlue }
+        public static var emphasisOrange: UIColor { .systemOrange }
+        public static var emphasisPurple: UIColor { .systemPurple }
     }
 }

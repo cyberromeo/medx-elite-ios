@@ -1,188 +1,182 @@
 import SwiftUI
 import Charts
 
+/// Accuracy across recent sittings. Real data only — the old version drew five invented
+/// data points when the student had no attempts, which made an empty account look busy.
 public struct AnalyticsCard: View {
     public let attempts: [SittingAttempt]
-    @State private var selectedPointIndex: Int?
 
     public init(attempts: [SittingAttempt]) {
         self.attempts = attempts
     }
 
-    private struct ChartDataPoint: Identifiable {
+    private struct Point: Identifiable {
         let id: Int
         let label: String
         let accuracy: Double
-        let questionsCount: Int
+        let attempted: Int
     }
 
-    private var chartPoints: [ChartDataPoint] {
-        let recent = attempts.suffix(8)
-        guard !recent.isEmpty else {
-            // Default baseline if no attempts yet
-            return [
-                ChartDataPoint(id: 1, label: "Set 1", accuracy: 65, questionsCount: 20),
-                ChartDataPoint(id: 2, label: "Set 2", accuracy: 72, questionsCount: 25),
-                ChartDataPoint(id: 3, label: "Set 3", accuracy: 80, questionsCount: 30),
-                ChartDataPoint(id: 4, label: "Set 4", accuracy: 78, questionsCount: 20),
-                ChartDataPoint(id: 5, label: "Set 5", accuracy: 85, questionsCount: 40)
-            ]
-        }
+    private var recentAttempts: [SittingAttempt] {
+        Array(
+            attempts
+                .filter { $0.attempted > 0 }
+                .sorted { ($0.finishedAt ?? "") < ($1.finishedAt ?? "") }
+                .suffix(10)
+        )
+    }
 
-        return recent.enumerated().map { idx, a in
-            let acc = a.attempted > 0 ? Double(a.score) / Double(a.attempted) * 100.0 : 0.0
-            let name = a.subject?.prefix(4).uppercased() ?? "S\(idx + 1)"
-            return ChartDataPoint(id: idx + 1, label: String(name), accuracy: acc, questionsCount: a.attempted)
+    private var points: [Point] {
+        recentAttempts.enumerated().map { index, attempt in
+            Point(
+                id: index,
+                label: "\(index + 1)",
+                accuracy: Double(attempt.score) / Double(max(attempt.attempted, 1)) * 100,
+                attempted: attempt.attempted
+            )
         }
     }
 
     private var averageAccuracy: Int {
-        let totalAttempted = attempts.reduce(0) { $0 + $1.attempted }
-        let totalCorrect = attempts.reduce(0) { $0 + $1.score }
-        guard totalAttempted > 0 else { return chartPoints.isEmpty ? 0 : 76 }
-        return Int(round(Double(totalCorrect) / Double(totalAttempted) * 100.0))
+        let attemptedTotal = attempts.reduce(0) { $0 + $1.attempted }
+        guard attemptedTotal > 0 else { return 0 }
+        let correctTotal = attempts.reduce(0) { $0 + $1.score }
+        return Int((Double(correctTotal) / Double(attemptedTotal) * 100).rounded())
     }
 
-    private var totalQuestionsSolved: Int {
-        let total = attempts.reduce(0) { $0 + $1.attempted }
-        return total > 0 ? total : 135
+    private var solvedTotal: Int {
+        attempts.reduce(0) { $0 + $1.attempted }
+    }
+
+    private var trend: Int? {
+        guard points.count >= 4 else { return nil }
+        let half = points.count / 2
+        let earlier = points.prefix(half).map(\.accuracy).reduce(0, +) / Double(half)
+        let later = points.suffix(points.count - half).map(\.accuracy).reduce(0, +) / Double(points.count - half)
+        return Int((later - earlier).rounded())
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // Header
-            HStack {
-                HStack(spacing: 6) {
-                    Image(systemName: "chart.xyaxis.line")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(MedxTheme.primaryBlue)
+            header
 
-                    Text("Performance Analytics")
-                        .font(MedxFont.headline(16))
-                }
-
-                Spacer()
-
-                Text("Recent Sittings")
-                    .font(MedxFont.mono(11, weight: .semibold))
-                    .foregroundColor(.secondary)
+            if points.isEmpty {
+                emptyState
+            } else {
+                statsRow
+                chart
             }
-
-            // Stat Badges
-            HStack(spacing: 12) {
-                statPill(
-                    icon: "target",
-                    value: "\(averageAccuracy)%",
-                    label: "avg accuracy",
-                    color: MedxTheme.successGreen
-                )
-
-                statPill(
-                    icon: "checkmark.circle.fill",
-                    value: "\(totalQuestionsSolved)",
-                    label: "solved",
-                    color: MedxTheme.primaryBlue
-                )
-
-                Spacer()
-            }
-
-            // Native Apple Swift Chart
-            Chart {
-                ForEach(chartPoints) { pt in
-                    // Area Gradient Fill
-                    AreaMark(
-                        x: .value("Sitting", pt.label),
-                        y: .value("Accuracy", pt.accuracy)
-                    )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [MedxTheme.primaryBlue.opacity(0.3), MedxTheme.cyanAccent.opacity(0.02)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .interpolationMethod(.catmullRom)
-
-                    // Line Mark
-                    LineMark(
-                        x: .value("Sitting", pt.label),
-                        y: .value("Accuracy", pt.accuracy)
-                    )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [MedxTheme.primaryBlue, MedxTheme.cyanAccent],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-                    .interpolationMethod(.catmullRom)
-
-                    // Point Marks
-                    PointMark(
-                        x: .value("Sitting", pt.label),
-                        y: .value("Accuracy", pt.accuracy)
-                    )
-                    .foregroundStyle(MedxTheme.primaryBlue)
-                    .symbolSize(28)
-                }
-            }
-            .chartYScale(domain: 40...100)
-            .chartYAxis {
-                AxisMarks(position: .leading, values: [50, 75, 100]) { value in
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
-                        .foregroundStyle(Color.primary.opacity(0.08))
-                    AxisValueLabel {
-                        if let intVal = value.as(Int.self) {
-                            Text("\(intVal)%")
-                                .font(MedxFont.mono(10))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-            }
-            .chartXAxis {
-                AxisMarks { value in
-                    AxisValueLabel {
-                        if let str = value.as(String.self) {
-                            Text(str)
-                                .font(MedxFont.mono(10, weight: .semibold))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-            }
-            .frame(height: 140)
-            .padding(.top, 4)
         }
         .padding(18)
-        .liquidGlassCard(cornerRadius: 22, glowColor: MedxTheme.primaryBlue)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .medxCard(cornerRadius: 20)
     }
 
-        private func statPill(icon: String, value: String, label: String, color: Color) -> some View {
-        VStack(spacing: 3) {
-            HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(color)
-                Text(value)
-                    .font(.subheadline.monospacedDigit().weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .allowsTightening(true)
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("Accuracy")
+                .font(.headline)
+
+            Spacer(minLength: 8)
+
+            if let trend, trend != 0 {
+                Label(
+                    "\(trend > 0 ? "+" : "")\(trend)%",
+                    systemImage: trend > 0 ? "arrow.up.right" : "arrow.down.right"
+                )
+                .font(.caption.weight(.semibold).monospacedDigit())
+                .foregroundStyle(trend > 0 ? MedxTheme.successGreen : MedxTheme.warningOrange)
+                .accessibilityLabel(trend > 0 ? "Improving by \(trend) percent" : "Down \(abs(trend)) percent")
+            } else if !points.isEmpty {
+                Text("Last \(points.count) sittings")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            Text(label.capitalized)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
         }
-        .frame(maxWidth: .infinity, minHeight: 50)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(color.opacity(0.08), in: Capsule())
+    }
+
+    private var statsRow: some View {
+        HStack(spacing: 20) {
+            figure(value: "\(averageAccuracy)%", label: "average")
+            figure(value: solvedTotal.formatted(), label: "answered")
+            figure(value: "\(attempts.count)", label: "sittings")
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func figure(value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(value)
+                .font(.title3.weight(.semibold).monospacedDigit())
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(value) \(label)")
+    }
+
+    private var chart: some View {
+        Chart(points) { point in
+            AreaMark(
+                x: .value("Sitting", point.id),
+                y: .value("Accuracy", point.accuracy)
+            )
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [Color.accentColor.opacity(0.28), Color.accentColor.opacity(0.02)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .interpolationMethod(.monotone)
+
+            LineMark(
+                x: .value("Sitting", point.id),
+                y: .value("Accuracy", point.accuracy)
+            )
+            .foregroundStyle(Color.accentColor)
+            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            .interpolationMethod(.monotone)
+
+            PointMark(
+                x: .value("Sitting", point.id),
+                y: .value("Accuracy", point.accuracy)
+            )
+            .foregroundStyle(Color.accentColor)
+            .symbolSize(22)
+        }
+        .chartYScale(domain: 0...100)
+        .chartYAxis {
+            AxisMarks(position: .leading, values: [0, 50, 100]) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 3]))
+                    .foregroundStyle(MedxSurface.separator)
+                AxisValueLabel {
+                    if let intValue = value.as(Int.self) {
+                        Text("\(intValue)%")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .chartXAxis(.hidden)
+        .frame(height: 132)
+        .accessibilityLabel("Accuracy over the last \(points.count) sittings")
+        .accessibilityValue("Average \(averageAccuracy) percent")
+    }
+
+    private var emptyState: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("No sittings yet")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+            Text("Finish a QBank module or a batch test and your accuracy trend appears here.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 6)
     }
 }

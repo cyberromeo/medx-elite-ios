@@ -55,7 +55,7 @@ public struct RecordedVideo: Identifiable, Hashable, Codable, Sendable {
         } else {
             id = UUID().uuidString
         }
-        source = try container.decodeIfPresent(String.self, forKey: .source)
+        source = try? container.decodeIfPresent(String.self, forKey: .source)
         
         if let bIdStr = try? container.decode(String.self, forKey: .batchId) {
             batchId = bIdStr
@@ -65,7 +65,7 @@ public struct RecordedVideo: Identifiable, Hashable, Codable, Sendable {
             batchId = nil
         }
         
-        batch = try container.decodeIfPresent(String.self, forKey: .batch)
+        batch = try? container.decodeIfPresent(String.self, forKey: .batch)
         
         if let sIdStr = try? container.decode(String.self, forKey: .subjectId) {
             subjectId = sIdStr
@@ -75,13 +75,13 @@ public struct RecordedVideo: Identifiable, Hashable, Codable, Sendable {
             subjectId = nil
         }
         
-        subject = try container.decodeIfPresent(String.self, forKey: .subject) ?? "Subject"
-        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Class Video"
-        faculty = try container.decodeIfPresent(String.self, forKey: .faculty)
-        durationSeconds = try container.decodeIfPresent(Int.self, forKey: .durationSeconds)
-        duration = try container.decodeIfPresent(String.self, forKey: .duration)
-        streamUrl = try container.decodeIfPresent(String.self, forKey: .streamUrl) ?? ""
-        kind = try container.decodeIfPresent(String.self, forKey: .kind)
+        subject = (try? container.decodeIfPresent(String.self, forKey: .subject)) ?? "Subject"
+        title = (try? container.decodeIfPresent(String.self, forKey: .title)) ?? "Class Video"
+        faculty = try? container.decodeIfPresent(String.self, forKey: .faculty)
+        durationSeconds = try? container.decodeIfPresent(Int.self, forKey: .durationSeconds)
+        duration = try? container.decodeIfPresent(String.self, forKey: .duration)
+        streamUrl = (try? container.decodeIfPresent(String.self, forKey: .streamUrl)) ?? ""
+        kind = try? container.decodeIfPresent(String.self, forKey: .kind)
     }
 
     public var formattedDuration: String {

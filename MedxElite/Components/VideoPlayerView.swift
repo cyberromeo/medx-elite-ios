@@ -1,7 +1,9 @@
 import SwiftUI
 import AVKit
 
-/// Native iOS video playback surface backed by AVPlayer and the system AVPlayerViewController controls.
+/// Native playback surface backed by `AVPlayer` and the system `AVPlayerViewController`
+/// controls. Resume is silent: the player simply starts where the student left off, with
+/// no toast to dismiss — the scrubber already says where you are.
 public struct VideoPlayerView: View {
     public let video: RecordedVideo?
     public let streamUrl: String
@@ -11,19 +13,18 @@ public struct VideoPlayerView: View {
 
     @StateObject private var proxy = HLSProxyServer.shared
     @State private var player: AVPlayer?
-    @State private var isLoading = true
     @State private var hasError = false
     @State private var errorMessage = ""
     @State private var timeObserverToken: Any?
-    @State private var showResumeToast = false
-    @State private var resumedFromSeconds: Double = 0
-    @State private var lastCloudSyncTime: Date = Date()
+    @State private var failureObserver: NSObjectProtocol?
+    @State private var lastCloudSyncTime = Date.distantPast
     @State private var usingOfflineCopy = false
     @State private var forceOnlinePlayback = false
     @State private var showOfflineBadge = false
     @ObservedObject private var activityStore = ActivityStore.shared
     @ObservedObject private var authService = AuthService.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     public init(
         streamUrl: String,
@@ -55,119 +56,49 @@ public struct VideoPlayerView: View {
             } else if let currentPlayer = player {
                 ProxiedVideoPlayerController(player: currentPlayer)
                     .ignoresSafeArea()
-
-                if showOfflineBadge {
-                    VStack {
-                        HStack {
-                            offlineBadgeView
-                            Spacer()
-                        }
-                        Spacer()
-                    }
-                    .padding(.top, 18)
-                    .padding(.leading, 20)
-                    .transition(.opacity)
-                    .zIndex(9)
-                }
-
-                if showResumeToast {
-                    VStack {
-                        resumeToastView
-                            .padding(.top, 16)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                        Spacer()
-                    }
-                    .zIndex(10)
-                }
             } else {
                 loadingView
             }
         }
-        .onAppear {
-            setupProxyAndPlayer()
+        .overlay(alignment: .topLeading) {
+            if showOfflineBadge {
+                offlineBadge
+                    .padding(.leading, 18)
+                    .padding(.top, 14)
+                    .transition(.opacity)
+            }
         }
-        .onDisappear {
-            teardownPlayer()
+        .onAppear { setupProxyAndPlayer() }
+        .onDisappear { teardownPlayer() }
+        .onChange(of: scenePhase) { _, phase in
+            // Playback continues in the background (audio is a declared background mode),
+            // so the position is checkpointed on the way out rather than lost.
+            if phase != .active { recordProgress(syncToCloud: true) }
         }
         .statusBarHidden(true)
         .background(Color.black)
     }
 
-    private var offlineBadgeView: some View {
+    // MARK: - Overlays
+
+    private var offlineBadge: some View {
         Label("Playing your download", systemImage: "arrow.down.circle.fill")
-            .font(MedxFont.label(11))
+            .font(.caption.weight(.semibold))
             .foregroundStyle(.white)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(.ultraThinMaterial, in: Capsule())
-            .overlay(Capsule().strokeBorder(MedxTheme.successGreen.opacity(0.45), lineWidth: 1))
             .accessibilityLabel("Playing the offline download")
     }
 
-    private var resumeToastView: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "arrow.counterclockwise.circle.fill")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(MedxTheme.cyanAccent)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Resumed Playback")
-                    .font(MedxFont.headline(13))
-                    .foregroundColor(.white)
-                Text("Playing from \(formatTime(resumedFromSeconds))")
-                    .font(MedxFont.caption(11))
-                    .foregroundColor(.white.opacity(0.8))
-            }
-
-            Spacer(minLength: 8)
-
-            Button {
-                HapticManager.selection()
-                restartFromBeginning()
-            } label: {
-                Text("Start Over")
-                    .font(MedxFont.label(12))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.2), in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Restart video from beginning")
-
-            Button {
-                withAnimation(.easeOut(duration: 0.25)) {
-                    showResumeToast = false
-                }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.white.opacity(0.7))
-                    .frame(width: 28, height: 28)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss resume notification")
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(MedxTheme.cyanAccent.opacity(0.3), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 6)
-        .padding(.horizontal, 24)
-    }
-
     private var loadingView: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 16) {
             ProgressView()
                 .controlSize(.large)
                 .tint(.white)
-
-            Text("Loading video stream…")
-                .font(.body)
-                .foregroundStyle(.secondary)
+            Text("Loading video…")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.7))
         }
         .padding(32)
         .accessibilityElement(children: .combine)
@@ -177,8 +108,8 @@ public struct VideoPlayerView: View {
     private var errorView: some View {
         VStack(spacing: 20) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(.yellow)
+                .font(.system(size: 38))
+                .foregroundStyle(MedxTheme.warningOrange)
                 .accessibilityHidden(true)
 
             VStack(spacing: 8) {
@@ -187,8 +118,8 @@ public struct VideoPlayerView: View {
                     .foregroundStyle(.white)
 
                 Text(errorMessage)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.7))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
             }
@@ -203,23 +134,24 @@ public struct VideoPlayerView: View {
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
                 .tint(.white)
                 .foregroundStyle(.black)
 
-                Button("Close") {
-                    closePlayer()
-                }
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .buttonStyle(.bordered)
-                .tint(.white)
+                Button("Close") { closePlayer() }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .tint(.white)
             }
             .frame(maxWidth: 320)
         }
         .padding(24)
     }
 
+    // MARK: - Setup
+
     private func setupProxyAndPlayer() {
-        isLoading = true
         hasError = false
 
         do {
@@ -234,8 +166,8 @@ public struct VideoPlayerView: View {
         }
 
         // `waitUntilRunning` starts the listener and waits for the port to be bound
-        // instead of guessing at a delay: without a port there is no offline URL, and
-        // the download would look broken.
+        // instead of guessing at a delay: without a port there is no offline URL, and the
+        // download would look broken.
         Task { @MainActor in
             _ = await proxy.waitUntilRunning()
             createPlayer()
@@ -243,11 +175,47 @@ public struct VideoPlayerView: View {
     }
 
     private func createPlayer() {
-        let playbackURL: URL?
-        var isOffline = false
+        guard let url = resolvePlaybackURL() else { return }
 
-        let hasDownload = video.map { video in
-            VideoDownloadStore.shared.isDownloaded(video.id) || VideoDownloadStore.hasOfflineCopy(video.id)
+        let item = AVPlayerItem(asset: AVURLAsset(url: url))
+        let newPlayer = AVPlayer(playerItem: item)
+        newPlayer.allowsExternalPlayback = true
+        newPlayer.preventsDisplaySleepDuringVideoPlayback = true
+        newPlayer.automaticallyWaitsToMinimizeStalling = true
+
+        // Silent resume. AVPlayer queues a seek issued before the item is ready and
+        // applies it once it is, so no readiness dance is needed here.
+        if let video,
+           let history = activityStore.entry(for: video.id, uid: authService.currentSession?.uid),
+           history.resumePosition > 5 {
+            newPlayer.seek(
+                to: CMTime(seconds: history.resumePosition, preferredTimescale: 600),
+                toleranceBefore: .zero,
+                toleranceAfter: CMTime(seconds: 1, preferredTimescale: 600)
+            )
+        }
+
+        newPlayer.playImmediately(atRate: 1.0)
+        installObservers(on: newPlayer, item: item)
+
+        player = newPlayer
+
+        guard usingOfflineCopy else { return }
+        withAnimation(.easeOut(duration: 0.25)) { showOfflineBadge = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            withAnimation(.easeOut(duration: 0.25)) { self.showOfflineBadge = false }
+        }
+        // A rewritten local playlist can still be rejected by AVFoundation, so give it a
+        // few seconds and quietly fall back to streaming instead of dead-ending.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+            guard self.usingOfflineCopy, self.player?.currentItem?.status == .failed else { return }
+            self.fallBackToOnlinePlayback()
+        }
+    }
+
+    private func resolvePlaybackURL() -> URL? {
+        let hasDownload = video.map {
+            VideoDownloadStore.shared.isDownloaded($0.id) || VideoDownloadStore.hasOfflineCopy($0.id)
         } ?? false
 
         if !forceOnlinePlayback,
@@ -256,72 +224,38 @@ public struct VideoPlayerView: View {
            let offlineURL = proxy.offlineURL(videoId: video.id) {
             // AVFoundation cannot load an HLS playlist from `file://`, so the saved
             // playlist is served over the loopback proxy. No network is involved.
-            playbackURL = offlineURL
-            isOffline = true
-            print("[VideoPlayer] Using offline download on port \(proxy.port)")
-        } else if let proxied = proxy.proxiedURL(for: streamUrl) {
-            playbackURL = proxied
-            print("[VideoPlayer] Using proxied URL on port \(proxy.port)")
-        } else if let direct = URL(string: streamUrl) {
-            playbackURL = direct
-            print("[VideoPlayer] Proxy unavailable, using direct URL")
-        } else {
-            hasError = true
-            errorMessage = "Invalid stream URL"
-            isLoading = false
-            return
+            usingOfflineCopy = true
+            return offlineURL
         }
 
-        guard let url = playbackURL else { return }
+        usingOfflineCopy = false
 
-        usingOfflineCopy = isOffline
+        if let proxied = proxy.proxiedURL(for: streamUrl) { return proxied }
+        if let direct = URL(string: streamUrl) { return direct }
 
-        let asset = AVURLAsset(url: url)
-        let item = AVPlayerItem(asset: asset)
-        let player = AVPlayer(playerItem: item)
-        player.allowsExternalPlayback = true
-        player.preventsDisplaySleepDuringVideoPlayback = true
+        hasError = true
+        errorMessage = "This class has no valid stream URL."
+        return nil
+    }
 
-        if let video, let history = activityStore.entry(for: video.id, uid: authService.currentSession?.uid), history.resumePosition > 5 {
-            let targetSeconds = history.resumePosition
-            player.seek(to: CMTime(seconds: targetSeconds, preferredTimescale: 600))
-            self.resumedFromSeconds = targetSeconds
-            withAnimation(.easeOut(duration: 0.35)) {
-                self.showResumeToast = true
-            }
-            // Auto dismiss toast after 4.5 seconds
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
-                withAnimation(.easeOut(duration: 0.35)) {
-                    self.showResumeToast = false
-                }
-            }
+    // MARK: - Observers
+
+    private func installObservers(on newPlayer: AVPlayer, item: AVPlayerItem) {
+        timeObserverToken = newPlayer.addPeriodicTimeObserver(
+            forInterval: CMTime(seconds: 5, preferredTimescale: 600),
+            queue: .main
+        ) { _ in
+            // Every 20s the position also goes to Firestore. Offline playback marks the
+            // entry pending instead, and `ActivityStore` retries it on the next sync — so
+            // a class watched from its download still lands on the streaming copy's row.
+            let shouldSync = Date().timeIntervalSince(self.lastCloudSyncTime) >= 20
+            if shouldSync { self.lastCloudSyncTime = Date() }
+            self.recordProgress(syncToCloud: shouldSync)
         }
 
-        player.playImmediately(atRate: 1.0)
-
-        timeObserverToken = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 5, preferredTimescale: 600), queue: .main) { time in
-            guard let video = self.video else { return }
-            let duration = player.currentItem?.duration.seconds ?? Double(video.durationSeconds ?? 0)
-            let currentSecs = time.seconds
-            guard currentSecs.isFinite, currentSecs >= 0 else { return }
-
-            let shouldSyncCloud = Date().timeIntervalSince(self.lastCloudSyncTime) >= 20.0
-            if shouldSyncCloud {
-                self.lastCloudSyncTime = Date()
-            }
-
-            Task { @MainActor in
-                ActivityStore.shared.recordVideoProgress(
-                    video: video,
-                    uid: self.authService.currentSession?.uid,
-                    position: currentSecs,
-                    duration: duration.isFinite ? duration : 0,
-                    syncToCloud: shouldSyncCloud
-                )
-            }
-        }
-
-        NotificationCenter.default.addObserver(
+        // The old code registered this observer on every player it built and never removed
+        // one, so a fall-back to streaming left two live observers behind.
+        failureObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemFailedToPlayToEndTime,
             object: item,
             queue: .main
@@ -335,28 +269,36 @@ public struct VideoPlayerView: View {
                 self.errorMessage = error.localizedDescription
             }
         }
+    }
 
-        self.player = player
-        isLoading = false
-
-        if isOffline {
-            withAnimation(.easeOut(duration: 0.3)) {
-                showOfflineBadge = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                withAnimation(.easeOut(duration: 0.3)) {
-                    self.showOfflineBadge = false
-                }
-            }
-            // A rewritten local playlist can still be rejected by AVFoundation, so give it
-            // a few seconds and quietly fall back to streaming instead of dead-ending.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
-                guard self.usingOfflineCopy, let current = self.player?.currentItem else { return }
-                if current.status == .failed {
-                    self.fallBackToOnlinePlayback()
-                }
-            }
+    private func removeObservers() {
+        if let timeObserverToken, let player {
+            player.removeTimeObserver(timeObserverToken)
         }
+        timeObserverToken = nil
+
+        if let failureObserver {
+            NotificationCenter.default.removeObserver(failureObserver)
+        }
+        failureObserver = nil
+    }
+
+    // MARK: - Progress
+
+    private func recordProgress(syncToCloud: Bool) {
+        guard let video, let player else { return }
+        let position = player.currentTime().seconds
+        guard position.isFinite, position >= 0 else { return }
+
+        let duration = player.currentItem?.duration.seconds ?? Double(video.durationSeconds ?? 0)
+
+        ActivityStore.shared.recordVideoProgress(
+            video: video,
+            uid: authService.currentSession?.uid,
+            position: position,
+            duration: duration.isFinite ? duration : 0,
+            syncToCloud: syncToCloud
+        )
     }
 
     /// Swaps a failed offline copy for the live stream without touching saved progress.
@@ -367,10 +309,7 @@ public struct VideoPlayerView: View {
         forceOnlinePlayback = true
         showOfflineBadge = false
 
-        if let token = timeObserverToken, let player {
-            player.removeTimeObserver(token)
-        }
-        timeObserverToken = nil
+        removeObservers()
         player?.pause()
         player?.replaceCurrentItem(with: nil)
         player = nil
@@ -381,42 +320,9 @@ public struct VideoPlayerView: View {
         }
     }
 
-    private func restartFromBeginning() {
-        guard let player else { return }
-        player.seek(to: .zero)
-        withAnimation(.easeOut(duration: 0.25)) {
-            showResumeToast = false
-        }
-        if let video {
-            let duration = player.currentItem?.duration.seconds ?? Double(video.durationSeconds ?? 0)
-            ActivityStore.shared.recordVideoProgress(
-                video: video,
-                uid: authService.currentSession?.uid,
-                position: 0,
-                duration: duration.isFinite ? duration : 0,
-                syncToCloud: true
-            )
-        }
-    }
-
     private func teardownPlayer() {
-        if let token = timeObserverToken, let player {
-            player.removeTimeObserver(token)
-        }
-        timeObserverToken = nil
-        if let video, let player {
-            let duration = player.currentItem?.duration.seconds ?? Double(video.durationSeconds ?? 0)
-            let position = player.currentTime().seconds
-            if position.isFinite, position >= 0 {
-                ActivityStore.shared.recordVideoProgress(
-                    video: video,
-                    uid: authService.currentSession?.uid,
-                    position: position,
-                    duration: duration.isFinite ? duration : 0,
-                    syncToCloud: true
-                )
-            }
-        }
+        recordProgress(syncToCloud: true)
+        removeObservers()
         player?.pause()
         player?.replaceCurrentItem(with: nil)
         player = nil
@@ -424,27 +330,15 @@ public struct VideoPlayerView: View {
 
     private func closePlayer() {
         player?.pause()
-        if let dismissHandler = onDismiss {
-            dismissHandler()
+        if let onDismiss {
+            onDismiss()
         } else {
             dismiss()
         }
     }
-
-    private func formatTime(_ seconds: Double) -> String {
-        let total = max(Int(seconds), 0)
-        let hours = total / 3600
-        let minutes = (total % 3600) / 60
-        let secs = total % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        } else {
-            return String(format: "%d:%02d", minutes, secs)
-        }
-    }
 }
 
-// MARK: - Native AVPlayerViewController Wrapper
+// MARK: - Native AVPlayerViewController wrapper
 
 struct ProxiedVideoPlayerController: UIViewControllerRepresentable {
     let player: AVPlayer
@@ -464,8 +358,8 @@ struct ProxiedVideoPlayerController: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
-        uiViewController.player = player
-        uiViewController.allowsPictureInPicturePlayback = AVPictureInPictureController.isPictureInPictureSupported()
-        uiViewController.canStartPictureInPictureAutomaticallyFromInline = AVPictureInPictureController.isPictureInPictureSupported()
+        if uiViewController.player !== player {
+            uiViewController.player = player
+        }
     }
 }
