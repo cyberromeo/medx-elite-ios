@@ -103,20 +103,24 @@ final class MedxImageLoader {
     private var inFlight: [String: Task<UIImage?, Never>] = [:]
 
     private init() {
-        memory.countLimit = 160
-        memory.totalCostLimit = 120 * 1024 * 1024
-
+        // `directory` and `session` have no default value, so they must be assigned before
+        // anything touches `self` — including the cache that *does* have one.
         let fileManager = FileManager.default
         let base = fileManager.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        directory = base.appendingPathComponent("MedxImages", isDirectory: true)
-        if !fileManager.fileExists(atPath: directory.path) {
-            try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        }
+        let folder = base.appendingPathComponent("MedxImages", isDirectory: true)
+        directory = folder
 
         let configuration = URLSessionConfiguration.default
         configuration.httpMaximumConnectionsPerHost = 6
         configuration.requestCachePolicy = .returnCacheDataElseLoad
         session = URLSession(configuration: configuration)
+
+        if !fileManager.fileExists(atPath: folder.path) {
+            try? fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
+        }
+
+        memory.countLimit = 160
+        memory.totalCostLimit = 120 * 1024 * 1024
     }
 
     private func key(_ url: URL, maxPixelSize: CGFloat) -> String {
@@ -133,25 +137,34 @@ final class MedxImageLoader {
         let cacheKey = key(url, maxPixelSize: maxPixelSize)
         if let hit = memory.object(forKey: cacheKey as NSString) { return hit }
 
+        // The lock is taken inside synchronous helpers on purpose: `NSLock.lock()` is
+        // unavailable directly from an async context, and holding a lock across an
+        // `await` would be wrong anyway.
+        let task = claimTask(cacheKey: cacheKey, url: url, maxPixelSize: maxPixelSize)
+        let result = await task.value
+        releaseTask(cacheKey: cacheKey)
+        return result
+    }
+
+    /// Returns the in-flight download for this key, starting one if there isn't one, so a
+    /// grid showing the same artwork twice fetches it once.
+    private func claimTask(cacheKey: String, url: URL, maxPixelSize: CGFloat) -> Task<UIImage?, Never> {
         lock.lock()
-        if let existing = inFlight[cacheKey] {
-            lock.unlock()
-            return await existing.value
-        }
+        defer { lock.unlock() }
+
+        if let existing = inFlight[cacheKey] { return existing }
 
         let task = Task<UIImage?, Never> { [weak self] in
             await self?.fetch(url: url, maxPixelSize: maxPixelSize, cacheKey: cacheKey) ?? nil
         }
         inFlight[cacheKey] = task
-        lock.unlock()
+        return task
+    }
 
-        let result = await task.value
-
+    private func releaseTask(cacheKey: String) {
         lock.lock()
+        defer { lock.unlock() }
         inFlight[cacheKey] = nil
-        lock.unlock()
-
-        return result
     }
 
     private func fetch(url: URL, maxPixelSize: CGFloat, cacheKey: String) async -> UIImage? {
@@ -166,7 +179,7 @@ final class MedxImageLoader {
             try? FileManager.default.removeItem(at: fileURL)
         }
 
-        guard let data = await download(url), !data.isEmpty else { return nil }
+        guard let data = await download(url: url), !data.isEmpty else { return nil }
         try? data.write(to: fileURL, options: .atomic)
 
         guard let decoded = Self.downsample(data: data, maxPixelSize: maxPixelSize) else { return nil }
@@ -214,19 +227,19 @@ final class MedxImageLoader {
     /// decode, so the full-size bitmap is never materialised. Runs off the main thread, so
     /// it deliberately reads nothing from `UIScreen`.
     private static func downsample(data: Data, maxPixelSize: CGFloat) -> UIImage? {
-        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
-        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else {
+        let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions as CFDictionary) else {
             return UIImage(data: data)
         }
 
-        let thumbnailOptions = [
+        let thumbnailOptions: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceShouldCacheImmediately: true,
             kCGImageSourceThumbnailMaxPixelSize: max(maxPixelSize, 64)
-        ] as CFDictionary
+        ]
 
-        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions) else {
+        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary) else {
             return UIImage(data: data)
         }
         // Scale 1: `maxPixelSize` is already expressed in pixels and sized generously for

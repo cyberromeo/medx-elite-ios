@@ -28,11 +28,15 @@ struct FlashcardLayoutReader<Content: View>: View {
 
 /// Menu that lets the student pick the artwork variant instead of only being told which
 /// one was detected. Used by the contact sheet and the full-screen viewer.
-struct FlashcardArtworkMenu<Label: View>: View {
+///
+/// The generic parameter is `LabelContent`, not `Label` — naming it `Label` shadows
+/// SwiftUI's `Label` view, and the `Label(_:systemImage:)` rows below would then try to
+/// initialise the generic placeholder instead.
+struct FlashcardArtworkMenu<LabelContent: View>: View {
     @ObservedObject private var settings = FlashcardSettings.shared
-    private let label: Label
+    private let label: LabelContent
 
-    init(@ViewBuilder label: () -> Label) {
+    init(@ViewBuilder label: () -> LabelContent) {
         self.label = label()
     }
 

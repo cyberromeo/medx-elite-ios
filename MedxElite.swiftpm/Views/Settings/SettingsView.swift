@@ -24,6 +24,11 @@ public struct SettingsView: View {
             List {
                 // MARK: - Current Profile
                 if let profile = authService.currentProfile {
+                    // Read once here, in `body`'s own isolation. `PhotosPicker`'s label
+                    // closure is not main-actor isolated, so reaching into the
+                    // main-actor `AvatarStore` from inside it is a concurrency error.
+                    let hasPhoto = avatars.hasImage(for: profile.id)
+
                     Section {
                         HStack(spacing: 16) {
                             ProfileAvatarView(profile: profile, size: 64)
@@ -45,7 +50,7 @@ public struct SettingsView: View {
 
                         PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
                             Label {
-                                Text(avatars.hasImage(for: profile.id) ? "Change Profile Photo" : "Add Profile Photo")
+                                Text(hasPhoto ? "Change Profile Photo" : "Add Profile Photo")
                                     .font(.body)
                             } icon: {
                                 Image(systemName: "person.crop.circle.badge.plus")
@@ -54,7 +59,7 @@ public struct SettingsView: View {
                             .frame(minHeight: 44)
                         }
 
-                        if avatars.hasImage(for: profile.id) {
+                        if hasPhoto {
                             Button(role: .destructive) {
                                 HapticManager.medium()
                                 avatars.removeImage(for: profile.id)

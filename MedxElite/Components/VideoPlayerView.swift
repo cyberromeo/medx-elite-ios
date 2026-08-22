@@ -151,6 +151,7 @@ public struct VideoPlayerView: View {
 
     // MARK: - Setup
 
+    @MainActor
     private func setupProxyAndPlayer() {
         hasError = false
 
@@ -174,6 +175,7 @@ public struct VideoPlayerView: View {
         }
     }
 
+    @MainActor
     private func createPlayer() {
         guard let url = resolvePlaybackURL() else { return }
 
@@ -202,17 +204,24 @@ public struct VideoPlayerView: View {
 
         guard usingOfflineCopy else { return }
         withAnimation(.easeOut(duration: 0.25)) { showOfflineBadge = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-            withAnimation(.easeOut(duration: 0.25)) { self.showOfflineBadge = false }
+
+        // `Task` rather than `DispatchQueue.asyncAfter`: that block is `@Sendable`, so it
+        // does not inherit the main actor and cannot touch this view's state.
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            withAnimation(.easeOut(duration: 0.25)) { showOfflineBadge = false }
         }
+
         // A rewritten local playlist can still be rejected by AVFoundation, so give it a
         // few seconds and quietly fall back to streaming instead of dead-ending.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
-            guard self.usingOfflineCopy, self.player?.currentItem?.status == .failed else { return }
-            self.fallBackToOnlinePlayback()
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard usingOfflineCopy, player?.currentItem?.status == .failed else { return }
+            fallBackToOnlinePlayback()
         }
     }
 
+    @MainActor
     private func resolvePlaybackURL() -> URL? {
         let hasDownload = video.map {
             VideoDownloadStore.shared.isDownloaded($0.id) || VideoDownloadStore.hasOfflineCopy($0.id)
@@ -240,17 +249,23 @@ public struct VideoPlayerView: View {
 
     // MARK: - Observers
 
+    @MainActor
     private func installObservers(on newPlayer: AVPlayer, item: AVPlayerItem) {
+        // Both blocks are delivered on `.main` but are not *typed* as main-actor isolated,
+        // so the work hops onto the actor explicitly rather than touching `@State` and the
+        // main-actor `ActivityStore` from a nonisolated closure.
         timeObserverToken = newPlayer.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: 5, preferredTimescale: 600),
             queue: .main
         ) { _ in
-            // Every 20s the position also goes to Firestore. Offline playback marks the
-            // entry pending instead, and `ActivityStore` retries it on the next sync — so
-            // a class watched from its download still lands on the streaming copy's row.
-            let shouldSync = Date().timeIntervalSince(self.lastCloudSyncTime) >= 20
-            if shouldSync { self.lastCloudSyncTime = Date() }
-            self.recordProgress(syncToCloud: shouldSync)
+            Task { @MainActor in
+                // Every 20s the position also goes to Firestore. Offline playback marks the
+                // entry pending instead, and `ActivityStore` retries it on the next sync —
+                // so a class watched from its download still lands on the streaming row.
+                let shouldSync = Date().timeIntervalSince(self.lastCloudSyncTime) >= 20
+                if shouldSync { self.lastCloudSyncTime = Date() }
+                self.recordProgress(syncToCloud: shouldSync)
+            }
         }
 
         // The old code registered this observer on every player it built and never removed
@@ -260,17 +275,21 @@ public struct VideoPlayerView: View {
             object: item,
             queue: .main
         ) { notification in
-            if self.usingOfflineCopy {
-                self.fallBackToOnlinePlayback()
-                return
-            }
-            if let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error {
-                self.hasError = true
-                self.errorMessage = error.localizedDescription
+            let failure = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error
+            Task { @MainActor in
+                if self.usingOfflineCopy {
+                    self.fallBackToOnlinePlayback()
+                    return
+                }
+                if let failure {
+                    self.hasError = true
+                    self.errorMessage = failure.localizedDescription
+                }
             }
         }
     }
 
+    @MainActor
     private func removeObservers() {
         if let timeObserverToken, let player {
             player.removeTimeObserver(timeObserverToken)
@@ -285,6 +304,7 @@ public struct VideoPlayerView: View {
 
     // MARK: - Progress
 
+    @MainActor
     private func recordProgress(syncToCloud: Bool) {
         guard let video, let player else { return }
         let position = player.currentTime().seconds
@@ -302,6 +322,7 @@ public struct VideoPlayerView: View {
     }
 
     /// Swaps a failed offline copy for the live stream without touching saved progress.
+    @MainActor
     private func fallBackToOnlinePlayback() {
         guard usingOfflineCopy else { return }
         print("[VideoPlayer] Offline copy unplayable, falling back to the stream")
@@ -320,6 +341,7 @@ public struct VideoPlayerView: View {
         }
     }
 
+    @MainActor
     private func teardownPlayer() {
         recordProgress(syncToCloud: true)
         removeObservers()
@@ -328,6 +350,7 @@ public struct VideoPlayerView: View {
         player = nil
     }
 
+    @MainActor
     private func closePlayer() {
         player?.pause()
         if let onDismiss {

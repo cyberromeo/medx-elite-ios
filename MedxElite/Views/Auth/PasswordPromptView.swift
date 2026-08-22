@@ -85,7 +85,10 @@ public struct PasswordPromptView: View {
             }
             .onAppear {
                 // A short delay so the sheet finishes presenting before the keyboard rises.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                // `Task` rather than `DispatchQueue.asyncAfter`, whose block is `@Sendable`
+                // and so cannot touch `@FocusState`.
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 350_000_000)
                     isFocused = true
                 }
             }
