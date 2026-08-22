@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 public struct FlashcardSubject: Identifiable, Hashable, Codable, Sendable {
@@ -113,6 +114,11 @@ public struct FlashcardVariants: Hashable, Codable, Sendable {
             return tabletLandscape ?? anyVariantUrl
         }
     }
+
+    /// Preferred artwork for the layout the app detected for itself.
+    public func url(for layout: FlashcardLayout) -> String? {
+        urlFor(device: layout.device, orientation: layout.orientation)
+    }
 }
 
 public enum FlashcardDevice: String, CaseIterable, Identifiable, Sendable {
@@ -125,4 +131,48 @@ public enum FlashcardOrientation: String, CaseIterable, Identifiable, Sendable {
     case portrait = "Portrait"
     case landscape = "Landscape"
     public var id: String { rawValue }
+}
+
+/// Which artwork a flashcard should use, worked out from the running device instead of
+/// asking the student to pick Mobile/Tablet × Portrait/Landscape by hand.
+public struct FlashcardLayout: Hashable, Sendable {
+    public let device: FlashcardDevice
+    public let orientation: FlashcardOrientation
+
+    public init(device: FlashcardDevice, orientation: FlashcardOrientation) {
+        self.device = device
+        self.orientation = orientation
+    }
+
+    /// - Parameters:
+    ///   - size: the space the cards are actually drawn in, so a rotation or a resized
+    ///     Split View window re-reads as landscape/portrait on its own.
+    ///   - isRegularWidth: an iPad squeezed into a compact column is served the phone
+    ///     artwork, which is drawn for narrow layouts and stays legible.
+    ///   - isPadIdiom: true on iPad hardware (including an iPad app on macOS/Vision).
+    public static func detect(in size: CGSize, isRegularWidth: Bool, isPadIdiom: Bool) -> FlashcardLayout {
+        FlashcardLayout(
+            device: (isPadIdiom && isRegularWidth) ? .tablet : .mobile,
+            orientation: size.width > size.height ? .landscape : .portrait
+        )
+    }
+
+    /// Aspect ratio to reserve for a thumbnail before the image has loaded.
+    public var aspectRatio: CGFloat {
+        orientation == .landscape ? 4.0 / 3.0 : 3.0 / 4.0
+    }
+
+    public var iconName: String {
+        switch (device, orientation) {
+        case (.mobile, .portrait): return "iphone"
+        case (.mobile, .landscape): return "iphone.landscape"
+        case (.tablet, .portrait): return "ipad"
+        case (.tablet, .landscape): return "ipad.landscape"
+        }
+    }
+
+    /// Shown as a read-only hint — there is no picker to change it any more.
+    public var label: String {
+        "\(device.rawValue) · \(orientation.rawValue)"
+    }
 }

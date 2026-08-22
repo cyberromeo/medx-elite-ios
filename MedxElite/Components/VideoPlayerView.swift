@@ -233,11 +233,11 @@ public struct VideoPlayerView: View {
             print("[VideoPlayer] Audio session error: \(error)")
         }
 
-        if proxy.isRunning == false {
-            proxy.start()
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        // `waitUntilRunning` starts the listener and waits for the port to be bound
+        // instead of guessing at a delay: without a port there is no offline URL, and
+        // the download would look broken.
+        Task { @MainActor in
+            _ = await proxy.waitUntilRunning()
             createPlayer()
         }
     }
@@ -246,12 +246,19 @@ public struct VideoPlayerView: View {
         let playbackURL: URL?
         var isOffline = false
 
+        let hasDownload = video.map { video in
+            VideoDownloadStore.shared.isDownloaded(video.id) || VideoDownloadStore.hasOfflineCopy(video.id)
+        } ?? false
+
         if !forceOnlinePlayback,
            let video,
-           let offlineURL = VideoDownloadStore.offlinePlaylistURL(for: video.id) {
+           hasDownload,
+           let offlineURL = proxy.offlineURL(videoId: video.id) {
+            // AVFoundation cannot load an HLS playlist from `file://`, so the saved
+            // playlist is served over the loopback proxy. No network is involved.
             playbackURL = offlineURL
             isOffline = true
-            print("[VideoPlayer] Using offline download")
+            print("[VideoPlayer] Using offline download on port \(proxy.port)")
         } else if let proxied = proxy.proxiedURL(for: streamUrl) {
             playbackURL = proxied
             print("[VideoPlayer] Using proxied URL on port \(proxy.port)")
@@ -368,10 +375,8 @@ public struct VideoPlayerView: View {
         player?.replaceCurrentItem(with: nil)
         player = nil
 
-        if proxy.isRunning == false {
-            proxy.start()
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        Task { @MainActor in
+            _ = await proxy.waitUntilRunning()
             createPlayer()
         }
     }

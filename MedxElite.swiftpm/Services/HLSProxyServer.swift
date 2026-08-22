@@ -66,7 +66,9 @@ public final class HLSProxyServer: ObservableObject {
 
     /// Start the local proxy server
     public func start() {
-        if isRunning { return }
+        // `listener != nil` covers the window between binding and `.ready`: starting twice
+        // there used to orphan the first listener and report the wrong port.
+        if isRunning || listener != nil { return }
 
         do {
             let parameters = NWParameters.tcp
@@ -87,6 +89,9 @@ public final class HLSProxyServer: ObservableObject {
                         print("[HLSProxy] Failed: \(error)")
                         self.isRunning = false
                         self.port = 0
+                        // Let a later `start()` try again on a fresh listener.
+                        self.listener?.cancel()
+                        self.listener = nil
                     case .cancelled:
                         self.isRunning = false
                         self.port = 0
@@ -117,6 +122,21 @@ public final class HLSProxyServer: ObservableObject {
         }
     }
 
+    /// `start()` binds asynchronously, so a caller that needs a URL immediately has to
+    /// wait for the port. Returns false if the listener never came up.
+    @MainActor
+    public func waitUntilRunning(timeout: TimeInterval = 3) async -> Bool {
+        if isRunning, port > 0 { return true }
+        start()
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if isRunning, port > 0 { return true }
+            try? await Task.sleep(nanoseconds: 60_000_000)
+        }
+        return isRunning && port > 0
+    }
+
     /// Convert a remote stream URL to a local proxied URL
     public func proxiedURL(for remoteURL: String) -> URL? {
         guard isRunning, port > 0 else { return nil }
@@ -124,14 +144,26 @@ public final class HLSProxyServer: ObservableObject {
         return URL(string: "http://127.0.0.1:\(port)/proxy?url=\(encoded)")
     }
 
+    /// Loopback URL for a finished download. AVFoundation will not load an HLS playlist
+    /// from a `file://` URL, so the saved playlist has to be served over HTTP — this
+    /// route reads straight off the disk and never touches the network.
+    public func offlineURL(videoId: String, file: String = VideoDownloadStore.playlistFileName) -> URL? {
+        guard isRunning, port > 0 else { return nil }
+        let safe = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+        let encodedId = videoId.addingPercentEncoding(withAllowedCharacters: safe) ?? videoId
+        return URL(string: "http://127.0.0.1:\(port)/offline/\(encodedId)/\(file)")
+    }
+
     /// The exact header set the upstream CDN expects for a given URL. Shared with
     /// `VideoDownloadStore` so proxied playback and offline downloads cannot drift apart.
     fileprivate static func spoofHeaders(for targetURL: URL) -> [String: String] {
         let host = targetURL.host ?? ""
         let pathExt = targetURL.pathExtension.lowercased()
+        // Playback assets: playlists, segments, init sections and keys.
+        let isPlaybackAsset = ["m3u8", "ts", "m4s", "mp4", "m4v", "m4a", "aac", "key"].contains(pathExt)
         var headers: [String: String] = [:]
 
-        if host.contains("liveplayback") || pathExt == "ts" || pathExt == "m3u8" {
+        if host.contains("liveplayback") || isPlaybackAsset {
             // HLS streaming headers
             headers = spoofedHeaders
             headers["Host"] = host
@@ -146,6 +178,13 @@ public final class HLSProxyServer: ObservableObject {
             headers["Host"] = host
             headers["Sec-Fetch-Site"] = "cross-site"
             headers["Sec-Fetch-Mode"] = "no-cors"
+        } else {
+            // Signed segment URLs are often extensionless on hosts we have never seen.
+            // Sending no headers at all is what got those downloads rejected with a 403,
+            // so the HLS set is the fallback rather than a special case.
+            headers = spoofedHeaders
+            headers["Host"] = host
+            headers["X-Playback-Session-Id"] = UUID().uuidString
         }
 
         return headers
@@ -180,7 +219,13 @@ public final class HLSProxyServer: ObservableObject {
                 return
             }
 
+            let method = parts[0].uppercased()
             let path = parts[1]
+
+            if path.hasPrefix("/offline/") {
+                self.serveOfflineFile(path: path, method: method, headerLines: lines, connection: connection)
+                return
+            }
 
             // Extract the target URL from query parameter
             if path.hasPrefix("/proxy?url="),
@@ -191,6 +236,139 @@ public final class HLSProxyServer: ObservableObject {
             } else {
                 self.sendError(connection: connection, code: 404, message: "Not Found")
             }
+        }
+    }
+
+    // MARK: - Offline Playback
+
+    /// Serves a completed download straight from the app container. AVFoundation refuses
+    /// to load an HLS playlist over `file://`, so downloaded classes play through this
+    /// loopback route instead — no network involved, works in airplane mode.
+    private func serveOfflineFile(path: String, method: String, headerLines: [String], connection: NWConnection) {
+        // /offline/<percent-encoded video id>/<file name>
+        let route = path.components(separatedBy: "?")[0]
+        let components = route.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        guard components.count == 3,
+              let videoId = components[1].removingPercentEncoding,
+              let fileName = components[2].removingPercentEncoding,
+              Self.isSafeFileName(fileName) else {
+            sendError(connection: connection, code: 400, message: "Bad Request")
+            return
+        }
+
+        let fileURL = VideoDownloadStore.directory(for: videoId).appendingPathComponent(fileName)
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path),
+              let size = (attributes[.size] as? NSNumber)?.int64Value,
+              size > 0 else {
+            sendError(connection: connection, code: 404, message: "Not Found")
+            return
+        }
+
+        var start: Int64 = 0
+        var end: Int64 = size - 1
+        var isPartial = false
+        if let rangeHeader = Self.headerValue("Range", in: headerLines),
+           let range = Self.parseByteRange(rangeHeader, totalSize: size) {
+            start = range.lowerBound
+            end = range.upperBound
+            isPartial = true
+        }
+
+        let length = Int(end - start + 1)
+        var body = Data()
+        if method != "HEAD" {
+            guard let handle = try? FileHandle(forReadingFrom: fileURL) else {
+                sendError(connection: connection, code: 404, message: "Not Found")
+                return
+            }
+            defer { try? handle.close() }
+            do {
+                if start > 0 {
+                    try handle.seek(toOffset: UInt64(start))
+                }
+                body = try handle.read(upToCount: length) ?? Data()
+            } catch {
+                sendError(connection: connection, code: 500, message: "Internal Server Error")
+                return
+            }
+
+            guard !body.isEmpty else {
+                sendError(connection: connection, code: 500, message: "Internal Server Error")
+                return
+            }
+            // A short read must be reflected in the range headers, not papered over.
+            end = start + Int64(body.count) - 1
+        }
+
+        var head = isPartial
+            ? "HTTP/1.1 206 Partial Content\r\n"
+            : "HTTP/1.1 200 OK\r\n"
+        head += "Content-Type: \(Self.mimeType(for: fileName))\r\n"
+        // For GET, report what is actually being written or AVPlayer waits for bytes
+        // that never arrive; for HEAD there is no body to measure.
+        head += "Content-Length: \(method == "HEAD" ? length : body.count)\r\n"
+        head += "Accept-Ranges: bytes\r\n"
+        if isPartial {
+            head += "Content-Range: bytes \(start)-\(end)/\(size)\r\n"
+        }
+        head += "Cache-Control: no-store\r\n"
+        head += "Connection: close\r\n\r\n"
+
+        var response = Data(head.utf8)
+        response.append(body)
+
+        connection.send(content: response, completion: .contentProcessed { _ in
+            connection.cancel()
+        })
+    }
+
+    /// Rejects anything that could climb out of the download folder.
+    private static func isSafeFileName(_ name: String) -> Bool {
+        !name.isEmpty && !name.contains("/") && !name.contains("\\") && !name.contains("..")
+    }
+
+    private static func headerValue(_ name: String, in headerLines: [String]) -> String? {
+        let prefix = name.lowercased() + ":"
+        for line in headerLines.dropFirst() where line.lowercased().hasPrefix(prefix) {
+            return String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+        }
+        return nil
+    }
+
+    /// Understands the single-range forms AVFoundation sends: `bytes=0-1023`,
+    /// `bytes=1024-` and `bytes=-512`. Multi-range requests fall back to the whole file.
+    private static func parseByteRange(_ header: String, totalSize: Int64) -> ClosedRange<Int64>? {
+        guard let equals = header.firstIndex(of: "="), totalSize > 0 else { return nil }
+        let spec = header[header.index(after: equals)...].trimmingCharacters(in: .whitespaces)
+        guard !spec.isEmpty, !spec.contains(",") else { return nil }
+
+        let bounds = spec.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
+        guard bounds.count == 2 else { return nil }
+        let last = totalSize - 1
+
+        if bounds[0].isEmpty {
+            guard let suffix = Int64(bounds[1]), suffix > 0 else { return nil }
+            return max(0, totalSize - suffix)...last
+        }
+
+        guard let start = Int64(bounds[0]), start >= 0, start <= last else { return nil }
+        if bounds[1].isEmpty { return start...last }
+        guard let requestedEnd = Int64(bounds[1]) else { return nil }
+        let end = min(requestedEnd, last)
+        guard end >= start else { return nil }
+        return start...end
+    }
+
+    private static func mimeType(for fileName: String) -> String {
+        switch (fileName as NSString).pathExtension.lowercased() {
+        case "m3u8": return "application/vnd.apple.mpegurl"
+        case "ts": return "video/mp2t"
+        case "mp4", "m4s", "m4v": return "video/mp4"
+        case "m4a": return "audio/mp4"
+        case "aac": return "audio/aac"
+        case "vtt": return "text/vtt"
+        case "json": return "application/json"
+        default: return "application/octet-stream"
         }
     }
 
@@ -413,7 +591,12 @@ public final class VideoDownloadStore: ObservableObject {
     @Published public private(set) var items: [String: DownloadedVideo] = [:]
 
     /// `nonisolated` so the disk-side helpers below can read them without hopping actors.
-    nonisolated fileprivate static let playlistFileName = "local.m3u8"
+    /// `playlistFileName` is public because `HLSProxyServer.offlineURL` defaults to it.
+    nonisolated public static let playlistFileName = "local.m3u8"
+    /// Only written when the chosen variant carries its audio in a separate rendition —
+    /// then `local.m3u8` becomes a master playlist tying these two together.
+    nonisolated fileprivate static let videoPlaylistFileName = "video.m3u8"
+    nonisolated fileprivate static let audioPlaylistFileName = "audio.m3u8"
     nonisolated fileprivate static let metaFileName = "meta.json"
     nonisolated private static let maxConcurrentSegments = 4
     nonisolated private static let maxConcurrentDownloads = 2
@@ -457,6 +640,10 @@ public final class VideoDownloadStore: ObservableObject {
 
     /// Nonisolated on purpose: the player asks for this while building its asset.
     /// Returns nil unless a *finished* download exists on disk.
+    ///
+    /// This is a `file://` URL and is only good for existence checks — AVFoundation
+    /// cannot load an HLS playlist from the file system, so playback goes through
+    /// `HLSProxyServer.offlineURL(videoId:)` instead.
     public nonisolated static func offlinePlaylistURL(for videoId: String) -> URL? {
         let dir = directory(for: videoId)
         let playlist = dir.appendingPathComponent(playlistFileName)
@@ -465,6 +652,11 @@ public final class VideoDownloadStore: ObservableObject {
               let item = try? JSONDecoder().decode(DownloadedVideo.self, from: data),
               item.state == .completed else { return nil }
         return playlist
+    }
+
+    /// True when a finished download is sitting on disk, whatever the in-memory state says.
+    public nonisolated static func hasOfflineCopy(_ videoId: String) -> Bool {
+        offlinePlaylistURL(for: videoId) != nil
     }
 
     // MARK: - Read models
@@ -505,7 +697,6 @@ public final class VideoDownloadStore: ObservableObject {
     // MARK: - Commands
 
     public func start(_ video: RecordedVideo, quality: DownloadQuality = .best) {
-        guard !video.streamUrl.isEmpty else { return }
         if let existing = items[video.id], existing.state == .completed || existing.isActive { return }
 
         var item = items[video.id] ?? DownloadedVideo(
@@ -523,6 +714,17 @@ public final class VideoDownloadStore: ObservableObject {
         item.state = .queued
         item.quality = quality
         item.errorMessage = nil
+
+        // A class with no stream URL used to no-op silently, which read as "download
+        // does nothing". Surface it as a failed row instead.
+        if video.streamUrl.isEmpty {
+            item.state = .failed
+            item.errorMessage = VideoDownloadError.invalidURL.errorDescription
+            items[video.id] = item
+            persist(video.id)
+            return
+        }
+
         items[video.id] = item
 
         persist(video.id)
@@ -606,7 +808,9 @@ public final class VideoDownloadStore: ObservableObject {
             update(id) { $0.state = .downloading }
 
             let plan = try await Self.buildPlan(streamUrl: video.streamUrl, quality: quality)
-            try await Self.write(text: plan.playlist, to: dir.appendingPathComponent(Self.playlistFileName))
+            for playlist in plan.playlists {
+                try await Self.write(text: playlist.text, to: dir.appendingPathComponent(playlist.name))
+            }
 
             let pending = await Self.missingResources(plan.resources, in: dir)
             update(id) {
@@ -731,8 +935,15 @@ public final class VideoDownloadStore: ObservableObject {
         let filename: String
     }
 
+    fileprivate struct PlaylistFile: Sendable {
+        let name: String
+        let text: String
+    }
+
     fileprivate struct DownloadPlan: Sendable {
-        let playlist: String
+        /// One entry when the variant is muxed; three (master + video + audio) when the
+        /// stream keeps its audio in a separate rendition.
+        let playlists: [PlaylistFile]
         let resources: [DownloadResource]
         let resolution: String?
     }
@@ -741,38 +952,18 @@ public final class VideoDownloadStore: ObservableObject {
         let url: URL
         let bandwidth: Int
         let resolution: String?
+        let audioGroup: String?
     }
 
-    /// Fetches the master playlist, picks a variant, then rewrites the media playlist so
-    /// every segment / key / init-section points at a plain filename next to it on disk.
-    nonisolated fileprivate static func buildPlan(streamUrl: String, quality: DownloadQuality) async throws -> DownloadPlan {
-        guard let masterURL = URL(string: streamUrl) else { throw VideoDownloadError.invalidURL }
-
-        var mediaURL = masterURL
-        var mediaText = try await fetchText(masterURL)
-        var resolution: String?
-
-        if mediaText.contains("#EXT-X-STREAM-INF") {
-            let variants = parseVariants(playlist: mediaText, baseURL: masterURL)
-            guard !variants.isEmpty else { throw VideoDownloadError.noVariants }
-            let chosen: PlaylistVariant
-            switch quality {
-            case .saver: chosen = variants[0]
-            case .standard: chosen = variants[variants.count / 2]
-            case .best: chosen = variants[variants.count - 1]
-            }
-            mediaURL = chosen.url
-            resolution = chosen.resolution
-            mediaText = try await fetchText(chosen.url)
-        }
-
-        var lines: [String] = []
+    /// Collects every remote file a playlist needs and hands out the flat local name each
+    /// one is saved under. Shared across the video and audio playlists of one download so
+    /// two renditions can never claim the same filename.
+    private struct ResourceNamer {
         var resources: [DownloadResource] = []
-        var nameByURL: [String: String] = [:]
-        var counter = 0
-        var sawEndList = false
+        private var nameByURL: [String: String] = [:]
+        private var counter = 0
 
-        func localName(for url: URL, kind: String, fallbackExtension: String) -> String {
+        mutating func localName(for url: URL, kind: String, fallbackExtension: String) -> String {
             if let existing = nameByURL[url.absoluteString] { return existing }
             counter += 1
             var ext = url.pathExtension.lowercased()
@@ -782,8 +973,78 @@ public final class VideoDownloadStore: ObservableObject {
             resources.append(DownloadResource(url: url, filename: name))
             return name
         }
+    }
 
-        for rawLine in mediaText.components(separatedBy: .newlines) {
+    /// Fetches the master playlist, picks a variant, then rewrites the media playlist so
+    /// every segment / key / init-section points at a plain filename next to it on disk.
+    nonisolated fileprivate static func buildPlan(streamUrl: String, quality: DownloadQuality) async throws -> DownloadPlan {
+        guard let masterURL = URL(string: streamUrl) else { throw VideoDownloadError.invalidURL }
+
+        let masterText = try await fetchText(masterURL)
+        var namer = ResourceNamer()
+
+        guard masterText.contains("#EXT-X-STREAM-INF") else {
+            // Already a media playlist — nothing to choose.
+            let media = try rewriteMediaPlaylist(masterText, baseURL: masterURL, kind: "seg", namer: &namer)
+            return DownloadPlan(
+                playlists: [PlaylistFile(name: playlistFileName, text: media)],
+                resources: namer.resources,
+                resolution: nil
+            )
+        }
+
+        let variants = parseVariants(playlist: masterText, baseURL: masterURL)
+        guard !variants.isEmpty else { throw VideoDownloadError.noVariants }
+        let chosen: PlaylistVariant
+        switch quality {
+        case .saver: chosen = variants[0]
+        case .standard: chosen = variants[variants.count / 2]
+        case .best: chosen = variants[variants.count - 1]
+        }
+
+        let videoText = try await fetchText(chosen.url)
+        let videoPlaylist = try rewriteMediaPlaylist(videoText, baseURL: chosen.url, kind: "seg", namer: &namer)
+
+        // A variant whose audio lives in its own rendition would download silent without
+        // this — the audio segments are listed in a playlist of their own.
+        if let audioURL = audioRenditionURL(for: chosen, playlist: masterText, baseURL: masterURL),
+           audioURL != chosen.url {
+            let audioText = try await fetchText(audioURL)
+            let audioPlaylist = try rewriteMediaPlaylist(audioText, baseURL: audioURL, kind: "aud", namer: &namer)
+            return DownloadPlan(
+                playlists: [
+                    PlaylistFile(
+                        name: playlistFileName,
+                        text: localMasterPlaylist(bandwidth: chosen.bandwidth, resolution: chosen.resolution)
+                    ),
+                    PlaylistFile(name: videoPlaylistFileName, text: videoPlaylist),
+                    PlaylistFile(name: audioPlaylistFileName, text: audioPlaylist)
+                ],
+                resources: namer.resources,
+                resolution: chosen.resolution
+            )
+        }
+
+        return DownloadPlan(
+            playlists: [PlaylistFile(name: playlistFileName, text: videoPlaylist)],
+            resources: namer.resources,
+            resolution: chosen.resolution
+        )
+    }
+
+    /// Rewrites one media playlist in place: absolute segment/key/init URLs become plain
+    /// sibling filenames, and the result is closed off with `#EXT-X-ENDLIST`.
+    nonisolated private static func rewriteMediaPlaylist(
+        _ text: String,
+        baseURL: URL,
+        kind: String,
+        namer: inout ResourceNamer
+    ) throws -> String {
+        var lines: [String] = []
+        var sawEndList = false
+        let resourcesBefore = namer.resources.count
+
+        for rawLine in text.components(separatedBy: .newlines) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             if line.isEmpty { continue }
 
@@ -795,10 +1056,10 @@ public final class VideoDownloadStore: ObservableObject {
                 if isMap || isKey,
                    let uri = quotedAttribute("URI", in: line),
                    !uri.isEmpty,
-                   let resolved = URL(string: uri, relativeTo: mediaURL)?.absoluteURL {
-                    let name = localName(
+                   let resolved = URL(string: uri, relativeTo: baseURL)?.absoluteURL {
+                    let name = namer.localName(
                         for: resolved,
-                        kind: isMap ? "init" : "key",
+                        kind: isMap ? "\(kind)-init" : "key",
                         fallbackExtension: isMap ? "mp4" : "key"
                     )
                     lines.append(line.replacingOccurrences(of: "URI=\"\(uri)\"", with: "URI=\"\(name)\""))
@@ -809,19 +1070,60 @@ public final class VideoDownloadStore: ObservableObject {
                 continue
             }
 
-            guard let resolved = URL(string: line, relativeTo: mediaURL)?.absoluteURL else { continue }
-            lines.append(localName(for: resolved, kind: "seg", fallbackExtension: "ts"))
+            guard let resolved = URL(string: line, relativeTo: baseURL)?.absoluteURL else { continue }
+            lines.append(namer.localName(for: resolved, kind: kind, fallbackExtension: "ts"))
         }
 
-        guard !resources.isEmpty else { throw VideoDownloadError.emptyPlaylist }
+        guard namer.resources.count > resourcesBefore else { throw VideoDownloadError.emptyPlaylist }
         // Without ENDLIST AVPlayer treats the local file as a live stream and keeps polling.
         if !sawEndList { lines.append("#EXT-X-ENDLIST") }
 
-        return DownloadPlan(
-            playlist: lines.joined(separator: "\n") + "\n",
-            resources: resources,
-            resolution: resolution
-        )
+        return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// The two-rendition master that `local.m3u8` becomes when audio is downloaded separately.
+    nonisolated private static func localMasterPlaylist(bandwidth: Int, resolution: String?) -> String {
+        var lines = [
+            "#EXTM3U",
+            "#EXT-X-VERSION:4",
+            "#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"offline-audio\",NAME=\"Audio\","
+                + "DEFAULT=YES,AUTOSELECT=YES,URI=\"\(audioPlaylistFileName)\""
+        ]
+
+        var streamInf = "#EXT-X-STREAM-INF:BANDWIDTH=\(bandwidth > 0 ? bandwidth : 2_000_000)"
+        if let resolution, !resolution.isEmpty {
+            streamInf += ",RESOLUTION=\(resolution)"
+        }
+        streamInf += ",AUDIO=\"offline-audio\""
+        lines.append(streamInf)
+        lines.append(videoPlaylistFileName)
+
+        return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// Finds the default audio rendition for a variant's `AUDIO` group. Renditions with no
+    /// `URI` mean the audio is muxed into the video segments, so there is nothing extra
+    /// to fetch.
+    nonisolated private static func audioRenditionURL(
+        for variant: PlaylistVariant,
+        playlist: String,
+        baseURL: URL
+    ) -> URL? {
+        guard let group = variant.audioGroup else { return nil }
+
+        var fallback: URL?
+        for rawLine in playlist.components(separatedBy: .newlines) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard line.hasPrefix("#EXT-X-MEDIA"),
+                  plainAttribute("TYPE", in: line) == "AUDIO",
+                  quotedAttribute("GROUP-ID", in: line) == group,
+                  let uri = quotedAttribute("URI", in: line), !uri.isEmpty,
+                  let resolved = URL(string: uri, relativeTo: baseURL)?.absoluteURL else { continue }
+
+            if plainAttribute("DEFAULT", in: line) == "YES" { return resolved }
+            if fallback == nil { fallback = resolved }
+        }
+        return fallback
     }
 
     nonisolated private static func parseVariants(playlist: String, baseURL: URL) -> [PlaylistVariant] {
@@ -843,7 +1145,8 @@ public final class VideoDownloadStore: ObservableObject {
                 PlaylistVariant(
                     url: url,
                     bandwidth: Int(plainAttribute("BANDWIDTH", in: info) ?? "") ?? 0,
-                    resolution: plainAttribute("RESOLUTION", in: info)
+                    resolution: plainAttribute("RESOLUTION", in: info),
+                    audioGroup: quotedAttribute("AUDIO", in: info)
                 )
             )
         }

@@ -79,8 +79,10 @@ public struct QuizRunnerView: View {
 
     // MARK: - Derived state
 
+    /// One accent for both modes. Revision used to run on purple, which tinted the whole
+    /// glass chrome pink — the mode is already spelled out in `subtitleLine`.
     private var accent: Color {
-        payload.mode == .exam ? MedxTheme.primaryBlue : MedxTheme.primaryPurple
+        MedxTheme.primaryBlue
     }
 
     private var currentQuestion: Question? {
@@ -208,7 +210,7 @@ public struct QuizRunnerView: View {
 
                 RunnerCircleButton(
                     icon: bookmarked ? "bookmark.fill" : "bookmark",
-                    tint: bookmarked ? MedxTheme.primaryPurple : nil,
+                    tint: bookmarked ? MedxTheme.warningOrange : nil,
                     accessibilityLabel: bookmarked ? "Remove bookmark" : "Bookmark question"
                 ) {
                     toggleBookmark(question)
@@ -242,7 +244,8 @@ public struct QuizRunnerView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .medxNavigationGlass(cornerRadius: 22, tint: accent)
+        // Untinted glass: the chrome stays neutral so the question content carries the colour.
+        .medxNavigationGlass(cornerRadius: 22)
     }
 
     private var timerPill: some View {
@@ -500,7 +503,7 @@ public struct QuizRunnerView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .medxNavigationGlass(cornerRadius: 20, tint: accent)
+        .medxNavigationGlass(cornerRadius: 20)
         .safeAreaPadding(.bottom, 4)
     }
 

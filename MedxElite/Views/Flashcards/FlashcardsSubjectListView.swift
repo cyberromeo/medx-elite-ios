@@ -15,15 +15,20 @@ public struct FlashcardsSubjectListView: View {
         return subjects.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
     }
 
-    public var body: some View {
-        ZStack {
-            ambientBackground
+    private var totalCards: Int {
+        subjects.reduce(0) { $0 + $1.cardCount }
+    }
 
-            if isLoading {
-                ProgressView("Loading Flashcards…")
-                    .controlSize(.large)
-            } else {
-                if subjects.isEmpty {
+    public var body: some View {
+        FlashcardLayoutReader { layout in
+            ZStack {
+                Color(uiColor: .systemGroupedBackground)
+                    .ignoresSafeArea()
+
+                if isLoading {
+                    ProgressView("Loading Flashcards…")
+                        .controlSize(.large)
+                } else if subjects.isEmpty {
                     ContentUnavailableView(
                         "No Flashcards",
                         systemImage: "rectangle.stack.badge.minus",
@@ -32,10 +37,19 @@ public struct FlashcardsSubjectListView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 16) {
-                            let totalCards = subjects.reduce(0) { $0 + $1.cardCount }
                             MedxMetricsRow {
-                                MedxMetric(icon: "rectangle.stack.fill", value: totalCards.formatted(), label: "cards", color: MedxTheme.primaryPurple)
-                                MedxMetric(icon: "books.vertical.fill", value: "\(subjects.count)", label: "subjects", color: MedxTheme.primaryPink)
+                                MedxMetric(
+                                    icon: "rectangle.stack.fill",
+                                    value: totalCards.formatted(),
+                                    label: "cards",
+                                    color: MedxTheme.indigoAccent
+                                )
+                                MedxMetric(
+                                    icon: "books.vertical.fill",
+                                    value: "\(subjects.count)",
+                                    label: "subjects",
+                                    color: MedxTheme.cyanAccent
+                                )
                             }
                             .padding(.horizontal, 20)
                             .padding(.top, 6)
@@ -47,21 +61,11 @@ public struct FlashcardsSubjectListView: View {
                                     Text("Try a different search.")
                                 }
                                 .padding(.top, 36)
+                            } else {
+                                subjectGrid(layout: layout)
                             }
-
-                            LazyVStack(spacing: 12) {
-                                ForEach(filteredSubjects) { subject in
-                                    NavigationLink {
-                                        FlashcardStudyView(subject: subject)
-                                    } label: {
-                                        subjectRow(subject)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 24)
                         }
+                        .padding(.bottom, 28)
                     }
                     .refreshable {
                         await loadFlashcards()
@@ -82,55 +86,98 @@ public struct FlashcardsSubjectListView: View {
         }
     }
 
-    private func subjectRow(_ subject: FlashcardSubject) -> some View {
-        HStack(spacing: 16) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [MedxTheme.primaryPurple.opacity(0.2), MedxTheme.primaryPink.opacity(0.1)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 48, height: 48)
+    // MARK: - Grid
 
-                Image(systemName: "sparkles.rectangle.stack.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(MedxTheme.primaryPurple)
+    /// Two-up cards with a real preview: these decks are pure artwork, so a thumbnail
+    /// says more about a subject than any icon can.
+    private func subjectGrid(layout: FlashcardLayout) -> some View {
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 158, maximum: 260), spacing: 14)],
+            spacing: 14
+        ) {
+            ForEach(filteredSubjects) { subject in
+                NavigationLink {
+                    FlashcardStudyView(subject: subject)
+                } label: {
+                    subjectCard(subject, layout: layout)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(subject.name)
+                .accessibilityValue("\(subject.cardCount) cards")
             }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(subject.name)
-                    .font(MedxFont.headline(16))
-                    .foregroundColor(.primary)
-                    .lineLimit(2)
-
-                Text("\(subject.cardCount) visual flashcards")
-                    .font(MedxFont.caption(12))
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            Text("\(subject.cardCount)")
-                .font(MedxFont.mono(12, weight: .bold))
-                .foregroundColor(MedxTheme.primaryPurple)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(MedxTheme.primaryPurple.opacity(0.12), in: Capsule())
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Color(uiColor: .tertiaryLabel))
         }
-        .padding(16)
+        .padding(.horizontal, 20)
+    }
+
+    private func subjectCard(_ subject: FlashcardSubject, layout: FlashcardLayout) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack(alignment: .bottomLeading) {
+                Color.clear
+                    .aspectRatio(4.0 / 3.0, contentMode: .fit)
+                    .overlay {
+                        if let preview = previewURL(for: subject, layout: layout) {
+                            CachedAsyncImage(url: preview, contentMode: .fill)
+                        } else {
+                            LinearGradient(
+                                colors: [
+                                    MedxTheme.indigoAccent.opacity(0.22),
+                                    MedxTheme.cyanAccent.opacity(0.12)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            .overlay(
+                                Image(systemName: "sparkles.rectangle.stack.fill")
+                                    .font(.system(size: 24, weight: .semibold))
+                                    .foregroundStyle(MedxTheme.indigoAccent)
+                            )
+                        }
+                    }
+                    .clipped()
+
+                Text("\(subject.cardCount)")
+                    .font(MedxFont.mono(11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.black.opacity(0.45), in: Capsule())
+                    .padding(10)
+            }
+            .clipShape(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 20,
+                    bottomLeadingRadius: 0,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: 20,
+                    style: .continuous
+                )
+            )
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(subject.name)
+                    .font(MedxFont.headline(15))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                Text(subject.cardCount == 1 ? "1 visual card" : "\(subject.cardCount) visual cards")
+                    .font(MedxFont.caption(11))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+        }
         .glassCard(cornerRadius: 20, shadowLevel: 1)
     }
 
-    private var ambientBackground: some View {
-        Color(uiColor: .systemGroupedBackground)
-            .ignoresSafeArea()
+    private func previewURL(for subject: FlashcardSubject, layout: FlashcardLayout) -> URL? {
+        for card in subject.cards ?? [] {
+            if let raw = card.variants?.url(for: layout), let url = URL(string: raw) {
+                return url
+            }
+        }
+        return nil
     }
 
     private func loadFlashcards() async {

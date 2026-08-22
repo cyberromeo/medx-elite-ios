@@ -1,8 +1,8 @@
 # Medx-elite iOS Native Application
 
-A brand-new native iOS application built in **pure Swift and SwiftUI**, targeting **iOS 17/18+**, connected directly to the **Medx-elite Firebase backend** (`medx-e9acd`), QOD APIs, and Arise CDNs.
+A brand-new native iOS application built in **pure Swift and SwiftUI**, targeting **iOS 17/18+**, connected directly to the **Medx-elite Firebase backend** (`medx-e9acd`) and Arise CDNs.
 
-Designed with a reimagined iOS aesthetic: fluid glassmorphism, dynamic lighting & ambient aura glow, custom haptics, native HLS AVPlayer classroom, interactive 3D flashcards, and a responsive quiz runner for Exam and Revision modes.
+Designed with a reimagined iOS aesthetic: fluid glassmorphism, dynamic lighting & ambient aura glow, custom haptics, native HLS AVPlayer classroom, an immersive flashcard gallery, and a responsive quiz runner for Exam and Revision modes.
 
 ---
 
@@ -11,12 +11,12 @@ Designed with a reimagined iOS aesthetic: fluid glassmorphism, dynamic lighting 
 | Feature | Description |
 |---|---|
 | **Profiles & Authentication** | Graveyard (Mathu) and QuantumGuy (Sri) profile switching with iOS Keychain saved password fast-tap unlock. |
-| **Home Dashboard** | Countdown banner to FMGE (9 Jan 2027), interactive Question of the Day with instant explanations, QBank coverage ring, and syllabus progress. |
+| **Home Dashboard** | Countdown banner to FMGE (9 Jan 2027), performance analytics, QBank coverage ring, and syllabus progress. |
 | **Syllabus Tracker Matrix** | Live 23-subject checklist (Videos, R1, R2, PYQs, Rev, QBank) with real-time optimistic updates and Firestore syncing. |
 | **Question Bank** | 17,890 questions across 23 subjects and 1,211 modules. Searchable subject list, chapter accordion, and module attempt badges. |
 | **Interactive Runner** | **Exam Mode** (overall timer, bulk submit, scored review) and **Revision Mode** (60s timer per question, instant answer feedback & explanations). Sittings auto-saved to `medx_attempts`. |
 | **Batch Tests** | Scored tests (Psychiatry Online Dec26) and practice tests with Arise prior attempt stats and scoring breakdown. |
-| **Flashcard Canvas** | 895 high-yield cards served from Arise CloudFront CDN. 3D card flip, gesture swiping, and live device layout selector (Mobile/Tablet × Portrait/Landscape). |
+| **Flashcard Gallery** | 895 high-yield cards served from Arise CloudFront CDN. Preview-thumbnail subject grid, searchable contact sheet, and a Photos-style full-screen viewer with pinch-zoom. The Mobile/Tablet × Portrait/Landscape artwork variant is auto-detected from the device and window size — no picker. |
 | **Video Classroom** | 67 recorded classes categorized by Batch and Subject. Native HLS `AVPlayer` with background audio, speed controls (0.75x–2.0x), and Picture-in-Picture (PiP). |
 | **Offline Performance** | High-performance multi-tier caching (`CacheManager`) for instant offline question module loading. |
 
@@ -36,16 +36,14 @@ medx-elite-ios/
 │   │   ├── Profile.swift            # Graveyard & QuantumGuy profile definitions
 │   │   ├── QBank.swift              # Subjects, chapters, modules, questions, options
 │   │   ├── Test.swift               # Batch tests, gradable status, performance stats
-│   │   ├── Flashcard.swift          # Flashcard subjects, cards, 4-way CDN variant URLs
+│   │   ├── Flashcard.swift          # Flashcard subjects, cards, auto-detected CDN variants
 │   │   ├── Video.swift              # Recorded classes, batches, durations, HLS stream URLs
 │   │   ├── Attempt.swift            # Exam/revision attempt results & responses
-│   │   ├── UserTracker.swift        # Syllabus matrix checklist document model
-│   │   └── QOD.swift                # Question of the Day data model
+│   │   └── UserTracker.swift        # Syllabus matrix checklist document model
 │   ├── Services/
 │   │   ├── FirebaseConfig.swift     # Backend API keys, project IDs, and endpoints
 │   │   ├── AuthService.swift        # Firebase Auth REST & iOS Keychain store
 │   │   ├── FirestoreService.swift   # High-performance Firestore REST client & parser
-│   │   ├── QODService.swift         # Daily question fetcher
 │   │   ├── HapticManager.swift      # Tactile haptic feedback engine
 │   │   └── CacheManager.swift       # On-disk & memory document cache
 │   ├── Theme/
@@ -58,7 +56,7 @@ medx-elite-ios/
 │   │   ├── CountdownWidgetView.swift# Live countdown to FMGE Jan 9, 2027
 │   │   ├── CachedAsyncImage.swift   # Async image loader with memory caching
 │   │   ├── VideoPlayerView.swift    # AVPlayer controller with PiP & rate controls
-│   │   ├── FlashcardDeckView.swift  # 3D interactive gesture-driven flashcards
+│   │   ├── FlashcardDeckView.swift  # Full-screen zoomable flashcard gallery
 │   │   ├── ModernButton.swift       # Spring bounce action button with glow
 │   │   └── FloatingTabBar.swift     # Matched geometry floating glass tab bar
 │   ├── Views/
@@ -69,7 +67,6 @@ medx-elite-ios/
 │   │   │   └── MainTabView.swift
 │   │   ├── Home/
 │   │   │   ├── HomeView.swift
-│   │   │   ├── QuestionOfTheDayCard.swift
 │   │   │   ├── QBankProgressCard.swift
 │   │   │   └── SyllabusTrackerSheet.swift
 │   │   ├── QBank/
@@ -129,4 +126,3 @@ medx-elite-ios/
   - `user_tracker/{uid}`
 - **Images CDN**: `https://cdn.jsdelivr.net/gh/cyberromeo/img@main/qbank/`
 - **Flashcards CDN**: `https://d2vhwjmp3pf4cn.cloudfront.net`
-- **QOD Endpoint**: `https://api.srihari.quest/api/qod`

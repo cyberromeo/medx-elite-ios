@@ -59,12 +59,6 @@ public struct HomeView: View {
                         .opacity(hasAppeared ? 1 : 0)
                         .offset(y: hasAppeared ? 0 : 24)
 
-                    // MARK: - Question of the Day (Liquid Glass Card)
-                    QuestionOfTheDayCard()
-                        .padding(.horizontal, 20)
-                        .opacity(hasAppeared ? 1 : 0)
-                        .offset(y: hasAppeared ? 0 : 28)
-
                     Spacer(minLength: 40)
                 }
             }

@@ -277,7 +277,7 @@ private struct QuestionReviewCard: View {
 
             RunnerCircleButton(
                 icon: isBookmarked ? "bookmark.fill" : "bookmark",
-                tint: isBookmarked ? MedxTheme.primaryPurple : nil,
+                tint: isBookmarked ? MedxTheme.warningOrange : nil,
                 accessibilityLabel: isBookmarked ? "Remove bookmark" : "Bookmark question",
                 accessibilityValue: isBookmarked ? "Saved" : "Not saved"
             ) {

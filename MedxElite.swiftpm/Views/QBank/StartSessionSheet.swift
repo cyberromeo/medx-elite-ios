@@ -53,7 +53,7 @@ public struct StartSessionSheet: View {
                             ModeCard(
                                 mode: .revision,
                                 icon: "bolt.fill",
-                                accentColor: MedxTheme.primaryPurple,
+                                accentColor: MedxTheme.tealAccent,
                                 durationText: "60s / question"
                             ) {
                                 HapticManager.medium()
