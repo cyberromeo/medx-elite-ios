@@ -1,6 +1,44 @@
 import Foundation
 import AVFoundation
 import UniformTypeIdentifiers
+import Combine
+
+// MARK: - Diagnostics
+
+/// The last playback failure, kept so Settings can show it.
+///
+/// A sideloaded build cannot be attached to Xcode, so "video doesn't work" is otherwise
+/// unanswerable — this is the difference between a bug report and a fact.
+@MainActor
+public final class MedxPlaybackDiagnostics: ObservableObject {
+    public static let shared = MedxPlaybackDiagnostics()
+
+    @Published public private(set) var lastError: String?
+    @Published public private(set) var lastErrorAt: Date?
+    @Published public private(set) var lastContext: String?
+
+    private init() {}
+
+    public func record(_ error: Error?, context: String) {
+        lastError = error?.localizedDescription ?? "Failed with no error reported"
+        lastContext = context
+        lastErrorAt = Date()
+        print("[Playback] \(context): \(lastError ?? "?")")
+    }
+
+    public func clear() {
+        lastError = nil
+        lastErrorAt = nil
+        lastContext = nil
+    }
+
+    public var summary: String? {
+        guard let lastError, let lastErrorAt else { return nil }
+        let when = lastErrorAt.formatted(.dateTime.hour().minute())
+        guard let lastContext else { return "\(when) · \(lastError)" }
+        return "\(when) · \(lastContext) · \(lastError)"
+    }
+}
 
 // MARK: - Custom scheme
 

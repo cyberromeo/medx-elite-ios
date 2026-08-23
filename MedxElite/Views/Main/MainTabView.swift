@@ -110,8 +110,10 @@ public struct MainTabView: View {
                 .tag(tab)
             }
         }
-        .toolbarBackground(.visible, for: .tabBar)
-        .toolbarBackground(.bar, for: .tabBar)
+        // The tab bar's background is deliberately *not* specified. Forcing
+        // `.toolbarBackground(.bar, for: .tabBar)` overrode whatever the running OS wanted to
+        // do with it, which on iOS 26+ meant opting out of the system's own treatment — the app
+        // should not be hand-picking chrome the platform owns.
     }
 
     // MARK: - iPad

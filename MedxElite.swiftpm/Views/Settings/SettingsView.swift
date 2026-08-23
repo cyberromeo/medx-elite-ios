@@ -11,6 +11,7 @@ public struct SettingsView: View {
     @ObservedObject private var reminders = MedxNotificationManager.shared
     @ObservedObject private var index = MedxQuestionIndexStore.shared
     @ObservedObject private var spotlight = MedxSpotlightIndexer.shared
+    @ObservedObject private var playback = MedxPlaybackDiagnostics.shared
     @State private var attempts: [SittingAttempt] = []
     @State private var subjects: [QBankSubject] = []
     @State private var showSignOutConfirm = false
@@ -150,6 +151,8 @@ public struct SettingsView: View {
                     remindersSection
 
                     siriSection
+
+                    diagnosticsSection
                 }
 
                 // MARK: - Cloud Sync
@@ -734,8 +737,6 @@ public struct SettingsView: View {
 
     private var siriSection: some View {
         Section {
-            widgetStatusRow
-
             Toggle(isOn: $spotlight.isEnabled) {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
@@ -777,35 +778,6 @@ public struct SettingsView: View {
         .tint(MedxTheme.accent)
     }
 
-    /// Sideloaded builds are often signed without an app-group entitlement, and the symptom is
-    /// a widget stuck on the countdown with no personal figures. Saying so here is cheaper than
-    /// guessing at it later.
-    private var widgetStatusRow: some View {
-        HStack {
-            Label {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Widget data")
-                        .font(.body)
-                    Text(MedxSharedStore.containerDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            } icon: {
-                Image(systemName: MedxAppGroup.isShared
-                      ? "checkmark.circle.fill"
-                      : "exclamationmark.triangle.fill")
-                    .foregroundStyle(MedxAppGroup.isShared ? MedxTheme.successGreen : MedxTheme.warningOrange)
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(minHeight: 44)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Widget data")
-        .accessibilityValue(MedxAppGroup.isShared ? "Shared container available" : "No shared container")
-    }
-
     // MARK: - Credit
 
     private var creditFooter: some View {
@@ -826,6 +798,87 @@ public struct SettingsView: View {
         .padding(.vertical, 8)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("MedX Elite, app designed by Srihari, version 1.0.0")
+    }
+
+    /// Sideloaded builds cannot be attached to Xcode, so the handful of facts that actually
+    /// explain "widgets are empty", "Live Activities don't appear" and "this looks like the old
+    /// iOS" are surfaced here rather than left to guesswork.
+    private var diagnosticsSection: some View {
+        Section {
+            diagnosticRow(
+                title: "Running on",
+                detail: MedxInstallInfo.osVersion,
+                ok: true
+            )
+
+            diagnosticRow(
+                title: "Built against",
+                detail: MedxInstallInfo.usesLegacyAppearance
+                    ? "\(MedxInstallInfo.builtWithSDK) — legacy appearance"
+                    : MedxInstallInfo.builtWithSDK,
+                ok: !MedxInstallInfo.usesLegacyAppearance
+            )
+
+            diagnosticRow(
+                title: "Widget extension",
+                detail: MedxInstallInfo.hasWidgetExtension
+                    ? MedxInstallInfo.installedExtensions.joined(separator: ", ")
+                    : "Missing — reinstall and keep app extensions",
+                ok: MedxInstallInfo.hasWidgetExtension
+            )
+
+            diagnosticRow(
+                title: "Live Activities",
+                detail: MedxLiveActivityController.shared.isAvailable
+                    ? "Allowed"
+                    : "Off — Settings ▸ MedX Elite ▸ Live Activities",
+                ok: MedxLiveActivityController.shared.isAvailable
+            )
+
+            diagnosticRow(
+                title: "Widget data",
+                detail: MedxSharedStore.containerDescription,
+                ok: MedxAppGroup.isShared
+            )
+
+            if let failure = playback.summary {
+                Button {
+                    playback.clear()
+                } label: {
+                    diagnosticRow(title: "Last playback error", detail: failure, ok: false)
+                }
+            }
+        } header: {
+            Text("Diagnostics")
+        } footer: {
+            Text(MedxInstallInfo.usesLegacyAppearance
+                 ? "This build was compiled against an older iOS SDK, which is why the interface uses the previous system style — iOS only applies the current design language to apps linked against the iOS 26 SDK or newer. Rebuild with the updated CI workflow."
+                 : "Tap a failed row to clear it.")
+                .font(.caption)
+        }
+    }
+
+    private func diagnosticRow(title: String, detail: String, ok: Bool) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(ok ? MedxTheme.successGreen : MedxTheme.warningOrange)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(minHeight: 44)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue(detail)
     }
 
     private func settingsRow(title: String, icon: String, color: Color, value: String) -> some View {

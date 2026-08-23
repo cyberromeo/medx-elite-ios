@@ -1,6 +1,61 @@
 import SwiftUI
 import Combine
 
+// MARK: - Install introspection
+
+/// What this particular *install* looks like from the inside.
+///
+/// The app is distributed by sideloading, so it can never be attached to Xcode: questions like
+/// "which SDK was this built with" and "did the widget extension survive installation" have to
+/// be answerable from inside the app or not at all.
+public enum MedxInstallInfo {
+    /// The SDK the binary was linked against, from the stamps Xcode writes into Info.plist —
+    /// e.g. `iphoneos26.5`.
+    public static var builtWithSDK: String {
+        Bundle.main.infoDictionary?["DTSDKName"] as? String ?? "unknown"
+    }
+
+    public static var sdkMajorVersion: Int? {
+        let digits = builtWithSDK.drop { !$0.isNumber }
+        guard let major = digits.split(separator: ".").first else { return nil }
+        return Int(major)
+    }
+
+    /// iOS renders an app linked against a pre-26 SDK in the legacy compatibility appearance,
+    /// whatever the OS it is running on. That is a build-time fact, not a code one.
+    public static var usesLegacyAppearance: Bool {
+        guard let major = sdkMajorVersion else { return false }
+        return major < 26
+    }
+
+    public static var osVersion: String {
+        UIDevice.current.systemName + " " + UIDevice.current.systemVersion
+    }
+
+    /// App extensions that actually made it into the installed bundle.
+    ///
+    /// A sideloader can offer to strip extensions (each one needs its own App ID), and if the
+    /// widget extension is gone then both the widgets *and* the Live Activities silently have
+    /// nowhere to render.
+    public static var installedExtensions: [String] {
+        guard let plugins = Bundle.main.builtInPlugInsURL,
+              let contents = try? FileManager.default.contentsOfDirectory(
+                at: plugins,
+                includingPropertiesForKeys: nil
+              )
+        else { return [] }
+
+        return contents
+            .filter { $0.pathExtension == "appex" }
+            .map { $0.deletingPathExtension().lastPathComponent }
+            .sorted()
+    }
+
+    public static var hasWidgetExtension: Bool {
+        !installedExtensions.isEmpty
+    }
+}
+
 /// Somewhere the app can be told to go, from outside the app.
 ///
 /// Notification taps, Spotlight results, Siri shortcuts and the widgets' deep links all

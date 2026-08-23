@@ -12,18 +12,41 @@ on:
     branches: [main]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      runner:
+        description: "Runner image (macos-26 ships GA Xcode 26.6; xcode-27-arm64 is a beta preview)"
+        required: false
+        default: macos-26
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: ${{ inputs.runner || 'macos-26' }}
     timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show toolchain
+      - name: Show toolchain and require a modern iOS SDK
+        # iOS hands an app the current design language only when it is *linked against the
+        # iOS 26-or-later SDK*; anything older is rendered in the legacy compatibility
+        # appearance. The first run of this workflow used macos-14 / Xcode 15.4 /
+        # iPhoneOS17.5.sdk and shipped exactly that, so the SDK is now asserted, not assumed.
+        #
+        # macos-26 is the GA image: Xcode 26.6, iOS 26.5 SDK. That clears the >= 26 gate, so
+        # the app gets the modern appearance on iOS 26 and 27 alike. Xcode 27 exists only as a
+        # beta preview image, which is not worth shipping a sideload from — override the
+        # `runner` input if you ever want it.
+        #
+        # IPHONEOS_DEPLOYMENT_TARGET stays at 17.0, so the app still installs on iOS 17.
         run: |
           xcodebuild -version
+          SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "iOS SDK: $SDK_VERSION"
+          MAJOR="${SDK_VERSION%%.*}"
+          if [ "$MAJOR" -lt 26 ]; then
+            echo "::error::Built against the iOS $SDK_VERSION SDK. iOS renders anything older than 26 in legacy compatibility mode, so the app would not pick up the current design language. Use a runner image with Xcode 26 or newer."
+            exit 1
+          fi
           xcodebuild -project MedxElite.xcodeproj -list
 
       - name: Build (unsigned, Release, device)

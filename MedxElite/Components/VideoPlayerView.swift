@@ -235,6 +235,7 @@ public struct VideoPlayerView: View {
         installObservers(on: newPlayer, item: item)
 
         player = newPlayer
+        watchForLoadFailure(of: newPlayer)
 
         guard usingOfflineCopy else { return }
         withAnimation(.easeOut(duration: 0.25)) { showOfflineBadge = true }
@@ -245,14 +246,50 @@ public struct VideoPlayerView: View {
             try? await Task.sleep(nanoseconds: 2_500_000_000)
             withAnimation(.easeOut(duration: 0.25)) { showOfflineBadge = false }
         }
+    }
 
-        // A rewritten local playlist can still be rejected by AVFoundation, so give it a
-        // few seconds and quietly fall back to streaming instead of dead-ending.
+    /// Watches the player item until it is ready or has failed.
+    ///
+    /// A failed *load* — a 403 from the CDN, a playlist AVFoundation will not parse — is
+    /// reported through `AVPlayerItem.status`, **not** through
+    /// `AVPlayerItemFailedToPlayToEndTime`. Only the offline path used to check the status, so a
+    /// stream that never loaded left this view spinning on black forever with nothing to read.
+    @MainActor
+    private func watchForLoadFailure(of watched: AVPlayer) {
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
-            guard usingOfflineCopy, player?.currentItem?.status == .failed else { return }
-            fallBackToOnlinePlayback()
+            // ~15s: long enough for a slow first segment on cellular, short enough that a dead
+            // stream does not look like a hang.
+            for _ in 0..<50 {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                guard !Task.isCancelled, player === watched else { return }
+
+                switch watched.currentItem?.status {
+                case .readyToPlay:
+                    return
+                case .failed:
+                    let failure = watched.currentItem?.error
+                    if usingOfflineCopy {
+                        // A rewritten local playlist can still be rejected; fall back rather
+                        // than dead-end.
+                        MedxPlaybackDiagnostics.shared.record(failure, context: "offline playlist rejected")
+                        fallBackToOnlinePlayback()
+                    } else {
+                        MedxPlaybackDiagnostics.shared.record(failure, context: playbackContext)
+                        hasError = true
+                        errorMessage = failure?.localizedDescription
+                            ?? "The stream could not be loaded. The proxy may not have started."
+                    }
+                    return
+                default:
+                    continue
+                }
+            }
         }
+    }
+
+    /// Enough detail for the diagnostics row to be worth reading.
+    private var playbackContext: String {
+        proxy.isRunning ? "stream via proxy port \(proxy.port)" : "stream with no proxy — direct URL"
     }
 
     // MARK: - Observers
