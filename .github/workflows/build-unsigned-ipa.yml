@@ -27,6 +27,10 @@ jobs:
           xcodebuild -project MedxElite.xcodeproj -list
 
       - name: Build (unsigned, Release, device)
+        # `SYMROOT` rather than `-derivedDataPath`, which xcodebuild only accepts alongside
+        # `-scheme` — and this project ships no shared .xcscheme, so the build is driven by
+        # `-target`. The widget extension still gets built, via the app's target dependency.
+        #
         # `CODE_SIGN_ENTITLEMENTS` is deliberately *not* blanked: the declaration stays in the
         # project so a sideloader that can provision an App Group has something to read. An
         # unsigned build carries no code signature and therefore no embedded entitlements, so
@@ -39,7 +43,7 @@ jobs:
             -target MedxElite \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath build \
+            SYMROOT="$PWD/build" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -48,12 +52,20 @@ jobs:
 
       - name: Assemble the IPA
         run: |
-          APP="build/Build/Products/Release-iphoneos/MedxElite.app"
-          test -d "$APP" || { echo "::error::$APP was not produced"; exit 1; }
+          # Located rather than hardcoded, so a surprise in the output layout fails loudly
+          # instead of silently packaging nothing.
+          APP=$(find build -maxdepth 3 -type d -name "MedxElite.app" | head -1)
+          if [ -z "$APP" ]; then
+            echo "::error::MedxElite.app was not produced"
+            find build -maxdepth 3 -type d -name "*.app" -o -maxdepth 2 -type d | head -20
+            exit 1
+          fi
+          echo "app: $APP"
 
           # The widget extension must have been embedded, or the installed app has no widgets.
           if [ ! -d "$APP/PlugIns/MedxWidgets.appex" ]; then
             echo "::error::MedxWidgets.appex is missing from PlugIns — check the Embed Foundation Extensions phase"
+            ls -la "$APP" || true
             exit 1
           fi
 
