@@ -1,0 +1,75 @@
+name: Build unsigned IPA
+
+# Produces an unsigned .ipa for sideloading with SideStore / AltStore.
+#
+# Signing is deliberately switched off: SideStore re-signs with your own Apple ID when it
+# installs, so anything signed here would just be thrown away. `-target` rather than `-scheme`
+# because the project ships no shared .xcscheme — the widget extension is still built, via the
+# target dependency on the app.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          xcodebuild -project MedxElite.xcodeproj -list
+
+      - name: Build (unsigned, Release, device)
+        # `CODE_SIGN_ENTITLEMENTS` is deliberately *not* blanked: the declaration stays in the
+        # project so a sideloader that can provision an App Group has something to read. An
+        # unsigned build carries no code signature and therefore no embedded entitlements, so
+        # whether the App Group survives depends on the installer — the app is built to work
+        # either way (`MedxAppGroup.resolvedIdentifier`).
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project MedxElite.xcodeproj \
+            -target MedxElite \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            ENABLE_BITCODE=NO \
+            build
+
+      - name: Assemble the IPA
+        run: |
+          APP="build/Build/Products/Release-iphoneos/MedxElite.app"
+          test -d "$APP" || { echo "::error::$APP was not produced"; exit 1; }
+
+          # The widget extension must have been embedded, or the installed app has no widgets.
+          if [ ! -d "$APP/PlugIns/MedxWidgets.appex" ]; then
+            echo "::error::MedxWidgets.appex is missing from PlugIns — check the Embed Foundation Extensions phase"
+            exit 1
+          fi
+
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry MedxElite-unsigned.ipa Payload
+          ls -lh MedxElite-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MedxElite-unsigned-ipa
+          path: MedxElite-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: MedxElite-unsigned.ipa

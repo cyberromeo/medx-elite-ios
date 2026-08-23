@@ -7,6 +7,8 @@ public struct HomeView: View {
     @ObservedObject private var authService = AuthService.shared
     @ObservedObject private var activityStore = ActivityStore.shared
     @ObservedObject private var appState = AppState.shared
+    @ObservedObject private var stats = MedxStudyStatsStore.shared
+    @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
 
     @State private var attempts: [SittingAttempt] = []
     @State private var summary = HomeSummary.empty
@@ -15,6 +17,8 @@ public struct HomeView: View {
     @State private var showSettings = false
     @State private var showTrackerSheet = false
     @State private var resumeVideo: RecordedVideo?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init() {}
 
@@ -40,17 +44,30 @@ public struct HomeView: View {
 
                 CountdownWidgetView()
 
+                goalSection
+                    .medxScrollReveal()
+
+                if stats.dueCount > 0 {
+                    dueRevisionRow
+                        .medxScrollReveal()
+                }
+
                 quickActionsSection
+                    .medxScrollReveal()
 
                 if let resumeEntry {
                     continueSection(entry: resumeEntry)
+                        .medxScrollReveal()
                 }
 
                 thisWeekSection
+                    .medxScrollReveal()
 
                 progressSection
+                    .medxScrollReveal()
 
                 syllabusRow
+                    .medxScrollReveal()
             }
             .padding(.horizontal, MedxSurface.gutter)
             .padding(.top, 4)
@@ -129,6 +146,149 @@ public struct HomeView: View {
         .accessibilityLabel("Profile and settings")
     }
 
+    // MARK: - Goal & streak
+
+    /// Today's goal, the streak, and the exam distance in one card. Deliberately the second
+    /// thing on the page: the countdown says how much time is left, this says whether today
+    /// is being used.
+    private var goalSection: some View {
+        HStack(spacing: 18) {
+            goalRing
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(goalHeadline)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 14) {
+                    Label("\(stats.streakDays)", systemImage: "flame.fill")
+                        .font(.footnote.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(MedxTheme.warningOrange)
+                        .contentTransition(.numericText())
+                        .symbolEffect(.bounce, value: stats.streakDays)
+
+                    Label("\(summary.weekAnswered)", systemImage: "calendar")
+                        .font(.footnote.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                }
+
+                Text("\(stats.streakDays == 1 ? "1 day" : "\(stats.streakDays) days") in a row · \(summary.weekAnswered) this week")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .medxCard()
+        .contextMenu {
+            Button {
+                appState.open(route: .customModule)
+            } label: {
+                Label("Build a custom module", systemImage: "slider.horizontal.3")
+            }
+            Button {
+                appState.open(route: .settings)
+            } label: {
+                Label("Change daily goal", systemImage: "target")
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Today's goal")
+        .accessibilityValue("\(stats.answeredToday) of \(stats.dailyGoal) questions, \(stats.streakDays) day streak")
+    }
+
+    private var goalHeadline: String {
+        if stats.isGoalMet {
+            return "Today's goal is done — \(stats.answeredToday) answered."
+        }
+        if stats.answeredToday == 0 {
+            return "Nothing answered yet today. \(stats.dailyGoal) is the target."
+        }
+        return "\(stats.remainingToGoal) more to reach today's \(stats.dailyGoal)."
+    }
+
+    private var goalRing: some View {
+        ZStack {
+            Circle()
+                .stroke(MedxTheme.accent.opacity(0.16), lineWidth: 9)
+
+            Circle()
+                .trim(from: 0, to: max(stats.goalFraction, 0.004))
+                .stroke(
+                    stats.isGoalMet ? MedxTheme.successGreen : MedxTheme.accent,
+                    style: StrokeStyle(lineWidth: 9, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+                .animation(reduceMotion ? nil : .snappy(duration: 0.45), value: stats.goalFraction)
+
+            VStack(spacing: 0) {
+                Text("\(stats.answeredToday)")
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+
+                Text("of \(stats.dailyGoal)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(6)
+        }
+        .frame(width: 82, height: 82)
+        .accessibilityHidden(true)
+    }
+
+    // MARK: - Spaced revision
+
+    private var dueRevisionRow: some View {
+        Button {
+            HapticManager.medium()
+            appState.open(route: .todaysRevision)
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(MedxTheme.tealAccent)
+                    .frame(width: 34, height: 34)
+                    .background(MedxTheme.tealAccent.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .symbolEffect(.pulse, isActive: true)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(stats.dueCount == 1 ? "1 module due for revision" : "\(stats.dueCount) modules due for revision")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .contentTransition(.numericText())
+                    Text(dueSubtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+
+                MedxDisclosure()
+            }
+            .padding(14)
+            .medxCard()
+            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+        }
+        .buttonStyle(BouncyButtonStyle())
+        .accessibilityLabel("Start today's revision")
+        .accessibilityValue(dueSubtitle)
+    }
+
+    private var dueSubtitle: String {
+        guard let first = stats.due.first else { return "Tap to start a mixed revision sitting" }
+        let extra = stats.dueCount - 1
+        return extra > 0 ? "\(first.name) and \(extra) more" : first.name
+    }
+
     // MARK: - Quick actions
 
     private var quickActionsSection: some View {
@@ -142,14 +302,14 @@ public struct HomeView: View {
                 ForEach(HomeShortcut.allCases) { shortcut in
                     Button {
                         HapticManager.light()
-                        appState.open(tab: shortcut.tab)
+                        appState.open(route: shortcut.route)
                     } label: {
                         shortcutTile(shortcut)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(BouncyButtonStyle())
                     .accessibilityLabel(shortcut.title)
                     .accessibilityValue(detail(for: shortcut))
-                    .accessibilityHint("Opens the \(shortcut.title) tab")
+                    .accessibilityHint(shortcut.hint)
                 }
             }
         }
@@ -186,6 +346,10 @@ public struct HomeView: View {
         switch shortcut {
         case .qbank:
             return summary.qbankSittings == 0 ? "Start a module" : "\(summary.qbankSittings) sittings"
+        case .search:
+            return "All 17,890 questions"
+        case .customModule:
+            return "Pick subject & length"
         case .tests:
             return summary.testSittings == 0 ? "Take a paper" : "\(summary.testSittings) attempted"
         case .flashcards:
@@ -206,7 +370,7 @@ public struct HomeView: View {
                 }
                 .font(.subheadline.weight(.semibold))
                 .buttonStyle(.plain)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(MedxTheme.accent)
             }
 
             Button {
@@ -218,7 +382,7 @@ public struct HomeView: View {
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 40, height: 40)
-                        .background(Color.accentColor, in: Circle())
+                        .background(MedxTheme.accent, in: Circle())
 
                     VStack(alignment: .leading, spacing: 5) {
                         Text(entry.video.title)
@@ -233,7 +397,7 @@ public struct HomeView: View {
                             .lineLimit(1)
 
                         ProgressView(value: entry.progress)
-                            .tint(Color.accentColor)
+                            .tint(MedxTheme.accent)
                     }
 
                     MedxDisclosure()
@@ -380,6 +544,9 @@ public struct HomeView: View {
             attempts = loadedAttempts
             trackerDoc = tracker
             summary = HomeSummary(attempts: loadedAttempts, history: activityStore.watchHistory(for: uid))
+            // Feeds the goal ring, the streak, the spaced-revision list, the widgets and
+            // the reminders — all from this one fetch.
+            stats.ingest(attempts: loadedAttempts)
         } catch {
             // Whatever is already on screen stays; the pull-to-refresh control reports the retry.
         }
@@ -390,13 +557,15 @@ public struct HomeView: View {
 // MARK: - Shortcuts
 
 private enum HomeShortcut: String, CaseIterable, Identifiable {
-    case qbank, tests, flashcards, videos
+    case qbank, search, customModule, tests, flashcards, videos
 
     var id: String { rawValue }
 
-    var tab: TabItem {
+    var route: MedxRoute {
         switch self {
         case .qbank: return .qbank
+        case .search: return .search(nil)
+        case .customModule: return .customModule
         case .tests: return .tests
         case .flashcards: return .flashcards
         case .videos: return .videos
@@ -406,15 +575,27 @@ private enum HomeShortcut: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .qbank: return "Question Bank"
+        case .search: return "Search"
+        case .customModule: return "Custom module"
         case .tests: return "Batch Tests"
         case .flashcards: return "Flashcards"
         case .videos: return "Classes"
         }
     }
 
+    var hint: String {
+        switch self {
+        case .search: return "Opens full-text question search"
+        case .customModule: return "Builds a sitting from your own choices"
+        default: return "Opens the \(title) tab"
+        }
+    }
+
     var icon: String {
         switch self {
         case .qbank: return "books.vertical.fill"
+        case .search: return "magnifyingglass"
+        case .customModule: return "slider.horizontal.3"
         case .tests: return "checkmark.seal.fill"
         case .flashcards: return "rectangle.stack.fill"
         case .videos: return "play.rectangle.fill"
@@ -424,6 +605,8 @@ private enum HomeShortcut: String, CaseIterable, Identifiable {
     var tint: Color {
         switch self {
         case .qbank: return MedxTheme.primaryBlue
+        case .search: return MedxTheme.tealAccent
+        case .customModule: return MedxTheme.primaryPink
         case .tests: return MedxTheme.successGreen
         case .flashcards: return MedxTheme.indigoAccent
         case .videos: return MedxTheme.primaryPurple

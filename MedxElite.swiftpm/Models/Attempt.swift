@@ -7,14 +7,29 @@ public struct RunnerPayload: Identifiable, Hashable, Sendable {
     public let subject: String
     public let mode: SittingMode
     public let gradable: Bool
+    /// Questions supplied up front instead of fetched by `id`.
+    ///
+    /// A custom module and "practise these search results" assemble their questions from
+    /// several source modules, so there is no single document the runner could load. When
+    /// this is non-nil the runner skips the fetch entirely.
+    public let questions: [Question]?
 
-    public init(kind: String, id: String, name: String, subject: String, mode: SittingMode, gradable: Bool = true) {
+    public init(
+        kind: String,
+        id: String,
+        name: String,
+        subject: String,
+        mode: SittingMode,
+        gradable: Bool = true,
+        questions: [Question]? = nil
+    ) {
         self.kind = kind
         self.id = id
         self.name = name
         self.subject = subject
         self.mode = mode
         self.gradable = gradable
+        self.questions = questions
     }
 }
 

@@ -62,7 +62,7 @@ public struct QBankProgressCard: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(MedxTheme.accent)
                 .accessibilityLabel("Open the question bank")
             }
 

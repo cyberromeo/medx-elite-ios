@@ -38,7 +38,8 @@ public extension Color {
 /// Every one is a *system* colour, so the whole app inverts correctly in Dark Mode and
 /// respects Increase Contrast without a second palette. The tokens exist to give meaning
 /// a name — "correct" is green, "ungraded" is orange — not to invent brand colours. Plain
-/// UI accents use `Color.accentColor` directly.
+/// UI accents use `MedxTheme.accent`, which follows the accent chosen in Settings; see
+/// `AccentTheme.swift`.
 public enum MedxTheme {
     public static let primaryBlue = Color(uiColor: .systemBlue)
     public static let primaryPurple = Color(uiColor: .systemPurple)

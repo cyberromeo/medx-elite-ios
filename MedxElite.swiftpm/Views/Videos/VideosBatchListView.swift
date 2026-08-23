@@ -229,7 +229,7 @@ public struct VideosBatchListView: View {
                 HStack(spacing: 6) {
                     Image(systemName: entry.isCompleted ? "checkmark.circle.fill" : "play.circle.fill")
                         .font(.title3)
-                        .foregroundStyle(entry.isCompleted ? MedxTheme.successGreen : Color.accentColor)
+                        .foregroundStyle(entry.isCompleted ? MedxTheme.successGreen : MedxTheme.accent)
 
                     Spacer(minLength: 0)
 
@@ -251,7 +251,7 @@ public struct VideosBatchListView: View {
                 Spacer(minLength: 0)
 
                 ProgressView(value: entry.progress)
-                    .tint(entry.isCompleted ? MedxTheme.successGreen : Color.accentColor)
+                    .tint(entry.isCompleted ? MedxTheme.successGreen : MedxTheme.accent)
 
                 Text(entry.isCompleted ? "Completed" : "Resume at \(entry.formattedResumeTime)")
                     .font(.caption)
@@ -513,13 +513,13 @@ struct VideoDownloadButton: View {
             case .downloading:
                 ZStack {
                     Circle()
-                        .stroke(Color.accentColor.opacity(0.2), lineWidth: 2.5)
+                        .stroke(MedxTheme.accent.opacity(0.2), lineWidth: 2.5)
                     Circle()
                         .trim(from: 0, to: max(0.03, item.progress))
-                        .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .stroke(MedxTheme.accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                     RoundedRectangle(cornerRadius: 1, style: .continuous)
-                        .fill(Color.accentColor)
+                        .fill(MedxTheme.accent)
                         .frame(width: 7, height: 7)
                 }
                 .frame(width: diameter - 9, height: diameter - 9)
@@ -527,7 +527,7 @@ struct VideoDownloadButton: View {
             case .paused:
                 Image(systemName: "play.fill")
                     .font(.system(size: 11, weight: .black))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(MedxTheme.accent)
             case .failed:
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 12, weight: .bold))
@@ -540,7 +540,7 @@ struct VideoDownloadButton: View {
         } else {
             Image(systemName: "arrow.down.to.line")
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(MedxTheme.accent)
         }
     }
 }
@@ -707,7 +707,7 @@ struct DownloadsView: View {
         case .completed: return MedxTheme.successGreen
         case .failed: return MedxTheme.warningOrange
         case .paused: return MedxTheme.primaryPurple
-        case .queued, .downloading: return Color.accentColor
+        case .queued, .downloading: return MedxTheme.accent
         }
     }
 }

@@ -77,7 +77,7 @@ public struct MedxTileModifier: ViewModifier {
 
     public func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        let accent = accentColor ?? Color.accentColor
+        let accent = accentColor ?? MedxTheme.accent
 
         content
             .background(shape.fill(isSelected ? accent.opacity(0.12) : MedxSurface.tileFill))
@@ -117,6 +117,37 @@ public extension View {
                         .frame(height: MedxSurface.hairline)
                 }
             }
+    }
+}
+
+// MARK: - Scroll reveal
+
+/// Content fades and lifts a little as it scrolls into place.
+///
+/// Deliberately restrained, and opacity/offset only: a page where every card also *scales*
+/// on entry reads as a fairground rather than a dashboard. Skipped entirely under Reduce
+/// Motion, where the cards simply appear.
+public struct MedxScrollRevealModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    public init() {}
+
+    public func body(content: Content) -> some View {
+        if reduceMotion {
+            content
+        } else {
+            content.scrollTransition(.animated(.smooth(duration: 0.28))) { view, phase in
+                view
+                    .opacity(phase.isIdentity ? 1 : 0.3)
+                    .offset(y: phase.isIdentity ? 0 : 12)
+            }
+        }
+    }
+}
+
+public extension View {
+    func medxScrollReveal() -> some View {
+        modifier(MedxScrollRevealModifier())
     }
 }
 
@@ -280,7 +311,7 @@ public struct MedxCircleButton: View {
                 .foregroundStyle(filled ? Color.white : (tint ?? Color.primary))
                 .frame(width: 32, height: 32)
                 .background {
-                    Circle().fill(filled ? (tint ?? Color.accentColor) : MedxSurface.fieldFill)
+                    Circle().fill(filled ? (tint ?? MedxTheme.accent) : MedxSurface.fieldFill)
                 }
                 .frame(width: 44, height: 44)
                 .contentShape(Circle())

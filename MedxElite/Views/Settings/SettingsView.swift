@@ -6,10 +6,17 @@ public struct SettingsView: View {
     @ObservedObject private var activityStore = ActivityStore.shared
     @ObservedObject private var avatars = AvatarStore.shared
     @ObservedObject private var downloads = VideoDownloadStore.shared
+    @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
+    @ObservedObject private var stats = MedxStudyStatsStore.shared
+    @ObservedObject private var reminders = MedxNotificationManager.shared
+    @ObservedObject private var index = MedxQuestionIndexStore.shared
+    @ObservedObject private var spotlight = MedxSpotlightIndexer.shared
     @State private var attempts: [SittingAttempt] = []
+    @State private var subjects: [QBankSubject] = []
     @State private var showSignOutConfirm = false
     @State private var showForgetCachedConfirm = false
     @State private var showDeleteDownloadsConfirm = false
+    @State private var showWipeIndexConfirm = false
     @State private var photoItem: PhotosPickerItem?
     @State private var cacheCleared = false
     @State private var cacheSize: String = "…"
@@ -80,6 +87,10 @@ public struct SettingsView: View {
                     }
                 }
 
+                appearanceSection
+
+                examGoalsSection
+
                 // MARK: - Library & Study History
                 Section("Library") {
                     NavigationLink {
@@ -128,6 +139,17 @@ public struct SettingsView: View {
                             value: "\(activityStore.watchHistory(for: authService.currentSession?.uid).count + attempts.count)"
                         )
                     }
+                }
+
+                // Grouped because a `List` builder takes at most ten direct children and
+                // these three pushed it to eleven. `Group` is transparent to the list, so the
+                // sections still render as sections.
+                Group {
+                    questionIndexSection
+
+                    remindersSection
+
+                    siriSection
                 }
 
                 // MARK: - Cloud Sync
@@ -340,8 +362,7 @@ public struct SettingsView: View {
                             .foregroundColor(.secondary)
                     }
                 } footer: {
-                    Text("MedX Elite · Built with SwiftUI & Apple HIG")
-                        .font(.caption)
+                    creditFooter
                 }
             }
             .navigationTitle("Settings")
@@ -382,6 +403,14 @@ public struct SettingsView: View {
             } message: {
                 Text("This frees \(downloads.formattedTotalSize) on this device. Your watch progress is kept and you can download the classes again any time.")
             }
+            .confirmationDialog("Delete the question index?", isPresented: $showWipeIndexConfirm) {
+                Button("Delete \(index.indexedCount.formatted()) indexed questions", role: .destructive) {
+                    HapticManager.warning()
+                    index.wipe()
+                }
+            } message: {
+                Text("Search will only cover your bookmarks until it is rebuilt. Nothing else is affected.")
+            }
             .onChange(of: photoItem) { _, newItem in
                 guard let newItem, let profileId = authService.currentProfile?.id else { return }
                 Task { @MainActor in
@@ -394,15 +423,409 @@ public struct SettingsView: View {
             }
             .task {
                 await refreshCacheSize()
+                await reminders.refreshAuthorization()
                 if let uid = authService.currentSession?.uid {
                     await activityStore.syncWithCloud(uid: uid)
                 }
                 await loadAttempts()
+                await loadSubjects()
             }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(28)
+    }
+
+    // MARK: - Appearance
+
+    private var appearanceSection: some View {
+        Section {
+            HStack(spacing: 16) {
+                MedxLogoMark(size: 58)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("MedX Elite")
+                        .font(.headline)
+                    Text("Accent · \(medxTheme.accent.label)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 4)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 12)], spacing: 12) {
+                ForEach(MedxAccent.allCases) { accent in
+                    Button {
+                        HapticManager.selection()
+                        withAnimation(.snappy(duration: 0.25)) {
+                            medxTheme.apply(accent: accent)
+                        }
+                        // The widgets carry the accent in their snapshot.
+                        stats.publishSnapshot()
+                    } label: {
+                        Circle()
+                            .fill(accent.color)
+                            .frame(width: 34, height: 34)
+                            .overlay {
+                                if medxTheme.accent == accent {
+                                    Image(systemName: "checkmark")
+                                        .font(.footnote.weight(.black))
+                                        .foregroundStyle(.white)
+                                }
+                            }
+                            .overlay {
+                                Circle()
+                                    .strokeBorder(
+                                        medxTheme.accent == accent ? Color.primary.opacity(0.45) : Color.clear,
+                                        lineWidth: 2
+                                    )
+                                    .padding(-4)
+                            }
+                            .frame(width: 44, height: 44)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(accent.label)
+                    .accessibilityAddTraits(medxTheme.accent == accent ? [.isButton, .isSelected] : .isButton)
+                }
+            }
+            .padding(.vertical, 6)
+
+            Picker(selection: $medxTheme.appearance) {
+                ForEach(MedxAppearance.allCases) { appearance in
+                    Text(appearance.label).tag(appearance)
+                }
+            } label: {
+                Label("Appearance", systemImage: medxTheme.appearance.icon)
+            }
+            .pickerStyle(.segmented)
+            .padding(.vertical, 2)
+        } header: {
+            Text("Appearance")
+        } footer: {
+            Text("The accent applies across the app, its widgets and the Lock Screen activities. Colours are system colours, so contrast settings keep working.")
+                .font(.caption)
+        }
+    }
+
+    // MARK: - Exam & goals
+
+    private var examGoalsSection: some View {
+        Section {
+            DatePicker(
+                selection: $stats.examDate,
+                in: Date()...,
+                displayedComponents: .date
+            ) {
+                Label("Exam date", systemImage: "calendar.badge.clock")
+            }
+
+            HStack {
+                Label("Daily goal", systemImage: "target")
+                Spacer()
+                Text("\(stats.dailyGoal)")
+                    .font(.body.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText())
+                Stepper("") {
+                    stats.dailyGoal = min(stats.dailyGoal + 10, 300)
+                } onDecrement: {
+                    stats.dailyGoal = max(stats.dailyGoal - 10, 10)
+                }
+                .labelsHidden()
+            }
+            .frame(minHeight: 44)
+
+            HStack {
+                Label("Today", systemImage: "flame.fill")
+                Spacer()
+                Text("\(stats.answeredToday) answered · \(stats.streakDays)-day streak")
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .frame(minHeight: 44)
+        } header: {
+            Text("Exam & goals")
+        } footer: {
+            Text("\(stats.daysToExam) days to \(stats.examName). The countdown card, the widgets and the reminders all read these two values.")
+                .font(.caption)
+        }
+    }
+
+    // MARK: - Question index
+
+    private var questionIndexSection: some View {
+        Section {
+            HStack {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Searchable questions")
+                            .font(.body)
+                        Text(index.coverageSummary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .contentTransition(.numericText())
+                    }
+                } icon: {
+                    Image(systemName: "text.magnifyingglass")
+                        .foregroundStyle(MedxTheme.tealAccent)
+                }
+                Spacer()
+                Text(index.formattedSize)
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .frame(minHeight: 44)
+
+            if index.isBuilding {
+                VStack(alignment: .leading, spacing: 8) {
+                    ProgressView(value: index.coverage)
+                        .tint(MedxTheme.accent)
+
+                    HStack {
+                        Text("\(index.modulesDone) of \(max(index.expectedModules, 1)) modules")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Pause") {
+                            HapticManager.light()
+                            index.cancelBuild()
+                        }
+                        .font(.caption.weight(.semibold))
+                    }
+                }
+                .padding(.vertical, 4)
+            } else {
+                Button {
+                    HapticManager.medium()
+                    index.build(subjects: subjects)
+                } label: {
+                    Label {
+                        Text(index.isEmpty ? "Build the index" : "Finish the index")
+                            .font(.body)
+                    } icon: {
+                        Image(systemName: "arrow.down.doc")
+                            .foregroundStyle(MedxTheme.accent)
+                    }
+                    .frame(minHeight: 44)
+                }
+                .disabled(subjects.isEmpty || index.isComplete)
+            }
+
+            if !index.isEmpty {
+                Button(role: .destructive) {
+                    showWipeIndexConfirm = true
+                } label: {
+                    Label {
+                        Text("Delete the index")
+                            .font(.body)
+                    } icon: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(MedxTheme.destructiveRed)
+                    }
+                    .frame(minHeight: 44)
+                }
+            }
+
+            if let error = index.lastError {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(MedxTheme.warningOrange)
+            }
+        } header: {
+            Text("Question search")
+        } footer: {
+            Text(index.isComplete
+                 ? "All \(index.indexedCount.formatted()) questions are searchable offline."
+                 : "Searching every question needs their text on this device. Building fetches all \(max(index.expectedModules, 1211)) modules once — it is resumable, and it also makes those modules playable offline.")
+                .font(.caption)
+        }
+    }
+
+    // MARK: - Reminders
+
+    private var remindersSection: some View {
+        Section {
+            if !reminders.isAuthorized {
+                Button {
+                    Task {
+                        let granted = await reminders.requestAuthorization()
+                        if granted { HapticManager.success() } else { HapticManager.warning() }
+                    }
+                } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Turn on notifications")
+                                .font(.body)
+                            Text(reminders.authorization == .denied
+                                 ? "Denied — enable them in the Settings app"
+                                 : "Needed before any reminder can be scheduled")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "bell.badge")
+                            .foregroundStyle(MedxTheme.warningOrange)
+                    }
+                    .frame(minHeight: 44)
+                }
+            }
+
+            ForEach(MedxNotificationManager.Kind.allCases) { kind in
+                Toggle(isOn: reminderBinding(kind)) {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(kind.title)
+                                .font(.body)
+                            Text(kind.detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    } icon: {
+                        Image(systemName: kind.icon)
+                            .foregroundStyle(MedxTheme.accent)
+                    }
+                }
+                .disabled(!reminders.isAuthorized)
+            }
+
+            Picker(selection: $reminders.reminderHour) {
+                ForEach(Array(6...23), id: \.self) { hour in
+                    Text(Self.hourLabel(hour)).tag(hour)
+                }
+            } label: {
+                Label("Reminder time", systemImage: "clock")
+            }
+            .disabled(!reminders.enabled.contains(.dailyQuestions) || !reminders.isAuthorized)
+        } header: {
+            Text("Reminders")
+        } footer: {
+            Text(reminders.isAuthorized
+                 ? "\(reminders.pendingCount) scheduled. The wording is rebuilt each time the app opens, so the numbers are current."
+                 : "Reminders stay off until notifications are allowed.")
+                .font(.caption)
+        }
+        .tint(MedxTheme.accent)
+    }
+
+    private func reminderBinding(_ kind: MedxNotificationManager.Kind) -> Binding<Bool> {
+        Binding(
+            get: { reminders.enabled.contains(kind) },
+            set: { isOn in
+                var next = reminders.enabled
+                if isOn { next.insert(kind) } else { next.remove(kind) }
+                reminders.enabled = next
+            }
+        )
+    }
+
+    private static func hourLabel(_ hour: Int) -> String {
+        var components = DateComponents()
+        components.hour = hour
+        components.minute = 0
+        guard let date = Calendar.current.date(from: components) else { return "\(hour):00" }
+        return date.formatted(.dateTime.hour().minute())
+    }
+
+    // MARK: - Siri & Spotlight
+
+    private var siriSection: some View {
+        Section {
+            widgetStatusRow
+
+            Toggle(isOn: $spotlight.isEnabled) {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Index in Spotlight")
+                            .font(.body)
+                        Text(spotlight.indexedCount > 0
+                             ? "\(spotlight.indexedCount.formatted()) items findable from the Home Screen"
+                             : "Modules and bookmarks become findable from the Home Screen")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } icon: {
+                    Image(systemName: "magnifyingglass.circle.fill")
+                        .foregroundStyle(MedxTheme.indigoAccent)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Ask Siri", systemImage: "mic.circle.fill")
+                    .font(.body)
+                    .foregroundStyle(.primary)
+
+                ForEach(["“Start today's revision in MedX Elite”",
+                         "“How long until my exam in MedX Elite”",
+                         "“Search questions in MedX Elite”"], id: \.self) { phrase in
+                    Text(phrase)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text("Siri, Spotlight & widgets")
+        } footer: {
+            Text("Nothing is uploaded — Spotlight's index lives on this device and is removed when the switch is off.")
+                .font(.caption)
+        }
+        .tint(MedxTheme.accent)
+    }
+
+    /// Sideloaded builds are often signed without an app-group entitlement, and the symptom is
+    /// a widget stuck on the countdown with no personal figures. Saying so here is cheaper than
+    /// guessing at it later.
+    private var widgetStatusRow: some View {
+        HStack {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Widget data")
+                        .font(.body)
+                    Text(MedxSharedStore.containerDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } icon: {
+                Image(systemName: MedxAppGroup.isShared
+                      ? "checkmark.circle.fill"
+                      : "exclamationmark.triangle.fill")
+                    .foregroundStyle(MedxAppGroup.isShared ? MedxTheme.successGreen : MedxTheme.warningOrange)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(minHeight: 44)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Widget data")
+        .accessibilityValue(MedxAppGroup.isShared ? "Shared container available" : "No shared container")
+    }
+
+    // MARK: - Credit
+
+    private var creditFooter: some View {
+        VStack(spacing: 6) {
+            MedxWordmark(size: 17)
+                .padding(.top, 10)
+
+            Text("App designed by Srihari")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Text("Built in Swift and SwiftUI to Apple's Human Interface Guidelines · v1.0.0")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("MedX Elite, app designed by Srihari, version 1.0.0")
     }
 
     private func settingsRow(title: String, icon: String, color: Color, value: String) -> some View {
@@ -427,9 +850,18 @@ public struct SettingsView: View {
         do {
             let token = try await authService.getValidIdToken()
             attempts = try await FirestoreService.shared.fetchUserAttempts(uid: uid, idToken: token)
+            MedxStudyStatsStore.shared.ingest(attempts: attempts)
         } catch {
             attempts = []
         }
+    }
+
+    /// Needed by the index builder, which walks the module list out of the subject tree.
+    private func loadSubjects() async {
+        guard subjects.isEmpty else { return }
+        guard let token = try? await authService.getValidIdToken() else { return }
+        subjects = (try? await FirestoreService.shared.fetchQBankSubjects(idToken: token)) ?? []
+        index.noteExpectations(subjects: subjects)
     }
 
     @MainActor

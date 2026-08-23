@@ -3,6 +3,9 @@ import SwiftUI
 /// Profile chooser. Two known accounts, a saved-password fast path, and nothing else.
 public struct ProfileSelectView: View {
     @ObservedObject private var authService = AuthService.shared
+    /// Observed so the sign-in screen repaints when the accent changes — it lives outside
+    /// `MainTabView`, which is where the rest of the app picks the change up.
+    @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
     @State private var selectedProfile: Profile?
 
     public init() {}
@@ -49,11 +52,7 @@ public struct ProfileSelectView: View {
 
     private var branding: some View {
         VStack(spacing: 10) {
-            Image(systemName: "heart.text.clipboard.fill")
-                .font(.system(size: 34, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 78, height: 78)
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            MedxLogoMark(size: 78)
 
             Text("MedX Elite")
                 .font(.largeTitle.weight(.bold))

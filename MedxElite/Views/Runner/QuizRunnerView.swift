@@ -26,6 +26,10 @@ public struct QuizRunnerView: View {
     @State private var showExitAlert = false
     @State private var showNavigator = false
     @State private var startedAt = Date()
+    /// What the Lock Screen was last told, so a navigation tap does not push an identical
+    /// Live Activity update.
+    @State private var lastPushedAnswered = -1
+    @State private var lastPushedNumber = -1
 
     @ObservedObject private var activityStore = ActivityStore.shared
     @ObservedObject private var authService = AuthService.shared
@@ -66,6 +70,14 @@ public struct QuizRunnerView: View {
         }
         .task {
             await loadSittingQuestions()
+        }
+        .onDisappear {
+            // Belt and braces: `finishSitting` already ends it, but leaving by any other
+            // route must not strand a timer on the Lock Screen.
+            MedxLiveActivityController.shared.endExam(
+                answered: answeredCount,
+                currentNumber: currentIndex + 1
+            )
         }
     }
 
@@ -161,6 +173,29 @@ public struct QuizRunnerView: View {
     /// both read it, and it walks every question in the sitting.
     private func refreshStatuses() {
         statuses = questions.map { status(for: $0) }
+        refreshLiveActivity()
+    }
+
+    /// Exam mode mirrors the sitting onto the Lock Screen and the Dynamic Island. The clock
+    /// itself is handed over as an end date so the system ticks it — only the answered count
+    /// and the question number need pushing, and only when they actually change.
+    private func refreshLiveActivity() {
+        guard payload.mode == .exam, loadState == .ready, !isFinished else { return }
+        let answered = answeredCount
+        let number = currentIndex + 1
+        guard answered != lastPushedAnswered || number != lastPushedNumber else { return }
+        lastPushedAnswered = answered
+        lastPushedNumber = number
+
+        MedxLiveActivityController.shared.updateExam(
+            answered: answered,
+            currentNumber: number,
+            endDate: examEndDate
+        )
+    }
+
+    private var examEndDate: Date {
+        Date().addingTimeInterval(TimeInterval(max(remainingSeconds, 0)))
     }
 
     private func isBookmarked(_ question: Question) -> Bool {
@@ -219,7 +254,8 @@ public struct QuizRunnerView: View {
                     } label: {
                         Image(systemName: isBookmarked(question) ? "bookmark.fill" : "bookmark")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(isBookmarked(question) ? MedxTheme.warningOrange : Color.accentColor)
+                            .foregroundStyle(isBookmarked(question) ? MedxTheme.warningOrange : MedxTheme.accent)
+                            .symbolEffect(.bounce, value: isBookmarked(question))
                     }
                     .accessibilityLabel(isBookmarked(question) ? "Remove bookmark" : "Bookmark question")
                 }
@@ -272,6 +308,15 @@ public struct QuizRunnerView: View {
                         number: currentIndex + 1,
                         showsUngradedNotice: !payload.gradable
                     )
+                    // Double-tap the stem to bookmark, the way Photos favourites a picture.
+                    // The toolbar button stays the discoverable route; VoiceOver gets the
+                    // same thing as a custom action rather than a gesture it cannot perform.
+                    .onTapGesture(count: 2) {
+                        toggleBookmark(question)
+                    }
+                    .accessibilityAction(named: isBookmarked(question) ? "Remove bookmark" : "Bookmark question") {
+                        toggleBookmark(question)
+                    }
 
                     answerSection(
                         question: question,
@@ -326,7 +371,7 @@ public struct QuizRunnerView: View {
                     ZStack(alignment: .leading) {
                         Capsule().fill(Color(uiColor: .quaternaryLabel))
                         Capsule()
-                            .fill(Color.accentColor)
+                            .fill(MedxTheme.accent)
                             .frame(width: max(6, geo.size.width * progressFraction))
                     }
                 }
@@ -604,6 +649,10 @@ public struct QuizRunnerView: View {
         completedSeconds = Int(Date().timeIntervalSince(startedAt))
         isFinished = true
         HapticManager.success()
+        MedxLiveActivityController.shared.endExam(
+            answered: answeredCount,
+            currentNumber: currentIndex + 1
+        )
         saveSittingAttempt()
     }
 
@@ -642,13 +691,20 @@ public struct QuizRunnerView: View {
 
     private func loadSittingQuestions() async {
         do {
-            let token = try await AuthService.shared.getValidIdToken()
             let loaded: [Question]
-            if payload.kind == "qbank" {
-                let module = try await FirestoreService.shared.fetchQBankModule(moduleId: payload.id, idToken: token)
-                loaded = module.questions ?? []
+
+            // A custom module or a "practise these" sitting arrives with its questions
+            // already gathered from several source modules, so there is nothing to fetch.
+            if let supplied = payload.questions, !supplied.isEmpty {
+                loaded = supplied
             } else {
-                loaded = try await FirestoreService.shared.fetchTestQuestions(testId: payload.id, idToken: token)
+                let token = try await AuthService.shared.getValidIdToken()
+                if payload.kind == "qbank" {
+                    let module = try await FirestoreService.shared.fetchQBankModule(moduleId: payload.id, idToken: token)
+                    loaded = module.questions ?? []
+                } else {
+                    loaded = try await FirestoreService.shared.fetchTestQuestions(testId: payload.id, idToken: token)
+                }
             }
 
             guard !loaded.isEmpty else {
@@ -665,6 +721,15 @@ public struct QuizRunnerView: View {
             startedAt = Date()
             loadState = .ready
             refreshStatuses()
+
+            if payload.mode == .exam {
+                MedxLiveActivityController.shared.startExam(
+                    name: payload.name,
+                    subject: payload.subject,
+                    totalQuestions: loaded.count,
+                    endDate: examEndDate
+                )
+            }
         } catch {
             loadState = .unavailable("We couldn't load this sitting. Check your connection and try again.")
         }
@@ -809,7 +874,7 @@ struct RunnerExplanationCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .medxCard()
-        .transition(.opacity)
+        .transition(.blurReplace)
     }
 }
 
@@ -823,10 +888,10 @@ enum RunnerQuestionStatus {
     case timedOut
 
     func trackColor(isCurrent: Bool) -> Color {
-        if isCurrent { return Color.accentColor }
+        if isCurrent { return MedxTheme.accent }
         switch self {
         case .unanswered: return Color(uiColor: .quaternaryLabel)
-        case .answered: return Color.accentColor.opacity(0.55)
+        case .answered: return MedxTheme.accent.opacity(0.55)
         case .correct: return MedxTheme.successGreen.opacity(0.75)
         case .wrong: return MedxTheme.destructiveRed.opacity(0.75)
         case .timedOut: return MedxTheme.warningOrange.opacity(0.75)
@@ -836,7 +901,7 @@ enum RunnerQuestionStatus {
     var chipFill: Color {
         switch self {
         case .unanswered: return MedxSurface.fieldFill
-        case .answered: return Color.accentColor.opacity(0.16)
+        case .answered: return MedxTheme.accent.opacity(0.16)
         case .correct: return MedxTheme.successGreen.opacity(0.16)
         case .wrong: return MedxTheme.destructiveRed.opacity(0.16)
         case .timedOut: return MedxTheme.warningOrange.opacity(0.16)
@@ -846,7 +911,7 @@ enum RunnerQuestionStatus {
     var chipForeground: Color {
         switch self {
         case .unanswered: return .secondary
-        case .answered: return Color.accentColor
+        case .answered: return MedxTheme.accent
         case .correct: return MedxTheme.successGreen
         case .wrong: return MedxTheme.destructiveRed
         case .timedOut: return MedxTheme.warningOrange
@@ -987,12 +1052,12 @@ struct QuestionNavigatorSheet: View {
         } label: {
             Text("\(index + 1)")
                 .font(.subheadline.weight(.semibold).monospacedDigit())
-                .foregroundStyle(isCurrent ? Color.accentColor : status.chipForeground)
+                .foregroundStyle(isCurrent ? MedxTheme.accent : status.chipForeground)
                 .frame(minWidth: 46, minHeight: 46)
                 .background(status.chipFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(isCurrent ? Color.accentColor : Color.clear, lineWidth: 2)
+                        .strokeBorder(isCurrent ? MedxTheme.accent : Color.clear, lineWidth: 2)
                 )
                 .opacity(isLocked ? 0.35 : 1)
                 .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))

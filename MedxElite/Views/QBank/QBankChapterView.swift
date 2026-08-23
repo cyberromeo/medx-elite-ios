@@ -224,7 +224,7 @@ public struct QBankChapterView: View {
 
                 Image(systemName: result == nil ? "play.circle.fill" : "checkmark.circle.fill")
                     .font(.title3)
-                    .foregroundStyle(result == nil ? Color.accentColor : MedxTheme.successGreen)
+                    .foregroundStyle(result == nil ? MedxTheme.accent : MedxTheme.successGreen)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)

@@ -102,11 +102,11 @@ public struct VideoSubjectView: View {
                 HStack(spacing: 14) {
                     ZStack {
                         Circle()
-                            .fill(Color.accentColor.opacity(0.12))
+                            .fill(MedxTheme.accent.opacity(0.12))
                             .frame(width: 40, height: 40)
                         Text("\(index + 1)")
                             .font(.subheadline.weight(.bold).monospacedDigit())
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(MedxTheme.accent)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -141,7 +141,7 @@ public struct VideoSubjectView: View {
                         if let history, history.progress > 0 {
                             HStack(spacing: 6) {
                                 ProgressView(value: history.progress)
-                                    .tint(history.isCompleted ? MedxTheme.successGreen : Color.accentColor)
+                                    .tint(history.isCompleted ? MedxTheme.successGreen : MedxTheme.accent)
                                     .frame(width: 64)
                                 Text(history.isCompleted
                                      ? "Watched"

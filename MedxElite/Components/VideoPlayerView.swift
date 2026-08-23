@@ -13,6 +13,9 @@ public struct VideoPlayerView: View {
 
     @StateObject private var proxy = HLSProxyServer.shared
     @State private var player: AVPlayer?
+    /// Held here on purpose: `AVAssetResourceLoader` keeps only a weak reference to its
+    /// delegate, and a released loader makes an offline class stall with no error at all.
+    @State private var offlineLoader = MedxOfflineAssetLoader()
     @State private var hasError = false
     @State private var errorMessage = ""
     @State private var timeObserverToken: Any?
@@ -154,7 +157,33 @@ public struct VideoPlayerView: View {
     @MainActor
     private func setupProxyAndPlayer() {
         hasError = false
+        configureAudioSession()
 
+        // Offline first, and with no dependency on the proxy: a download is served by
+        // `MedxOfflineAssetLoader` straight out of the app container, so playback starts
+        // immediately and works with the local server stopped or unbound.
+        if !forceOnlinePlayback,
+           let video,
+           hasOfflineCopy(video),
+           let asset = offlineLoader.makeAsset(videoId: video.id) {
+            usingOfflineCopy = true
+            createPlayer(with: asset)
+            return
+        }
+
+        usingOfflineCopy = false
+
+        // Streaming still goes through the proxy — it is the only thing that can attach the
+        // spoofed headers the CDN insists on. `waitUntilRunning` starts the listener and
+        // waits for a bound port instead of guessing at a delay.
+        Task { @MainActor in
+            _ = await proxy.waitUntilRunning()
+            guard let asset = streamingAsset() else { return }
+            createPlayer(with: asset)
+        }
+    }
+
+    private func configureAudioSession() {
         do {
             try AVAudioSession.sharedInstance().setCategory(
                 .playback,
@@ -165,21 +194,26 @@ public struct VideoPlayerView: View {
         } catch {
             print("[VideoPlayer] Audio session error: \(error)")
         }
-
-        // `waitUntilRunning` starts the listener and waits for the port to be bound
-        // instead of guessing at a delay: without a port there is no offline URL, and the
-        // download would look broken.
-        Task { @MainActor in
-            _ = await proxy.waitUntilRunning()
-            createPlayer()
-        }
     }
 
     @MainActor
-    private func createPlayer() {
-        guard let url = resolvePlaybackURL() else { return }
+    private func hasOfflineCopy(_ video: RecordedVideo) -> Bool {
+        VideoDownloadStore.shared.isDownloaded(video.id) || VideoDownloadStore.hasOfflineCopy(video.id)
+    }
 
-        let item = AVPlayerItem(asset: AVURLAsset(url: url))
+    @MainActor
+    private func streamingAsset() -> AVURLAsset? {
+        if let proxied = proxy.proxiedURL(for: streamUrl) { return AVURLAsset(url: proxied) }
+        if let direct = URL(string: streamUrl) { return AVURLAsset(url: direct) }
+
+        hasError = true
+        errorMessage = "This class has no valid stream URL."
+        return nil
+    }
+
+    @MainActor
+    private func createPlayer(with asset: AVURLAsset) {
+        let item = AVPlayerItem(asset: asset)
         let newPlayer = AVPlayer(playerItem: item)
         newPlayer.allowsExternalPlayback = true
         newPlayer.preventsDisplaySleepDuringVideoPlayback = true
@@ -219,32 +253,6 @@ public struct VideoPlayerView: View {
             guard usingOfflineCopy, player?.currentItem?.status == .failed else { return }
             fallBackToOnlinePlayback()
         }
-    }
-
-    @MainActor
-    private func resolvePlaybackURL() -> URL? {
-        let hasDownload = video.map {
-            VideoDownloadStore.shared.isDownloaded($0.id) || VideoDownloadStore.hasOfflineCopy($0.id)
-        } ?? false
-
-        if !forceOnlinePlayback,
-           let video,
-           hasDownload,
-           let offlineURL = proxy.offlineURL(videoId: video.id) {
-            // AVFoundation cannot load an HLS playlist from `file://`, so the saved
-            // playlist is served over the loopback proxy. No network is involved.
-            usingOfflineCopy = true
-            return offlineURL
-        }
-
-        usingOfflineCopy = false
-
-        if let proxied = proxy.proxiedURL(for: streamUrl) { return proxied }
-        if let direct = URL(string: streamUrl) { return direct }
-
-        hasError = true
-        errorMessage = "This class has no valid stream URL."
-        return nil
     }
 
     // MARK: - Observers
@@ -322,6 +330,9 @@ public struct VideoPlayerView: View {
     }
 
     /// Swaps a failed offline copy for the live stream without touching saved progress.
+    ///
+    /// Kept deliberately: AVFoundation can still reject a locally rewritten playlist, and
+    /// without this the class simply dead-ends on a black screen.
     @MainActor
     private func fallBackToOnlinePlayback() {
         guard usingOfflineCopy else { return }
@@ -337,7 +348,8 @@ public struct VideoPlayerView: View {
 
         Task { @MainActor in
             _ = await proxy.waitUntilRunning()
-            createPlayer()
+            guard let asset = streamingAsset() else { return }
+            createPlayer(with: asset)
         }
     }
 

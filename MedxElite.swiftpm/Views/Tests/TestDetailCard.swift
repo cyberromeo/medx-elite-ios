@@ -169,7 +169,7 @@ public struct TestDetailCard: View {
         }
         .buttonStyle(.borderedProminent)
         .buttonBorderShape(.capsule)
-        .tint(test.gradable ? Color.accentColor : MedxTheme.warningOrange)
+        .tint(test.gradable ? MedxTheme.accent : MedxTheme.warningOrange)
         .padding(.top, 2)
     }
 }

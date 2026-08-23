@@ -73,7 +73,7 @@ public struct QuestionOptionButton: View {
             .foregroundStyle(isFilledBadge ? Color.white : Color.primary)
             .frame(width: 28, height: 28)
             .background(
-                Circle().fill(isFilledBadge ? (stateColor ?? Color.accentColor) : MedxSurface.fieldFill)
+                Circle().fill(isFilledBadge ? (stateColor ?? MedxTheme.accent) : MedxSurface.fieldFill)
             )
             .overlay(
                 Circle().strokeBorder(
@@ -96,7 +96,7 @@ public struct QuestionOptionButton: View {
         } else if isChosen {
             Image(systemName: "checkmark.circle.fill")
                 .font(.title3)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(MedxTheme.accent)
         } else if !isRevealed {
             Image(systemName: "circle")
                 .font(.title3)
@@ -113,7 +113,7 @@ public struct QuestionOptionButton: View {
             if isChosen { return MedxTheme.destructiveRed }
             return nil
         }
-        return isChosen ? Color.accentColor : nil
+        return isChosen ? MedxTheme.accent : nil
     }
 
     private var isEmphasized: Bool {

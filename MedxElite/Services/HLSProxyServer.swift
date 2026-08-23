@@ -144,16 +144,6 @@ public final class HLSProxyServer: ObservableObject {
         return URL(string: "http://127.0.0.1:\(port)/proxy?url=\(encoded)")
     }
 
-    /// Loopback URL for a finished download. AVFoundation will not load an HLS playlist
-    /// from a `file://` URL, so the saved playlist has to be served over HTTP — this
-    /// route reads straight off the disk and never touches the network.
-    public func offlineURL(videoId: String, file: String = VideoDownloadStore.playlistFileName) -> URL? {
-        guard isRunning, port > 0 else { return nil }
-        let safe = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
-        let encodedId = videoId.addingPercentEncoding(withAllowedCharacters: safe) ?? videoId
-        return URL(string: "http://127.0.0.1:\(port)/offline/\(encodedId)/\(file)")
-    }
-
     /// The exact header set the upstream CDN expects for a given URL. Shared with
     /// `VideoDownloadStore` so proxied playback and offline downloads cannot drift apart.
     fileprivate static func spoofHeaders(for targetURL: URL) -> [String: String] {
@@ -219,13 +209,9 @@ public final class HLSProxyServer: ObservableObject {
                 return
             }
 
-            let method = parts[0].uppercased()
+            // Only GET /proxy?url=… is served now that offline playback is handled by
+            // `MedxOfflineAssetLoader` rather than a second route on this server.
             let path = parts[1]
-
-            if path.hasPrefix("/offline/") {
-                self.serveOfflineFile(path: path, method: method, headerLines: lines, connection: connection)
-                return
-            }
 
             // Extract the target URL from query parameter
             if path.hasPrefix("/proxy?url="),
@@ -236,139 +222,6 @@ public final class HLSProxyServer: ObservableObject {
             } else {
                 self.sendError(connection: connection, code: 404, message: "Not Found")
             }
-        }
-    }
-
-    // MARK: - Offline Playback
-
-    /// Serves a completed download straight from the app container. AVFoundation refuses
-    /// to load an HLS playlist over `file://`, so downloaded classes play through this
-    /// loopback route instead — no network involved, works in airplane mode.
-    private func serveOfflineFile(path: String, method: String, headerLines: [String], connection: NWConnection) {
-        // /offline/<percent-encoded video id>/<file name>
-        let route = path.components(separatedBy: "?")[0]
-        let components = route.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
-        guard components.count == 3,
-              let videoId = components[1].removingPercentEncoding,
-              let fileName = components[2].removingPercentEncoding,
-              Self.isSafeFileName(fileName) else {
-            sendError(connection: connection, code: 400, message: "Bad Request")
-            return
-        }
-
-        let fileURL = VideoDownloadStore.directory(for: videoId).appendingPathComponent(fileName)
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path),
-              let size = (attributes[.size] as? NSNumber)?.int64Value,
-              size > 0 else {
-            sendError(connection: connection, code: 404, message: "Not Found")
-            return
-        }
-
-        var start: Int64 = 0
-        var end: Int64 = size - 1
-        var isPartial = false
-        if let rangeHeader = Self.headerValue("Range", in: headerLines),
-           let range = Self.parseByteRange(rangeHeader, totalSize: size) {
-            start = range.lowerBound
-            end = range.upperBound
-            isPartial = true
-        }
-
-        let length = Int(end - start + 1)
-        var body = Data()
-        if method != "HEAD" {
-            guard let handle = try? FileHandle(forReadingFrom: fileURL) else {
-                sendError(connection: connection, code: 404, message: "Not Found")
-                return
-            }
-            defer { try? handle.close() }
-            do {
-                if start > 0 {
-                    try handle.seek(toOffset: UInt64(start))
-                }
-                body = try handle.read(upToCount: length) ?? Data()
-            } catch {
-                sendError(connection: connection, code: 500, message: "Internal Server Error")
-                return
-            }
-
-            guard !body.isEmpty else {
-                sendError(connection: connection, code: 500, message: "Internal Server Error")
-                return
-            }
-            // A short read must be reflected in the range headers, not papered over.
-            end = start + Int64(body.count) - 1
-        }
-
-        var head = isPartial
-            ? "HTTP/1.1 206 Partial Content\r\n"
-            : "HTTP/1.1 200 OK\r\n"
-        head += "Content-Type: \(Self.mimeType(for: fileName))\r\n"
-        // For GET, report what is actually being written or AVPlayer waits for bytes
-        // that never arrive; for HEAD there is no body to measure.
-        head += "Content-Length: \(method == "HEAD" ? length : body.count)\r\n"
-        head += "Accept-Ranges: bytes\r\n"
-        if isPartial {
-            head += "Content-Range: bytes \(start)-\(end)/\(size)\r\n"
-        }
-        head += "Cache-Control: no-store\r\n"
-        head += "Connection: close\r\n\r\n"
-
-        var response = Data(head.utf8)
-        response.append(body)
-
-        connection.send(content: response, completion: .contentProcessed { _ in
-            connection.cancel()
-        })
-    }
-
-    /// Rejects anything that could climb out of the download folder.
-    private static func isSafeFileName(_ name: String) -> Bool {
-        !name.isEmpty && !name.contains("/") && !name.contains("\\") && !name.contains("..")
-    }
-
-    private static func headerValue(_ name: String, in headerLines: [String]) -> String? {
-        let prefix = name.lowercased() + ":"
-        for line in headerLines.dropFirst() where line.lowercased().hasPrefix(prefix) {
-            return String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
-        }
-        return nil
-    }
-
-    /// Understands the single-range forms AVFoundation sends: `bytes=0-1023`,
-    /// `bytes=1024-` and `bytes=-512`. Multi-range requests fall back to the whole file.
-    private static func parseByteRange(_ header: String, totalSize: Int64) -> ClosedRange<Int64>? {
-        guard let equals = header.firstIndex(of: "="), totalSize > 0 else { return nil }
-        let spec = header[header.index(after: equals)...].trimmingCharacters(in: .whitespaces)
-        guard !spec.isEmpty, !spec.contains(",") else { return nil }
-
-        let bounds = spec.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
-        guard bounds.count == 2 else { return nil }
-        let last = totalSize - 1
-
-        if bounds[0].isEmpty {
-            guard let suffix = Int64(bounds[1]), suffix > 0 else { return nil }
-            return max(0, totalSize - suffix)...last
-        }
-
-        guard let start = Int64(bounds[0]), start >= 0, start <= last else { return nil }
-        if bounds[1].isEmpty { return start...last }
-        guard let requestedEnd = Int64(bounds[1]) else { return nil }
-        let end = min(requestedEnd, last)
-        guard end >= start else { return nil }
-        return start...end
-    }
-
-    private static func mimeType(for fileName: String) -> String {
-        switch (fileName as NSString).pathExtension.lowercased() {
-        case "m3u8": return "application/vnd.apple.mpegurl"
-        case "ts": return "video/mp2t"
-        case "mp4", "m4s", "m4v": return "video/mp4"
-        case "m4a": return "audio/mp4"
-        case "aac": return "audio/aac"
-        case "vtt": return "text/vtt"
-        case "json": return "application/json"
-        default: return "application/octet-stream"
         }
     }
 
@@ -591,7 +444,7 @@ public final class VideoDownloadStore: ObservableObject {
     @Published public private(set) var items: [String: DownloadedVideo] = [:]
 
     /// `nonisolated` so the disk-side helpers below can read them without hopping actors.
-    /// `playlistFileName` is public because `HLSProxyServer.offlineURL` defaults to it.
+    /// `playlistFileName` is public because `MedxOfflineScheme.assetURL` defaults to it.
     nonisolated public static let playlistFileName = "local.m3u8"
     /// Only written when the chosen variant carries its audio in a separate rendition —
     /// then `local.m3u8` becomes a master playlist tying these two together.
@@ -641,9 +494,9 @@ public final class VideoDownloadStore: ObservableObject {
     /// Nonisolated on purpose: the player asks for this while building its asset.
     /// Returns nil unless a *finished* download exists on disk.
     ///
-    /// This is a `file://` URL and is only good for existence checks — AVFoundation
-    /// cannot load an HLS playlist from the file system, so playback goes through
-    /// `HLSProxyServer.offlineURL(videoId:)` instead.
+    /// This is a `file://` URL and is only good for existence checks — AVFoundation cannot
+    /// load an HLS playlist from the file system, so playback goes through
+    /// `MedxOfflineScheme.assetURL(videoId:)` and `MedxOfflineAssetLoader` instead.
     public nonisolated static func offlinePlaylistURL(for videoId: String) -> URL? {
         let dir = directory(for: videoId)
         let playlist = dir.appendingPathComponent(playlistFileName)
@@ -742,6 +595,7 @@ public final class VideoDownloadStore: ObservableObject {
         tasks[videoId] = nil
         update(videoId) { if $0.state != .completed { $0.state = .paused } }
         persist(videoId)
+        endDownloadActivity(videoId, statusText: "Paused")
         pump()
     }
 
@@ -760,6 +614,7 @@ public final class VideoDownloadStore: ObservableObject {
         tasks[videoId]?.cancel()
         tasks[videoId] = nil
         generation[videoId] = (generation[videoId] ?? 0) + 1
+        endDownloadActivity(videoId, statusText: "Removed")
         items[videoId] = nil
 
         let dir = Self.directory(for: videoId)
@@ -769,6 +624,17 @@ public final class VideoDownloadStore: ObservableObject {
             try? FileManager.default.removeItem(at: dir)
         }
         pump()
+    }
+
+    /// Closes out a Live Activity for a download that is no longer running.
+    private func endDownloadActivity(_ videoId: String, statusText: String) {
+        MedxLiveActivityController.shared.endDownload(
+            id: videoId,
+            completed: items[videoId]?.completedSegments ?? 0,
+            total: items[videoId]?.totalSegments ?? 0,
+            statusText: statusText,
+            finished: false
+        )
     }
 
     public func removeAll() {
@@ -820,6 +686,15 @@ public final class VideoDownloadStore: ObservableObject {
             }
             persist(id)
 
+            // Only now is the segment count known, so this is the earliest point a Live
+            // Activity can show real progress rather than an indeterminate spinner.
+            MedxLiveActivityController.shared.startDownload(
+                id: id,
+                title: video.title,
+                subject: video.subject,
+                totalSegments: plan.resources.count
+            )
+
             try await downloadResources(pending, into: dir, id: id)
             try Task.checkCancellation()
 
@@ -831,6 +706,13 @@ public final class VideoDownloadStore: ObservableObject {
                 $0.errorMessage = nil
             }
             persist(id)
+            MedxLiveActivityController.shared.endDownload(
+                id: id,
+                completed: items[id]?.totalSegments ?? 0,
+                total: items[id]?.totalSegments ?? 0,
+                statusText: "Saved · \(items[id]?.formattedSize ?? "")",
+                finished: true
+            )
             HapticManager.success()
         } catch {
             let wasCancelled = Task.isCancelled
@@ -846,6 +728,13 @@ public final class VideoDownloadStore: ObservableObject {
                 }
             }
             persist(id)
+            MedxLiveActivityController.shared.endDownload(
+                id: id,
+                completed: items[id]?.completedSegments ?? 0,
+                total: items[id]?.totalSegments ?? 0,
+                statusText: items[id]?.statusLabel ?? "Stopped",
+                finished: false
+            )
         }
 
         if generation[id] == gen {
@@ -876,6 +765,16 @@ public final class VideoDownloadStore: ObservableObject {
                 if sinceLastPersist >= 12 {
                     sinceLastPersist = 0
                     persist(id)
+                }
+                // The Lock Screen is refreshed on the same beat as the on-disk manifest;
+                // pushing an update per segment would be hundreds of writes for one class.
+                if sinceLastPersist == 0, let item = items[id] {
+                    MedxLiveActivityController.shared.updateDownload(
+                        id: id,
+                        completed: item.completedSegments,
+                        total: item.totalSegments,
+                        statusText: item.statusLabel
+                    )
                 }
                 if next < resources.count {
                     let resource = resources[next]

@@ -95,11 +95,11 @@ public struct SyllabusTrackerSheet: View {
                 Spacer()
                 Text("\(counts.done) / \(counts.total)")
                     .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(MedxTheme.accent)
             }
 
             ProgressView(value: progress)
-                .tint(Color.accentColor)
+                .tint(MedxTheme.accent)
 
             Text("\(max(counts.total - counts.done, 0)) items left across \(subjectsList.count) subjects")
                 .font(.caption)
@@ -218,7 +218,7 @@ private struct SubjectTrackerRow: View {
             .frame(maxWidth: .infinity, minHeight: 42)
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(isChecked ? Color.accentColor : (isTracked ? MedxSurface.fieldFill : Color.clear))
+                    .fill(isChecked ? MedxTheme.accent : (isTracked ? MedxSurface.fieldFill : Color.clear))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)

@@ -1,14 +1,83 @@
 import SwiftUI
 import Combine
 
+/// Somewhere the app can be told to go, from outside the app.
+///
+/// Notification taps, Spotlight results, Siri shortcuts and the widgets' deep links all
+/// arrive as one of these and are handed to `AppState.open(route:)`, so there is a single
+/// place that knows how an external entry point maps onto the UI.
+public enum MedxRoute: Hashable, Sendable {
+    case home
+    case qbank
+    case tests
+    case flashcards
+    case videos
+    /// Question search, optionally pre-filled.
+    case search(String?)
+    case customModule
+    /// Build and start a sitting from whatever the spaced schedule says is due.
+    case todaysRevision
+    case bookmarks
+    case downloads
+    case settings
+    /// A specific module, from Spotlight or a widget — opens the mode picker rather than
+    /// dropping the student straight into a timed sitting.
+    case module(MedxModulePick)
+
+    var tab: TabItem? {
+        switch self {
+        case .home, .todaysRevision: return .home
+        case .qbank, .search, .customModule, .bookmarks, .module: return .qbank
+        case .tests: return .tests
+        case .flashcards: return .flashcards
+        case .videos, .downloads: return .videos
+        case .settings: return nil
+        }
+    }
+}
+
+/// A module the app has been asked to open from outside the QBank browser.
+public struct MedxModulePick: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let name: String
+    public let subject: String
+    public let questionCount: Int
+
+    public init(id: String, name: String, subject: String, questionCount: Int) {
+        self.id = id
+        self.name = name
+        self.subject = subject
+        self.questionCount = questionCount
+    }
+}
+
+
 @MainActor
 public final class AppState: ObservableObject {
     public static let shared = AppState()
 
-    @Published public var isDarkMode: Bool = true
-
     /// Owned here rather than by `MainTabView` so Home's shortcuts can move the selection.
     @Published public var selectedTab: TabItem = .home
+
+    // Sheet and cover routing, so an external entry point can raise any of them.
+    @Published public var showSearch = false
+    @Published public var showCustomModule = false
+    @Published public var showSettings = false
+    @Published public var showBookmarks = false
+    @Published public var showDownloads = false
+
+    /// Set when something outside the app asks for a sitting to start — a Siri shortcut, a
+    /// reminder tap, or the search screen's "practise these".
+    @Published public var pendingRunnerPayload: RunnerPayload?
+
+    /// A module waiting for its mode to be chosen.
+    @Published public var pendingModulePick: MedxModulePick?
+
+    /// Raised when a route needs a sitting assembled first; the Home screen builds it.
+    @Published public var revisionRequestedAt: Date?
+
+    /// Text handed to the search screen when it opens.
+    @Published public var searchSeed: String = ""
 
     private init() {}
 
@@ -16,7 +85,44 @@ public final class AppState: ObservableObject {
         guard selectedTab != tab else { return }
         selectedTab = tab
     }
+
+    public func open(route: MedxRoute) {
+        if let tab = route.tab {
+            selectedTab = tab
+        }
+
+        switch route {
+        case .home, .qbank, .tests, .flashcards, .videos:
+            break
+        case .search(let seed):
+            searchSeed = seed ?? ""
+            showSearch = true
+        case .customModule:
+            showCustomModule = true
+        case .todaysRevision:
+            revisionRequestedAt = Date()
+        case .bookmarks:
+            showBookmarks = true
+        case .downloads:
+            showDownloads = true
+        case .settings:
+            showSettings = true
+        case .module(let pick):
+            pendingModulePick = pick
+        }
+    }
+
+    /// Starts a sitting from anywhere. Closes whatever sheet asked for it first, so the
+    /// runner is not presented underneath a still-open sheet.
+    public func startSitting(_ payload: RunnerPayload) {
+        showSearch = false
+        showCustomModule = false
+        showSettings = false
+        pendingModulePick = nil
+        pendingRunnerPayload = payload
+    }
 }
+
 
 /// The three states every data-backed screen can be in. Shared so no screen can forget
 /// one — an empty `ScrollView` shown because a fetch quietly failed is the bug that made

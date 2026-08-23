@@ -3,6 +3,8 @@ import SwiftUI
 public struct QBankSubjectListView: View {
     @ObservedObject private var authService = AuthService.shared
     @ObservedObject private var activityStore = ActivityStore.shared
+    @ObservedObject private var appState = AppState.shared
+    @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
 
     @State private var subjects: [QBankSubject] = []
     @State private var attempts: [SittingAttempt] = []
@@ -70,7 +72,23 @@ public struct QBankSubjectListView: View {
         .navigationTitle("Question Bank")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    HapticManager.light()
+                    appState.open(route: .customModule)
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .accessibilityLabel("Build a custom module")
+
+                Button {
+                    HapticManager.light()
+                    appState.open(route: .search(nil))
+                } label: {
+                    Image(systemName: "text.magnifyingglass")
+                }
+                .accessibilityLabel("Search all questions")
+
                 ProfileSettingsButton()
             }
         }
@@ -146,6 +164,23 @@ public struct QBankSubjectListView: View {
                                 subjectRow(subject)
                             }
                             .buttonStyle(.plain)
+                            .medxScrollReveal()
+                            // Long press to go straight at the subject without walking its
+                            // chapter tree first.
+                            .contextMenu {
+                                Button {
+                                    HapticManager.light()
+                                    appState.open(route: .search(subject.name))
+                                } label: {
+                                    Label("Search \(subject.name)", systemImage: "text.magnifyingglass")
+                                }
+                                Button {
+                                    HapticManager.light()
+                                    appState.open(route: .customModule)
+                                } label: {
+                                    Label("Build a custom module", systemImage: "slider.horizontal.3")
+                                }
+                            }
                         }
                     }
                 }
@@ -257,6 +292,11 @@ public struct QBankSubjectListView: View {
             attempts = loadedAttempts
             recomputePractised()
             loadState = .loaded
+
+            // The subject tree is the only place the module list exists, so this is where
+            // Spotlight and the index's progress denominator get their numbers.
+            MedxQuestionIndexStore.shared.noteExpectations(subjects: loadedSubjects)
+            Task { await MedxSpotlightIndexer.shared.indexModules(loadedSubjects) }
         } catch {
             loadState = subjects.isEmpty
                 ? .failed("Check your connection and try again.")

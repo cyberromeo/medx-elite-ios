@@ -124,7 +124,7 @@ public struct AnalyticsCard: View {
             )
             .foregroundStyle(
                 LinearGradient(
-                    colors: [Color.accentColor.opacity(0.28), Color.accentColor.opacity(0.02)],
+                    colors: [MedxTheme.accent.opacity(0.28), MedxTheme.accent.opacity(0.02)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -135,7 +135,7 @@ public struct AnalyticsCard: View {
                 x: .value("Sitting", point.id),
                 y: .value("Accuracy", point.accuracy)
             )
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(MedxTheme.accent)
             .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
             .interpolationMethod(.monotone)
 
@@ -143,7 +143,7 @@ public struct AnalyticsCard: View {
                 x: .value("Sitting", point.id),
                 y: .value("Accuracy", point.accuracy)
             )
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(MedxTheme.accent)
             .symbolSize(22)
         }
         .chartYScale(domain: 0...100)

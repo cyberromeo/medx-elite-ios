@@ -31,7 +31,7 @@ public struct PasswordPromptView: View {
                         .overlay(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .strokeBorder(
-                                    isFocused ? Color.accentColor.opacity(0.55) : MedxSurface.separator.opacity(0.35),
+                                    isFocused ? MedxTheme.accent.opacity(0.55) : MedxSurface.separator.opacity(0.35),
                                     lineWidth: isFocused ? 1.5 : MedxSurface.hairline
                                 )
                         )
