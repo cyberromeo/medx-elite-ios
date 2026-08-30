@@ -720,7 +720,14 @@ public actor FirestoreService {
     }
 
     /// One write in a `documents:commit` batch.
-    public struct MedxWrite: Sendable {
+    ///
+    /// `@unchecked` because `fields` is the same `[String: Any]` Firestore's REST shape is built
+    /// from everywhere else in this file, and every value in it is a `String`, number, `Bool`,
+    /// array or nested dictionary of those. It crosses an actor boundary only as an immutable
+    /// value, and a checked `Sendable` here would mean a parallel typed representation of the whole
+    /// document shape for no behavioural gain. Without the annotation this is a warning under
+    /// Swift 5 and an error under Swift 6.
+    public struct MedxWrite: @unchecked Sendable {
         let collection: String
         let docId: String
         let fields: [String: Any]

@@ -38,8 +38,13 @@ public final class MedxDuelRoom: ObservableObject {
     private var advancedFor = -1
     private var savedFor: String?
 
-    public init(transport: MedxDuelTransport = MedxDuelTransportFactory.make()) {
-        self.transport = transport
+    /// `nil` rather than `MedxDuelTransportFactory.make()` as the default, because a default
+    /// argument expression is evaluated at the *call site* in a nonisolated context — and `make()`
+    /// is `@MainActor`, since choosing the transport reads `MedxFirebaseBridge`. Resolving it in the
+    /// body instead puts it back inside this type's own isolation. The parameter stays, so a test
+    /// can still hand in a stub.
+    public init(transport: MedxDuelTransport? = nil) {
+        self.transport = transport ?? MedxDuelTransportFactory.make()
     }
 
     deinit {
@@ -136,7 +141,9 @@ public final class MedxDuelRoom: ObservableObject {
     }
 
     public var myScore: MedxDuelScore { uid.flatMap { scores[$0] } ?? MedxDuelScore() }
-    public var theirScore: MedxDuelScore { theirs?.uid.flatMap { scores[$0] } ?? MedxDuelScore() }
+    // `theirs.flatMap`, not `theirs?.uid.flatMap`: inside the optional chain `uid` is a non-optional
+    // `String`, so that would pick `Sequence.flatMap` and subscript `scores` with a `Character`.
+    public var theirScore: MedxDuelScore { theirs.flatMap { scores[$0.uid] } ?? MedxDuelScore() }
 
     // MARK: - Lifecycle
 
@@ -456,8 +463,8 @@ public final class MedxLobbyWatcher: ObservableObject {
     private let transport: MedxDuelTransport
     private var subscription: MedxDuelSubscription?
 
-    private init(transport: MedxDuelTransport = MedxDuelTransportFactory.make()) {
-        self.transport = transport
+    private init(transport: MedxDuelTransport? = nil) {
+        self.transport = transport ?? MedxDuelTransportFactory.make()
     }
 
     /// Lobbies the *other* one dealt and nobody has joined. Stale ones go cold rather than sitting

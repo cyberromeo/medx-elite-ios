@@ -17,8 +17,8 @@ final class MedxFaceoffLobby: ObservableObject {
     let transport: MedxDuelTransport
     private var subscription: MedxDuelSubscription?
 
-    init(transport: MedxDuelTransport = MedxDuelTransportFactory.make()) {
-        self.transport = transport
+    init(transport: MedxDuelTransport? = nil) {
+        self.transport = transport ?? MedxDuelTransportFactory.make()
     }
 
     deinit { subscription?.cancel() }
