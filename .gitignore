@@ -2,6 +2,9 @@
 #
 # gitignore contributors: paste build/ Industrial Strength / Template folder / Xcode.gitignore
 build/
+# Where `gh run download` puts MedxElite-unsigned.ipa. The IPA is a CI artifact and a release
+# asset, never a tracked file — it is ~11 MB and rebuilt from source every push to main.
+dist/
 DerivedData/
 *.moved-aside
 *.xcuserstate
