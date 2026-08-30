@@ -245,7 +245,12 @@ public final class MedxLiveActivityController {
 
     // MARK: Exam sitting
 
-    public func startExam(name: String, subject: String, totalQuestions: Int, endDate: Date) {
+    public func startExam(
+        name: String,
+        subject: String,
+        totalQuestions: Int,
+        state: MedxExamActivityAttributes.ContentState
+    ) {
         guard isAvailable, exam == nil else { return }
 
         let attributes = MedxExamActivityAttributes(
@@ -254,16 +259,11 @@ public final class MedxLiveActivityController {
             totalQuestions: totalQuestions,
             accentHex: MedxAccent.current.hex
         )
-        let state = MedxExamActivityAttributes.ContentState(
-            answered: 0,
-            currentNumber: 1,
-            endDate: endDate
-        )
 
         do {
             exam = try Activity<MedxExamActivityAttributes>.request(
                 attributes: attributes,
-                content: ActivityContent(state: state, staleDate: endDate),
+                content: ActivityContent(state: state, staleDate: state.endDate),
                 pushType: nil
             )
         } catch {
@@ -272,27 +272,21 @@ public final class MedxLiveActivityController {
         }
     }
 
-    public func updateExam(answered: Int, currentNumber: Int, endDate: Date) {
+    /// The stale date is the *block's* end, not the paper's, so an activity left behind by a
+    /// submitted section greys out instead of counting down something that has ended.
+    public func updateExam(state: MedxExamActivityAttributes.ContentState) {
         guard let activity = exam else { return }
-        let state = MedxExamActivityAttributes.ContentState(
-            answered: answered,
-            currentNumber: currentNumber,
-            endDate: endDate
-        )
-        Task { await activity.update(ActivityContent(state: state, staleDate: endDate)) }
+        Task { await activity.update(ActivityContent(state: state, staleDate: state.endDate)) }
     }
 
-    public func endExam(answered: Int, currentNumber: Int) {
+    public func endExam(state: MedxExamActivityAttributes.ContentState) {
         guard let activity = exam else { return }
         exam = nil
-        let state = MedxExamActivityAttributes.ContentState(
-            answered: answered,
-            currentNumber: currentNumber,
-            endDate: Date()
-        )
+        var final = state
+        final.endDate = Date()
         Task {
             await activity.end(
-                ActivityContent(state: state, staleDate: nil),
+                ActivityContent(state: final, staleDate: nil),
                 dismissalPolicy: .immediate
             )
         }
@@ -308,7 +302,8 @@ public final class MedxLiveActivityController {
         let attributes = MedxDownloadActivityAttributes(
             title: title,
             subject: subject,
-            accentHex: MedxAccent.current.hex
+            accentHex: MedxAccent.current.hex,
+            videoId: id
         )
         let state = MedxDownloadActivityAttributes.ContentState(
             completedSegments: 0,
@@ -324,13 +319,23 @@ public final class MedxLiveActivityController {
                 content: ActivityContent(state: state, staleDate: nil),
                 pushType: nil
             )
+            downloadStartedAt[id] = Date()
         } catch {
             print("[LiveActivity] download request refused: \(error)")
             downloads[id] = nil
         }
     }
 
-    public func updateDownload(id: String, completed: Int, total: Int, statusText: String) {
+    /// When each download's activity began, so the ETA is measured rather than guessed.
+    private var downloadStartedAt: [String: Date] = [:]
+
+    public func updateDownload(
+        id: String,
+        completed: Int,
+        total: Int,
+        statusText: String,
+        isPaused: Bool = false
+    ) {
         guard let activity = downloads[id] else { return }
         let fraction = total > 0 ? Double(completed) / Double(total) : 0
         let state = MedxDownloadActivityAttributes.ContentState(
@@ -338,13 +343,30 @@ public final class MedxLiveActivityController {
             totalSegments: total,
             fraction: fraction,
             statusText: statusText,
-            isFinished: false
+            isFinished: false,
+            isPaused: isPaused,
+            secondsRemaining: estimateRemaining(id: id, fraction: fraction, isPaused: isPaused)
         )
         Task { await activity.update(ActivityContent(state: state, staleDate: nil)) }
     }
 
+    /// Linear extrapolation from how long the first slice actually took.
+    ///
+    /// Withheld until a tenth of the way through: before that the sample is one or two segments and
+    /// the estimate swings between two minutes and forty, which is worse than showing nothing. A
+    /// paused download has no rate, so it has no estimate either.
+    private func estimateRemaining(id: String, fraction: Double, isPaused: Bool) -> Int? {
+        guard !isPaused, fraction >= 0.1, fraction < 1, let started = downloadStartedAt[id] else {
+            return nil
+        }
+        let elapsed = Date().timeIntervalSince(started)
+        guard elapsed > 3 else { return nil }
+        return Int((elapsed / fraction) - elapsed)
+    }
+
     public func endDownload(id: String, completed: Int, total: Int, statusText: String, finished: Bool) {
         guard let activity = downloads.removeValue(forKey: id) else { return }
+        downloadStartedAt.removeValue(forKey: id)
         let state = MedxDownloadActivityAttributes.ContentState(
             completedSegments: completed,
             totalSegments: total,
@@ -361,9 +383,68 @@ public final class MedxLiveActivityController {
         }
     }
 
+    // MARK: Faceoff
+
+    private var duel: Activity<MedxDuelActivityAttributes>?
+
+    /// Started lazily on the first update rather than by the lobby, because the attributes need
+    /// both players' names and those are only settled once the guest has actually joined.
+    public func updateDuel(
+        mine: Profile?,
+        theirs: Profile?,
+        total: Int,
+        state: MedxDuelActivityAttributes.ContentState
+    ) {
+        guard isAvailable else { return }
+
+        if let activity = duel {
+            Task { await activity.update(ActivityContent(state: state, staleDate: state.roundEndDate)) }
+            return
+        }
+
+        let attributes = MedxDuelActivityAttributes(
+            myName: mine?.displayName ?? "You",
+            theirName: theirs?.displayName ?? "Them",
+            myHex: mine.map { Self.duelHex(for: $0) } ?? "#FF4D8D",
+            theirHex: theirs.map { Self.duelHex(for: $0) } ?? "#23C3F5",
+            totalQuestions: max(total, 1),
+            sourceName: "Faceoff"
+        )
+
+        do {
+            duel = try Activity<MedxDuelActivityAttributes>.request(
+                attributes: attributes,
+                content: ActivityContent(state: state, staleDate: state.roundEndDate),
+                pushType: nil
+            )
+        } catch {
+            print("[LiveActivity] duel request refused: \(error)")
+            duel = nil
+        }
+    }
+
+    public func endDuel() {
+        guard let activity = duel else { return }
+        duel = nil
+        Task { await activity.end(nil, dismissalPolicy: .immediate) }
+    }
+
+    /// The duel colours as hex, since the extension cannot resolve the app's palette. Kept here
+    /// rather than on `Profile` because `MedxSharedState` deliberately imports no SwiftUI.
+    private static func duelHex(for profile: Profile) -> String {
+        profile.id == Profile.graveyard.id ? "#FF4D8D" : "#23C3F5"
+    }
+
     /// Called when the app is signed out or torn down, so nothing is left on the Lock Screen.
     public func endAll() {
-        endExam(answered: 0, currentNumber: 0)
+        endExam(
+            state: MedxExamActivityAttributes.ContentState(
+                answered: 0,
+                currentNumber: 1,
+                endDate: Date()
+            )
+        )
+        endDuel()
         for id in Array(downloads.keys) {
             endDownload(id: id, completed: 0, total: 0, statusText: "Stopped", finished: false)
         }

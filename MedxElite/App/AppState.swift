@@ -66,10 +66,24 @@ public enum MedxRoute: Hashable, Sendable {
     case qbank
     case tests
     case flashcards
-    case videos
+    /// The Library hub itself.
+    case library
+    /// The ARISE recorded classes, one level inside Library.
+    case classes
+    /// The raw `medx_vod` bucket feed.
+    case vodFeed
+    /// The four ARISE batch papers.
+    case batchPapers
     /// Question search, optionally pre-filled.
     case search(String?)
-    case customModule
+    /// The filter-driven one-off sitting — subjects, scope, length, mode.
+    case quickSitting
+    /// The saved, shared custom modules.
+    case customModules
+    /// The Faceoff lobby.
+    case faceoff
+    /// Straight into a specific duel, from a notification or a Home invite card.
+    case faceoffRoom(String)
     /// Build and start a sitting from whatever the spaced schedule says is due.
     case todaysRevision
     case bookmarks
@@ -82,10 +96,12 @@ public enum MedxRoute: Hashable, Sendable {
     var tab: TabItem? {
         switch self {
         case .home, .todaysRevision: return .home
-        case .qbank, .search, .customModule, .bookmarks, .module: return .qbank
+        case .qbank, .search, .quickSitting, .bookmarks, .module: return .qbank
         case .tests: return .tests
         case .flashcards: return .flashcards
-        case .videos, .downloads: return .videos
+        case .library, .classes, .vodFeed, .batchPapers, .downloads, .customModules, .faceoff,
+             .faceoffRoom:
+            return .library
         case .settings: return nil
         }
     }
@@ -116,10 +132,19 @@ public final class AppState: ObservableObject {
 
     // Sheet and cover routing, so an external entry point can raise any of them.
     @Published public var showSearch = false
-    @Published public var showCustomModule = false
+    @Published public var showQuickSitting = false
     @Published public var showSettings = false
     @Published public var showBookmarks = false
     @Published public var showDownloads = false
+    @Published public var showCustomModules = false
+    @Published public var showFaceoff = false
+    /// Non-nil while a duel room is on screen. Carries the game id so a Home invite card, a
+    /// deep link and the lobby all open the same cover.
+    @Published public var openDuelId: String?
+    /// One level inside Library. Driven as an optional rather than a path array so a deep link,
+    /// the iPad sidebar and a tap on a Library row all go through the same property — and so
+    /// the push works inside the `NavigationStack` `MainTabView` already provides per tab.
+    @Published public var libraryDestination: MedxLibraryDestination?
 
     /// Set when something outside the app asks for a sitting to start — a Siri shortcut, a
     /// reminder tap, or the search screen's "practise these".
@@ -147,13 +172,28 @@ public final class AppState: ObservableObject {
         }
 
         switch route {
-        case .home, .qbank, .tests, .flashcards, .videos:
+        case .home, .qbank, .tests, .flashcards:
             break
+        case .library:
+            libraryDestination = nil
+        case .classes:
+            push(.classes)
+        case .vodFeed:
+            push(.vodFeed)
+        case .batchPapers:
+            push(.batchPapers)
         case .search(let seed):
             searchSeed = seed ?? ""
             showSearch = true
-        case .customModule:
-            showCustomModule = true
+        case .quickSitting:
+            showQuickSitting = true
+        case .customModules:
+            showCustomModules = true
+        case .faceoff:
+            showFaceoff = true
+        case .faceoffRoom(let gameId):
+            showFaceoff = true
+            openDuelId = gameId
         case .todaysRevision:
             revisionRequestedAt = Date()
         case .bookmarks:
@@ -167,15 +207,30 @@ public final class AppState: ObservableObject {
         }
     }
 
+    /// Pushes onto the Library stack, replacing whatever was there rather than deepening it —
+    /// an external entry point means "show me this", not "show me this on top of the last one".
+    private func push(_ destination: MedxLibraryDestination) {
+        libraryDestination = destination
+    }
+
     /// Starts a sitting from anywhere. Closes whatever sheet asked for it first, so the
     /// runner is not presented underneath a still-open sheet.
     public func startSitting(_ payload: RunnerPayload) {
         showSearch = false
-        showCustomModule = false
+        showQuickSitting = false
         showSettings = false
+        showCustomModules = false
         pendingModulePick = nil
         pendingRunnerPayload = payload
     }
+}
+
+/// The screens the Library tab pushes to. A value type rather than a view, so `AppState` can
+/// drive the stack without importing SwiftUI's navigation into every caller.
+public enum MedxLibraryDestination: Hashable, Sendable {
+    case classes
+    case vodFeed
+    case batchPapers
 }
 
 

@@ -22,7 +22,11 @@ public struct VideosBatchListView: View {
                 loadingState
             case .failed(let message):
                 ContentUnavailableView {
-                    Label("Couldn't Load Classes", systemImage: "wifi.exclamationmark")
+                    Label {
+                        Text("Couldn't Load Classes")
+                    } icon: {
+                        MedxSticker("clapper", size: 44)
+                    }
                 } description: {
                     Text(message)
                 } actions: {
@@ -36,11 +40,15 @@ public struct VideosBatchListView: View {
                 }
             case .loaded:
                 if videos.isEmpty {
-                    ContentUnavailableView(
-                        "No Classes",
-                        systemImage: "play.tv",
-                        description: Text("Recorded classes will appear here once they are published.")
-                    )
+                    ContentUnavailableView {
+                        Label {
+                            Text("No Classes")
+                        } icon: {
+                            MedxSticker("clapper", size: 44)
+                        }
+                    } description: {
+                        Text("Recorded classes will appear here once they are published.")
+                    }
                 } else {
                     content
                 }
@@ -48,7 +56,7 @@ public struct VideosBatchListView: View {
         }
         .background(MedxSurface.groupedBackground.ignoresSafeArea())
         .navigationTitle("Classes")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
@@ -85,24 +93,32 @@ public struct VideosBatchListView: View {
     private var content: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
+                MedxPageHeader(
+                    section: .videos,
+                    title: "Classes",
+                    lead: "Every recorded ARISE lecture, by batch and then by subject. "
+                        + "Hold a subject to save the whole thing for no signal.",
+                    sticker: "clapper"
+                )
+
                 MedxMetricsRow {
                     MedxMetric(
                         icon: "play.rectangle.fill",
                         value: "\(videos.count)",
                         label: "classes",
-                        color: MedxTheme.primaryBlue
+                        color: MedxCandy.violet
                     )
                     MedxMetric(
                         icon: "clock.fill",
                         value: totalDurationFormatted,
                         label: "total runtime",
-                        color: MedxTheme.primaryPurple
+                        color: MedxCandy.sky
                     )
                     MedxMetric(
                         icon: "arrow.down.circle.fill",
                         value: "\(downloads.completedItems.count)",
                         label: "offline",
-                        color: MedxTheme.successGreen
+                        color: MedxCandy.mint
                     )
                 }
 
@@ -110,7 +126,11 @@ public struct VideosBatchListView: View {
 
                 if groups.isEmpty {
                     ContentUnavailableView {
-                        Label("No Matches", systemImage: "magnifyingglass")
+                        Label {
+                            Text("No Matches")
+                        } icon: {
+                            MedxSticker("search", size: 40)
+                        }
                     } description: {
                         Text("No class matches “\(searchText)”.")
                     }
@@ -160,11 +180,9 @@ public struct VideosBatchListView: View {
         let offline = subject.videos.filter { downloads.items[$0.id]?.state == .completed }.count
 
         return HStack(spacing: 14) {
-            Image(systemName: "play.rectangle.fill")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(MedxTheme.primaryBlue)
+            MedxSticker(MedxSubjectArt.sticker(for: subject.name), size: 26, tilt: -6)
                 .frame(width: 38, height: 38)
-                .background(MedxTheme.primaryBlue.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(MedxCandy.violetSoft, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(subject.name)

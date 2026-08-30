@@ -371,3 +371,223 @@ public struct QuestionOption: Identifiable, Hashable, Codable, Sendable {
         self.correct = correct
     }
 }
+
+// MARK: - The two banks
+
+/// ARISE is the batch's own bank — 1,211 modules cut by chapter. Marrow FMGE is 960
+/// lesson-sized modules plus 3,554 previous-year questions.
+///
+/// They are seeded into the *same* `medx_qbank_modules` collection in the *same* document
+/// shape and differ only in the `mw_` prefix on every Marrow id, which is why
+/// `FirestoreService.fetchQBankModule` needs no branch and the runner never learns that a
+/// second bank exists. `of(_:)` works on an id alone, so a subject page or a saved custom
+/// module stays bank-agnostic.
+public enum MedxBank: String, CaseIterable, Identifiable, Codable, Sendable {
+    case arise
+    case marrow
+
+    public var id: String { rawValue }
+
+    public static let marrowPrefix = "mw_"
+
+    /// Works for subject, chapter and module ids alike.
+    public static func of(_ id: String) -> MedxBank {
+        id.hasPrefix(marrowPrefix) ? .marrow : .arise
+    }
+
+    public var label: String {
+        switch self {
+        case .arise: return "Arise"
+        case .marrow: return "Marrow"
+        }
+    }
+
+    public var eyebrow: String {
+        switch self {
+        case .arise: return "ARISE · Online Dec 26"
+        case .marrow: return "Marrow · FMGE"
+        }
+    }
+
+    public var sticker: String {
+        switch self {
+        case .arise: return "brain"
+        case .marrow: return "filebox"
+        }
+    }
+}
+
+// MARK: - Bank-agnostic tree
+
+/// A subject in either bank.
+///
+/// `QBankSubject.subjectId` is an `Int` and `QBankChapter.id` is an `Int`, which the ARISE
+/// tree satisfies and Marrow does not: its ids are `mw_618a04d13dcbce9c59c6bb59` and
+/// `mw_618a04d13dcbce9c59c6bb59_anatomy`. Widening those two types would ripple through the
+/// question index, the Spotlight indexer and every `[Int: …]` tally keyed on a subject, so
+/// this is added alongside them instead and is the model every *new* screen reads. The ARISE
+/// tree adapts in through `init(arise:)`; `asQBankSubject` adapts back out for the two
+/// services that still want the original shape.
+public struct MedxBankSubject: Identifiable, Hashable, Codable, Sendable {
+    public let id: String
+    public let bank: MedxBank
+    public let name: String
+    public let slug: String?
+    public let moduleCount: Int
+    public let questionCount: Int
+    public let chapters: [MedxBankChapter]
+
+    /// Every module in the subject, flattened — what the custom-module builder and the
+    /// coverage tallies both want.
+    public var modules: [QBankModuleSummary] {
+        chapters.flatMap { $0.modules }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, bank, name, slug, moduleCount, questionCount, chapters
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let strVal = try? container.decode(String.self, forKey: .id) {
+            id = strVal
+        } else if let intVal = try? container.decode(Int.self, forKey: .id) {
+            id = String(intVal)
+        } else {
+            id = UUID().uuidString
+        }
+        // The seeded document carries `bank`, but deriving it from the id is the one reading
+        // that cannot go stale if a future seeder forgets the field.
+        bank = MedxBank.of(id)
+        name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? ""
+        slug = try? container.decodeIfPresent(String.self, forKey: .slug)
+        moduleCount = (try? container.decodeIfPresent(Int.self, forKey: .moduleCount)) ?? 0
+        questionCount = (try? container.decodeIfPresent(Int.self, forKey: .questionCount)) ?? 0
+        chapters = container.decodeLenientArray(MedxBankChapter.self, forKey: .chapters) ?? []
+    }
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(bank, forKey: .bank)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(slug, forKey: .slug)
+        try container.encode(moduleCount, forKey: .moduleCount)
+        try container.encode(questionCount, forKey: .questionCount)
+        try container.encode(chapters, forKey: .chapters)
+    }
+
+    public init(
+        id: String,
+        bank: MedxBank,
+        name: String,
+        slug: String? = nil,
+        moduleCount: Int,
+        questionCount: Int,
+        chapters: [MedxBankChapter]
+    ) {
+        self.id = id
+        self.bank = bank
+        self.name = name
+        self.slug = slug
+        self.moduleCount = moduleCount
+        self.questionCount = questionCount
+        self.chapters = chapters
+    }
+
+    /// The ARISE tree, adapted.
+    public init(arise: QBankSubject) {
+        self.id = String(arise.subjectId)
+        self.bank = .arise
+        self.name = arise.name
+        self.slug = arise.slug
+        self.moduleCount = arise.moduleCount
+        self.questionCount = arise.questionCount ?? 0
+        self.chapters = (arise.chapters ?? []).map { MedxBankChapter(arise: $0) }
+    }
+
+    /// Back to the original shape, for `MedxQuestionIndexStore.noteExpectations(subjects:)`
+    /// and `MedxSpotlightIndexer.indexModules(_:)`. `nil` for Marrow, whose ids do not fit an
+    /// `Int` — which is also the honest answer, since neither of those two features covers
+    /// the Marrow bank yet.
+    public var asQBankSubject: QBankSubject? {
+        guard bank == .arise, let numeric = Int(id) else { return nil }
+        return QBankSubject(
+            subjectId: numeric,
+            name: name,
+            slug: slug,
+            moduleCount: moduleCount,
+            questionCount: questionCount,
+            chapters: chapters.map { $0.asQBankChapter }
+        )
+    }
+}
+
+public struct MedxBankChapter: Identifiable, Hashable, Codable, Sendable {
+    public let id: String
+    public let name: String
+    public let modules: [QBankModuleSummary]
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, modules
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let strVal = try? container.decode(String.self, forKey: .id) {
+            id = strVal
+        } else if let intVal = try? container.decode(Int.self, forKey: .id) {
+            id = String(intVal)
+        } else {
+            id = UUID().uuidString
+        }
+        name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? ""
+        modules = container.decodeLenientArray(QBankModuleSummary.self, forKey: .modules) ?? []
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(modules, forKey: .modules)
+    }
+
+    public init(id: String, name: String, modules: [QBankModuleSummary]) {
+        self.id = id
+        self.name = name
+        self.modules = modules
+    }
+
+    public init(arise: QBankChapter) {
+        self.id = String(arise.id)
+        self.name = arise.name
+        self.modules = arise.modules ?? []
+    }
+
+    public var asQBankChapter: QBankChapter {
+        QBankChapter(id: Int(id) ?? 0, name: name, modules: modules)
+    }
+}
+/// `medx_meta/qbank_fmge` — the whole Marrow tree in one document, so the QBank screen costs
+/// one read for 20 subjects, 960 modules and 14,577 questions.
+public struct MedxBankIndex: Codable, Hashable, Sendable {
+    public let course: String?
+    public let name: String?
+    public let subjects: [MedxBankSubject]
+
+    enum CodingKeys: String, CodingKey {
+        case course, name, subjects
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        course = try? container.decodeIfPresent(String.self, forKey: .course)
+        name = try? container.decodeIfPresent(String.self, forKey: .name)
+        subjects = container.decodeLenientArray(MedxBankSubject.self, forKey: .subjects) ?? []
+    }
+
+    public init(course: String?, name: String?, subjects: [MedxBankSubject]) {
+        self.course = course
+        self.name = name
+        self.subjects = subjects
+    }
+}

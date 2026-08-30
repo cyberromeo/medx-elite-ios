@@ -25,9 +25,19 @@ public struct MedxSplashView: View {
             VStack(spacing: 26) {
                 mark
 
-                MedxWordmark(size: 26)
-                    .opacity(wordmarkVisible ? 1 : 0)
-                    .offset(y: wordmarkVisible ? 0 : 10)
+                VStack(spacing: 9) {
+                    MedxWordmark(size: 26)
+
+                    // The eyebrow shape from every page header in the app, used once here so the
+                    // launch reads as the same product as the screen behind it. The mark itself is
+                    // untouched: it shares its coordinates with the app icon.
+                    Text("ARISE · MARROW · FACEOFF")
+                        .font(.caption2.weight(.bold))
+                        .tracking(1.4)
+                        .foregroundStyle(MedxSection.home.onSoft)
+                }
+                .opacity(wordmarkVisible ? 1 : 0)
+                .offset(y: wordmarkVisible ? 0 : 10)
             }
         }
         .task {

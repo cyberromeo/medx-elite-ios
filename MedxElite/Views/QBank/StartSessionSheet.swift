@@ -21,6 +21,9 @@ public struct StartSessionSheet: View {
             ScrollView {
                 VStack(spacing: 20) {
                     VStack(spacing: 6) {
+                        MedxSticker("bullseye", size: 46, tilt: -8)
+                            .padding(.bottom, 2)
+
                         Text(title)
                             .font(.title3.weight(.semibold))
                             .multilineTextAlignment(.center)
@@ -35,8 +38,8 @@ public struct StartSessionSheet: View {
                     VStack(spacing: 12) {
                         ModeCard(
                             mode: .revision,
-                            icon: "bolt.fill",
-                            tint: MedxTheme.tealAccent,
+                            sticker: "bolt",
+                            tint: MedxCandy.mint,
                             durationText: "60s per question"
                         ) {
                             start(.revision)
@@ -44,8 +47,8 @@ public struct StartSessionSheet: View {
 
                         ModeCard(
                             mode: .exam,
-                            icon: "timer",
-                            tint: MedxTheme.primaryBlue,
+                            sticker: "hourglass",
+                            tint: MedxCandy.tangerine,
                             durationText: "\(questionCount) min total"
                         ) {
                             start(.exam)
@@ -65,7 +68,7 @@ public struct StartSessionSheet: View {
                 }
             }
         }
-        .presentationDetents([.height(430), .large])
+        .presentationDetents([.height(486), .large])
         .presentationDragIndicator(.visible)
     }
 
@@ -85,7 +88,7 @@ public struct StartSessionSheet: View {
 
 private struct ModeCard: View {
     let mode: SittingMode
-    let icon: String
+    let sticker: String
     let tint: Color
     let durationText: String
     let action: () -> Void
@@ -93,11 +96,9 @@ private struct ModeCard: View {
     var body: some View {
         Button(action: action) {
             HStack(alignment: .top, spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(tint)
+                MedxSticker(sticker, size: 28, tilt: -7)
                     .frame(width: 40, height: 40)
-                    .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    .background(tint.opacity(0.18), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 8) {
@@ -105,7 +106,7 @@ private struct ModeCard: View {
                             .font(.headline)
                             .foregroundStyle(.primary)
 
-                        MedxChip(durationText, tint: tint)
+                        MedxPill(durationText, hue: tint)
                     }
 
                     Text(mode.description)

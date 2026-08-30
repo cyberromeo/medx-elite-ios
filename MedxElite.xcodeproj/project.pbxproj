@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9B0030032A00000100000001 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 9B0030012A00000100000001 /* FirebaseFirestore */; };
+		9B0030042A00000100000001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 9B0030022A00000100000001 /* FirebaseAuth */; };
 		9B0010012A00000100000001 /* MedxEliteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010022A00000100000001 /* MedxEliteApp.swift */; };
 		9B0010032A00000100000001 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010042A00000100000001 /* AppState.swift */; };
 		9B0010052A00000100000001 /* Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010062A00000100000001 /* Profile.swift */; };
@@ -69,6 +71,33 @@
 		9B0020062A00000100000001 /* MedxWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0020022A00000100000001 /* MedxWidgetsBundle.swift */; };
 		9B0020072A00000100000001 /* MedxSharedState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011042A00000100000001 /* MedxSharedState.swift */; };
 		9B0020082A00000100000001 /* MedxWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9B0020012A00000100000001 /* MedxWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		9B00111A2A00000100000001 /* MedxSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011192A00000100000001 /* MedxSections.swift */; };
+		9B00111C2A00000100000001 /* MedxSticker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00111B2A00000100000001 /* MedxSticker.swift */; };
+		9B00111E2A00000100000001 /* MedxPageHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00111D2A00000100000001 /* MedxPageHeader.swift */; };
+		9B0011202A00000100000001 /* Series.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00111F2A00000100000001 /* Series.swift */; };
+		9B0011222A00000100000001 /* BatchPapersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011212A00000100000001 /* BatchPapersView.swift */; };
+		9B0011242A00000100000001 /* CustomModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011232A00000100000001 /* CustomModule.swift */; };
+		9B0011262A00000100000001 /* MedxCustomModuleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011252A00000100000001 /* MedxCustomModuleStore.swift */; };
+		9B0011282A00000100000001 /* CustomModulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011272A00000100000001 /* CustomModulesView.swift */; };
+		9B00112A2A00000100000001 /* ModuleBuilderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011292A00000100000001 /* ModuleBuilderSheet.swift */; };
+		9B00112C2A00000100000001 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00112B2A00000100000001 /* LibraryView.swift */; };
+		9B00112E2A00000100000001 /* Vod.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00112D2A00000100000001 /* Vod.swift */; };
+		9B0011302A00000100000001 /* MedxVodWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00112F2A00000100000001 /* MedxVodWatcher.swift */; };
+		9B0011322A00000100000001 /* VodFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011312A00000100000001 /* VodFeedView.swift */; };
+		9B0011342A00000100000001 /* Duel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011332A00000100000001 /* Duel.swift */; };
+		9B0011362A00000100000001 /* MedxDuelRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011352A00000100000001 /* MedxDuelRules.swift */; };
+		9B0011382A00000100000001 /* MedxDuelTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011372A00000100000001 /* MedxDuelTransport.swift */; };
+		9B00113A2A00000100000001 /* MedxDuelRestTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011392A00000100000001 /* MedxDuelRestTransport.swift */; };
+		9B00113C2A00000100000001 /* MedxDuelRoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00113B2A00000100000001 /* MedxDuelRoom.swift */; };
+		9B00113E2A00000100000001 /* MedxFirebaseBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00113D2A00000100000001 /* MedxFirebaseBridge.swift */; };
+		9B0011402A00000100000001 /* MedxFirestoreDuelTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00113F2A00000100000001 /* MedxFirestoreDuelTransport.swift */; };
+		9B0011422A00000100000001 /* FaceoffLobbyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011412A00000100000001 /* FaceoffLobbyView.swift */; };
+		9B0011442A00000100000001 /* DuelRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011432A00000100000001 /* DuelRoomView.swift */; };
+		9B0011462A00000100000001 /* DuelResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011452A00000100000001 /* DuelResultView.swift */; };
+		9B0011482A00000100000001 /* MedxActivityChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011472A00000100000001 /* MedxActivityChrome.swift */; };
+		9B0011492A00000100000001 /* MedxActivityChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011472A00000100000001 /* MedxActivityChrome.swift */; };
+		9B00114B2A00000100000001 /* MedxSharedIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00114A2A00000100000001 /* MedxSharedIntents.swift */; };
+		9B00114C2A00000100000001 /* MedxSharedIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00114A2A00000100000001 /* MedxSharedIntents.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -156,6 +185,31 @@
 		9B0020032A00000100000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		9B0020042A00000100000001 /* MedxWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MedxWidgets.entitlements; sourceTree = "<group>"; };
 		9B0020052A00000100000001 /* MedxElite.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MedxElite.entitlements; sourceTree = "<group>"; };
+		9B0011192A00000100000001 /* MedxSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxSections.swift; sourceTree = "<group>"; };
+		9B00111B2A00000100000001 /* MedxSticker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxSticker.swift; sourceTree = "<group>"; };
+		9B00111D2A00000100000001 /* MedxPageHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxPageHeader.swift; sourceTree = "<group>"; };
+		9B00111F2A00000100000001 /* Series.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Series.swift; sourceTree = "<group>"; };
+		9B0011212A00000100000001 /* BatchPapersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/BatchPapersView.swift; sourceTree = "<group>"; };
+		9B0011232A00000100000001 /* CustomModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomModule.swift; sourceTree = "<group>"; };
+		9B0011252A00000100000001 /* MedxCustomModuleStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxCustomModuleStore.swift; sourceTree = "<group>"; };
+		9B0011272A00000100000001 /* CustomModulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Custom/CustomModulesView.swift; sourceTree = "<group>"; };
+		9B0011292A00000100000001 /* ModuleBuilderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Custom/ModuleBuilderSheet.swift; sourceTree = "<group>"; };
+		9B00112B2A00000100000001 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library/LibraryView.swift; sourceTree = "<group>"; };
+		9B00112D2A00000100000001 /* Vod.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Vod.swift; sourceTree = "<group>"; };
+		9B00112F2A00000100000001 /* MedxVodWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxVodWatcher.swift; sourceTree = "<group>"; };
+		9B0011312A00000100000001 /* VodFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Videos/VodFeedView.swift; sourceTree = "<group>"; };
+		9B0011332A00000100000001 /* Duel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Duel.swift; sourceTree = "<group>"; };
+		9B0011352A00000100000001 /* MedxDuelRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxDuelRules.swift; sourceTree = "<group>"; };
+		9B0011372A00000100000001 /* MedxDuelTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxDuelTransport.swift; sourceTree = "<group>"; };
+		9B0011392A00000100000001 /* MedxDuelRestTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxDuelRestTransport.swift; sourceTree = "<group>"; };
+		9B00113B2A00000100000001 /* MedxDuelRoom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxDuelRoom.swift; sourceTree = "<group>"; };
+		9B00113D2A00000100000001 /* MedxFirebaseBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxFirebaseBridge.swift; sourceTree = "<group>"; };
+		9B00113F2A00000100000001 /* MedxFirestoreDuelTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxFirestoreDuelTransport.swift; sourceTree = "<group>"; };
+		9B0011412A00000100000001 /* FaceoffLobbyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Faceoff/FaceoffLobbyView.swift; sourceTree = "<group>"; };
+		9B0011432A00000100000001 /* DuelRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Faceoff/DuelRoomView.swift; sourceTree = "<group>"; };
+		9B0011452A00000100000001 /* DuelResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Faceoff/DuelResultView.swift; sourceTree = "<group>"; };
+		9B0011472A00000100000001 /* MedxActivityChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxActivityChrome.swift; sourceTree = "<group>"; };
+		9B00114A2A00000100000001 /* MedxSharedIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxSharedIntents.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -212,6 +266,10 @@
 				9B00100E2A00000100000001 /* Video.swift */,
 				9B0010102A00000100000001 /* Attempt.swift */,
 				9B0010122A00000100000001 /* UserTracker.swift */,
+				9B00111F2A00000100000001 /* Series.swift */,
+				9B0011232A00000100000001 /* CustomModule.swift */,
+				9B00112D2A00000100000001 /* Vod.swift */,
+				9B0011332A00000100000001 /* Duel.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -231,6 +289,16 @@
 				9B00110A2A00000100000001 /* MedxSpotlightIndexer.swift */,
 				9B00110C2A00000100000001 /* MedxAppIntents.swift */,
 				9B00110E2A00000100000001 /* MedxQuestionIndexStore.swift */,
+				9B0011252A00000100000001 /* MedxCustomModuleStore.swift */,
+				9B00112F2A00000100000001 /* MedxVodWatcher.swift */,
+				9B0011352A00000100000001 /* MedxDuelRules.swift */,
+				9B0011372A00000100000001 /* MedxDuelTransport.swift */,
+				9B0011392A00000100000001 /* MedxDuelRestTransport.swift */,
+				9B00113B2A00000100000001 /* MedxDuelRoom.swift */,
+				9B00113D2A00000100000001 /* MedxFirebaseBridge.swift */,
+				9B00113F2A00000100000001 /* MedxFirestoreDuelTransport.swift */,
+				9B0011472A00000100000001 /* MedxActivityChrome.swift */,
+				9B00114A2A00000100000001 /* MedxSharedIntents.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -242,6 +310,7 @@
 				9B0010242A00000100000001 /* GlassModifier.swift */,
 				9B0010262A00000100000001 /* Typography.swift */,
 				9B0011102A00000100000001 /* AccentTheme.swift */,
+				9B0011192A00000100000001 /* MedxSections.swift */,
 			);
 			path = Theme;
 			sourceTree = "<group>";
@@ -260,6 +329,8 @@
 				9B0010362A00000100000001 /* FloatingTabBar.swift */,
 				9B0011122A00000100000001 /* MedxLogoMark.swift */,
 				9B0011142A00000100000001 /* MedxOfflineAssetLoader.swift */,
+				9B00111B2A00000100000001 /* MedxSticker.swift */,
+				9B00111D2A00000100000001 /* MedxPageHeader.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -288,6 +359,14 @@
 				9B00105E2A00000100000001 /* SettingsView.swift */,
 				9B0011162A00000100000001 /* MedxQuestionSearchView.swift */,
 				9B0011182A00000100000001 /* MedxCustomModuleSheet.swift */,
+				9B0011212A00000100000001 /* BatchPapersView.swift */,
+				9B0011272A00000100000001 /* CustomModulesView.swift */,
+				9B0011292A00000100000001 /* ModuleBuilderSheet.swift */,
+				9B00112B2A00000100000001 /* LibraryView.swift */,
+				9B0011312A00000100000001 /* VodFeedView.swift */,
+				9B0011412A00000100000001 /* FaceoffLobbyView.swift */,
+				9B0011432A00000100000001 /* DuelRoomView.swift */,
+				9B0011452A00000100000001 /* DuelResultView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -337,6 +416,10 @@
 				9B0020102A00000100000001 /* PBXTargetDependency */,
 			);
 			name = MedxElite;
+			packageProductDependencies = (
+				9B0030012A00000100000001 /* FirebaseFirestore */,
+				9B0030022A00000100000001 /* FirebaseAuth */,
+			);
 			productName = MedxElite;
 			productReference = 9B0010002A00000100000001 /* MedxElite.app */;
 			productType = "com.apple.product-type.application";
@@ -382,6 +465,9 @@
 				Base,
 			);
 			mainGroup = 9B0000012A00000100000001;
+			packageReferences = (
+				9B0030002A00000100000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			productRefGroup = 9B0000032A00000100000001 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -473,6 +559,31 @@
 				9B0011132A00000100000001 /* MedxOfflineAssetLoader.swift in Sources */,
 				9B0011152A00000100000001 /* MedxQuestionSearchView.swift in Sources */,
 				9B0011172A00000100000001 /* MedxCustomModuleSheet.swift in Sources */,
+				9B00111A2A00000100000001 /* MedxSections.swift in Sources */,
+				9B00111C2A00000100000001 /* MedxSticker.swift in Sources */,
+				9B00111E2A00000100000001 /* MedxPageHeader.swift in Sources */,
+				9B0011202A00000100000001 /* Series.swift in Sources */,
+				9B0011222A00000100000001 /* BatchPapersView.swift in Sources */,
+				9B0011242A00000100000001 /* CustomModule.swift in Sources */,
+				9B0011262A00000100000001 /* MedxCustomModuleStore.swift in Sources */,
+				9B0011282A00000100000001 /* CustomModulesView.swift in Sources */,
+				9B00112A2A00000100000001 /* ModuleBuilderSheet.swift in Sources */,
+				9B00112C2A00000100000001 /* LibraryView.swift in Sources */,
+				9B00112E2A00000100000001 /* Vod.swift in Sources */,
+				9B0011302A00000100000001 /* MedxVodWatcher.swift in Sources */,
+				9B0011322A00000100000001 /* VodFeedView.swift in Sources */,
+				9B0011342A00000100000001 /* Duel.swift in Sources */,
+				9B0011362A00000100000001 /* MedxDuelRules.swift in Sources */,
+				9B0011382A00000100000001 /* MedxDuelTransport.swift in Sources */,
+				9B00113A2A00000100000001 /* MedxDuelRestTransport.swift in Sources */,
+				9B00113C2A00000100000001 /* MedxDuelRoom.swift in Sources */,
+				9B00113E2A00000100000001 /* MedxFirebaseBridge.swift in Sources */,
+				9B0011402A00000100000001 /* MedxFirestoreDuelTransport.swift in Sources */,
+				9B0011422A00000100000001 /* FaceoffLobbyView.swift in Sources */,
+				9B0011442A00000100000001 /* DuelRoomView.swift in Sources */,
+				9B0011462A00000100000001 /* DuelResultView.swift in Sources */,
+				9B0011482A00000100000001 /* MedxActivityChrome.swift in Sources */,
+				9B00114B2A00000100000001 /* MedxSharedIntents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -482,6 +593,8 @@
 			files = (
 				9B0020062A00000100000001 /* MedxWidgetsBundle.swift in Sources */,
 				9B0020072A00000100000001 /* MedxSharedState.swift in Sources */,
+				9B0011492A00000100000001 /* MedxActivityChrome.swift in Sources */,
+				9B00114C2A00000100000001 /* MedxSharedIntents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -506,6 +619,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9B0030032A00000100000001 /* FirebaseFirestore in Frameworks */,
+				9B0030042A00000100000001 /* FirebaseAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -697,6 +812,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		9B0030002A00000100000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		9B0030012A00000100000001 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9B0030002A00000100000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+		9B0030022A00000100000001 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9B0030002A00000100000001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 	};
 	rootObject = 9B0000002A00000100000001 /* Project object */;

@@ -1,19 +1,19 @@
 import SwiftUI
 
-/// Chapters and modules for one subject. Chapters collapse, so a 200-module subject does
-/// not build 200 rows before the first frame.
+/// Chapters and modules for one subject, in either bank. Chapters collapse, so a 247-module
+/// subject does not build 247 rows before the first frame.
 public struct QBankChapterView: View {
-    public let subject: QBankSubject
+    public let subject: MedxBankSubject
     public let practisedModuleIds: Set<String>
     public let attempts: [SittingAttempt]
     public var onStartModule: (QBankModuleSummary, SittingMode) -> Void
 
     @State private var selectedModuleForStart: QBankModuleSummary?
-    @State private var expandedChapters: Set<Int> = []
+    @State private var expandedChapters: Set<String> = []
     @State private var searchText = ""
 
     public init(
-        subject: QBankSubject,
+        subject: MedxBankSubject,
         practisedModuleIds: Set<String> = [],
         attempts: [SittingAttempt],
         onStartModule: @escaping (QBankModuleSummary, SittingMode) -> Void
@@ -24,8 +24,8 @@ public struct QBankChapterView: View {
         self.onStartModule = onStartModule
     }
 
-    private var chapters: [QBankChapter] {
-        subject.chapters ?? []
+    private var chapters: [MedxBankChapter] {
+        subject.chapters
     }
 
     /// Best score per module, keyed by module id.
@@ -43,21 +43,21 @@ public struct QBankChapterView: View {
     }
 
     private var practisedCount: Int {
-        let ids = Set(chapters.flatMap { ($0.modules ?? []).map(\.id) })
+        let ids = Set(subject.modules.map(\.id))
         return ids.intersection(practisedModuleIds).count
     }
 
-    private var matchingChapters: [QBankChapter] {
+    private var matchingChapters: [MedxBankChapter] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return chapters }
         return chapters.compactMap { chapter in
-            let modules = (chapter.modules ?? []).filter {
+            let modules = chapter.modules.filter {
                 $0.name.localizedCaseInsensitiveContains(query)
             }
             guard !modules.isEmpty || chapter.name.localizedCaseInsensitiveContains(query) else {
                 return nil
             }
-            return QBankChapter(id: chapter.id, name: chapter.name, modules: modules)
+            return MedxBankChapter(id: chapter.id, name: chapter.name, modules: modules)
         }
     }
 
@@ -68,7 +68,11 @@ public struct QBankChapterView: View {
 
                 if matchingChapters.isEmpty {
                     ContentUnavailableView {
-                        Label("No Modules", systemImage: "magnifyingglass")
+                        Label {
+                            Text("No Modules")
+                        } icon: {
+                            MedxSticker(searchText.isEmpty ? "filebox" : "search", size: 42)
+                        }
                     } description: {
                         Text(searchText.isEmpty
                              ? "This subject has no modules yet."
@@ -114,13 +118,22 @@ public struct QBankChapterView: View {
 
     private var summaryCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label("\(subject.moduleCount) modules", systemImage: "square.grid.2x2.fill")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Text("\(practisedCount) practised")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                MedxSticker(MedxSubjectArt.sticker(for: subject.name), size: 30, tilt: -7)
+                    .frame(width: 38, height: 38)
+                    .background(MedxSection.qbank.soft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("\(subject.moduleCount) modules")
+                        .font(.subheadline.weight(.semibold))
+                    Text("\(subject.questionCount.formatted()) questions available")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 8)
+
+                MedxPill(subject.bank.label, hue: MedxSection.qbank.fill)
             }
 
             ProgressView(
@@ -129,8 +142,8 @@ public struct QBankChapterView: View {
             )
             .tint(MedxTheme.successGreen)
 
-            Text("\((subject.questionCount ?? 0).formatted()) questions available")
-                .font(.caption)
+            Text("\(practisedCount) practised")
+                .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
         .padding(16)
@@ -140,9 +153,9 @@ public struct QBankChapterView: View {
 
     // MARK: - Chapter
 
-    private func chapterSection(_ chapter: QBankChapter) -> some View {
+    private func chapterSection(_ chapter: MedxBankChapter) -> some View {
         let isExpanded = expandedChapters.contains(chapter.id) || !searchText.isEmpty
-        let modules = chapter.modules ?? []
+        let modules = chapter.modules
 
         return VStack(alignment: .leading, spacing: 8) {
             Button {

@@ -12,6 +12,7 @@ public struct SettingsView: View {
     @ObservedObject private var index = MedxQuestionIndexStore.shared
     @ObservedObject private var spotlight = MedxSpotlightIndexer.shared
     @ObservedObject private var playback = MedxPlaybackDiagnostics.shared
+    @ObservedObject private var vod = MedxVodWatcher.shared
     @State private var attempts: [SittingAttempt] = []
     @State private var subjects: [QBankSubject] = []
     @State private var showSignOutConfirm = false
@@ -93,7 +94,7 @@ public struct SettingsView: View {
                 examGoalsSection
 
                 // MARK: - Library & Study History
-                Section("Library") {
+                Section {
                     NavigationLink {
                         DownloadsView()
                     } label: {
@@ -140,6 +141,8 @@ public struct SettingsView: View {
                             value: "\(activityStore.watchHistory(for: authService.currentSession?.uid).count + attempts.count)"
                         )
                     }
+                } header: {
+                    MedxSettingsHeader("Library", sticker: "filebox", hue: MedxCandy.mint)
                 }
 
                 // Grouped because a `List` builder takes at most ten direct children and
@@ -156,7 +159,7 @@ public struct SettingsView: View {
                 }
 
                 // MARK: - Cloud Sync
-                Section("Cloud Synchronization") {
+                Section {
                     HStack {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
@@ -205,6 +208,8 @@ public struct SettingsView: View {
                         .buttonStyle(.plain)
                         .disabled(isManualSyncing || activityStore.isSyncing)
                     }
+                } header: {
+                    MedxSettingsHeader("Cloud Synchronization", sticker: "satellite", hue: MedxCandy.blue)
                 }
 
                 // MARK: - Storage
@@ -300,14 +305,14 @@ public struct SettingsView: View {
                         }
                     }
                 } header: {
-                    Text("Storage")
+                    MedxSettingsHeader("Storage", sticker: "phone", hue: MedxCandy.violet)
                 } footer: {
                     Text("Clearing cached data keeps your downloads, bookmarks and history — only the re-downloadable copies of questions and images are removed.")
                         .font(.caption)
                 }
 
                 // MARK: - Account Actions
-                Section("Account") {
+                Section {
                     Button(role: .destructive) {
                         showSignOutConfirm = true
                     } label: {
@@ -333,6 +338,8 @@ public struct SettingsView: View {
                             }
                         }
                     }
+                } header: {
+                    MedxSettingsHeader("Account", sticker: "locked", hue: MedxCandy.pink)
                 }
 
                 // MARK: - App Info
@@ -506,7 +513,7 @@ public struct SettingsView: View {
             .pickerStyle(.segmented)
             .padding(.vertical, 2)
         } header: {
-            Text("Appearance")
+            MedxSettingsHeader("Appearance", sticker: "cool", hue: MedxCandy.butter)
         } footer: {
             Text("The accent applies across the app, its widgets and the Lock Screen activities. Colours are system colours, so contrast settings keep working.")
                 .font(.caption)
@@ -550,7 +557,7 @@ public struct SettingsView: View {
             }
             .frame(minHeight: 44)
         } header: {
-            Text("Exam & goals")
+            MedxSettingsHeader("Exam & goals", sticker: "bullseye", hue: MedxCandy.tangerine)
         } footer: {
             Text("\(stats.daysToExam) days to \(stats.examName). The countdown card, the widgets and the reminders all read these two values.")
                 .font(.caption)
@@ -638,11 +645,14 @@ public struct SettingsView: View {
                     .foregroundStyle(MedxTheme.warningOrange)
             }
         } header: {
-            Text("Question search")
+            MedxSettingsHeader("Question search", sticker: "search", hue: MedxCandy.lime)
         } footer: {
+            // The index is built from `medx_qbank_subjects`, which is the ARISE tree only. Marrow
+            // modules are read on demand and are not in here, so saying "all questions" without
+            // that qualifier would be a lie the moment somebody searches for a Marrow stem.
             Text(index.isComplete
-                 ? "All \(index.indexedCount.formatted()) questions are searchable offline."
-                 : "Searching every question needs their text on this device. Building fetches all \(max(index.expectedModules, 1211)) modules once — it is resumable, and it also makes those modules playable offline.")
+                 ? "All \(index.indexedCount.formatted()) ARISE questions are searchable offline. Marrow modules are not indexed — searching those needs a connection."
+                 : "Searching every question needs their text on this device. Building fetches all \(max(index.expectedModules, 1211)) ARISE modules once — it is resumable, and it also makes those modules playable offline. Marrow is not indexed.")
                 .font(.caption)
         }
     }
@@ -704,7 +714,7 @@ public struct SettingsView: View {
             }
             .disabled(!reminders.enabled.contains(.dailyQuestions) || !reminders.isAuthorized)
         } header: {
-            Text("Reminders")
+            MedxSettingsHeader("Reminders", sticker: "clock", hue: MedxCandy.pink)
         } footer: {
             Text(reminders.isAuthorized
                  ? "\(reminders.pendingCount) scheduled. The wording is rebuilt each time the app opens, so the numbers are current."
@@ -770,7 +780,7 @@ public struct SettingsView: View {
             }
             .padding(.vertical, 4)
         } header: {
-            Text("Siri, Spotlight & widgets")
+            MedxSettingsHeader("Siri, Spotlight & widgets", sticker: "sparkles", hue: MedxCandy.sky)
         } footer: {
             Text("Nothing is uploaded — Spotlight's index lives on this device and is removed when the switch is off.")
                 .font(.caption)
@@ -841,6 +851,39 @@ public struct SettingsView: View {
                 ok: MedxAppGroup.isShared
             )
 
+            // Faceoff is the one feature that does not run on the REST path, so "the duel feels
+            // laggy" has a different answer from every other slowness in this app and this is the
+            // only place the difference is visible.
+            diagnosticRow(
+                title: "Faceoff transport",
+                detail: MedxFirebaseBridge.shared.isReady
+                    ? "Live listeners — \(MedxFirebaseBridge.shared.status)"
+                    : "Polling — \(MedxFirebaseBridge.shared.status)",
+                ok: MedxFirebaseBridge.shared.isReady
+            )
+
+            diagnosticRow(
+                title: "VOD drop check",
+                detail: vodDiagnostic,
+                ok: vod.lastCheckedAt != nil
+            )
+
+            Button {
+                HapticManager.medium()
+                vod.resetWatermarks()
+                Task { await vod.refreshFromForeground() }
+            } label: {
+                Label {
+                    Text("Forget the VOD watermark")
+                        .font(.body)
+                } icon: {
+                    Image(systemName: "bell.badge")
+                        .foregroundStyle(MedxCandy.blue)
+                }
+                .frame(minHeight: 44)
+            }
+            .accessibilityHint("Re-checks the bucket as though this device had never seen it, which posts the new-drop notification again")
+
             if let failure = playback.summary {
                 Button {
                     playback.clear()
@@ -849,13 +892,31 @@ public struct SettingsView: View {
                 }
             }
         } header: {
-            Text("Diagnostics")
+            MedxSettingsHeader("Diagnostics", sticker: "microscope", hue: MedxCandy.violet)
         } footer: {
             Text(MedxInstallInfo.usesLegacyAppearance
                  ? "This build was compiled against an older iOS SDK, which is why the interface uses the previous system style — iOS only applies the current design language to apps linked against the iOS 26 SDK or newer. Rebuild with the updated CI workflow."
-                 : "Tap a failed row to clear it.")
+                 : "Tap a failed row to clear it. The VOD check runs on every launch and, when iOS agrees to it, roughly every two hours in the background — there is no push, so opening the app is the guarantee.")
                 .font(.caption)
         }
+    }
+
+    /// One line for the drop watcher: when it last looked, and what it found there. `count` in
+    /// `medx_vod/_meta` is documents added by the sync installation rather than a collection total,
+    /// so it is not shown here — the useful facts are the timestamp and whether anything is unseen.
+    private var vodDiagnostic: String {
+        guard let checked = vod.lastCheckedAt else {
+            return "Not checked yet this launch"
+        }
+        let when = checked.formatted(date: .omitted, time: .shortened)
+        guard let newest = vod.meta?.lastUploadedAt else {
+            return "Checked at \(when) — the bucket reported no uploads"
+        }
+        let drop = newest.formatted(date: .abbreviated, time: .shortened)
+        if vod.unseenCount > 0 {
+            return "Checked at \(when) — \(vod.unseenCount) unseen, newest \(drop)"
+        }
+        return "Checked at \(when) — up to date, newest \(drop)"
     }
 
     private func diagnosticRow(title: String, detail: String, ok: Bool) -> some View {
@@ -1341,7 +1402,7 @@ private struct WatchHistoryView: View {
 
 // MARK: - Activity Log View (Unified Watch History & Test Attempts)
 
-private struct ActivityLogView: View {
+struct ActivityLogView: View {
     let uid: String?
     @Binding var attempts: [SittingAttempt]
     @ObservedObject private var activityStore = ActivityStore.shared
@@ -1361,6 +1422,11 @@ private struct ActivityLogView: View {
         var id: String { rawValue }
     }
 
+    /// Which attempt kinds count as a paper rather than a module. `series` joined `test` when
+    /// the Tests tab became the Marrow catalogue; without it, 352 papers' worth of sittings
+    /// were filed under QBank.
+    private static let paperKinds: Set<String> = ["test", "series"]
+
     private var allItems: [ActivityLogItem] {
         let videoItems = activityStore.watchHistory(for: uid).map(ActivityLogItem.video)
         let attemptItems = attempts.map(ActivityLogItem.attempt)
@@ -1376,9 +1442,9 @@ private struct ActivityLogView: View {
             case .videos:
                 if case .video = item { matchesCategory = true } else { matchesCategory = false }
             case .qbank:
-                if case .attempt(let att) = item, att.kind != "test" { matchesCategory = true } else { matchesCategory = false }
+                if case .attempt(let att) = item, !Self.paperKinds.contains(att.kind) { matchesCategory = true } else { matchesCategory = false }
             case .tests:
-                if case .attempt(let att) = item, att.kind == "test" { matchesCategory = true } else { matchesCategory = false }
+                if case .attempt(let att) = item, Self.paperKinds.contains(att.kind) { matchesCategory = true } else { matchesCategory = false }
             }
 
             let matchesSearch = searchText.isEmpty ||
@@ -1413,10 +1479,12 @@ private struct ActivityLogView: View {
                     Section {
                         ForEach(filteredItems) { item in
                             HStack(spacing: 14) {
-                                Image(systemName: item.icon)
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .foregroundStyle(item.color)
-                                    .frame(width: 32)
+                                MedxSticker(item.sticker, size: 26, tilt: -6)
+                                    .frame(width: 34, height: 34)
+                                    .background(
+                                        item.color.opacity(0.18),
+                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    )
 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(item.title)
@@ -1563,17 +1631,17 @@ private enum ActivityLogItem: Identifiable, Hashable {
         }
     }
 
-    var icon: String {
+    var sticker: String {
         switch self {
-        case .video: return "play.rectangle.fill"
-        case .attempt(let attempt): return attempt.kind == "test" ? "doc.text.fill" : "questionmark.square.fill"
+        case .video: return "clapper"
+        case .attempt(let attempt): return MedxAttemptKind.sticker(attempt.kind)
         }
     }
 
     var color: Color {
         switch self {
-        case .video: return MedxTheme.primaryBlue
-        case .attempt(let attempt): return attempt.kind == "test" ? MedxTheme.primaryPurple : MedxTheme.cyanAccent
+        case .video: return MedxCandy.violet
+        case .attempt(let attempt): return MedxAttemptKind.hue(attempt.kind)
         }
     }
 
@@ -1590,7 +1658,7 @@ private enum ActivityLogItem: Identifiable, Hashable {
             let status = entry.isCompleted ? "Watched" : "Resume at \(entry.formattedResumeTime)"
             return "\(entry.video.subject) · \(status) (\(Int(entry.progress * 100))%)"
         case .attempt(let attempt):
-            let kind = attempt.kind == "test" ? "Test" : "QBank"
+            let kind = MedxAttemptKind.label(attempt.kind)
             let mode = attempt.mode == "exam" ? "Exam" : "Revision"
             return "\(kind) (\(mode)) · Score: \(attempt.score)/\(attempt.total) (\(attempt.totalPercentage)%)"
         }
@@ -1605,5 +1673,34 @@ private enum ActivityLogItem: Identifiable, Hashable {
         case .video: return "Deleting this log entry will delete the watch history and clear its resume position both locally and in Firebase."
         case .attempt: return "Deleting this log entry will permanently remove the test/QBank attempt record locally and in Firebase."
         }
+    }
+}
+
+// MARK: - Section heading
+
+/// A settings section heading with its own sticker.
+///
+/// Settings is the one screen with nine peer sections and no hierarchy between them, so the marks
+/// are doing real work rather than decoration: they are what makes "the one with the reminders"
+/// findable by scrolling instead of by reading every heading on the way past.
+struct MedxSettingsHeader: View {
+    private let title: String
+    private let sticker: String
+    private let hue: Color
+
+    init(_ title: String, sticker: String, hue: Color) {
+        self.title = title
+        self.sticker = sticker
+        self.hue = hue
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            MedxSticker(sticker, size: 16)
+            Text(title)
+                .foregroundStyle(MedxCandy.onSoft(hue))
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
     }
 }

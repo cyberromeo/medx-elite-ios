@@ -18,6 +18,11 @@ xcuserdata/
 .build/
 Packages/
 .swiftpm/xcode/xcuserdata/
+# Where CI clones firebase-ios-sdk (`-clonedSourcePackagesDirPath`), and the workspace Xcode
+# generates beside project.pbxproj the first time packages are resolved. Neither is authored:
+# the pin lives in the XCRemoteSwiftPackageReference inside project.pbxproj.
+.spm-cache/
+MedxElite.xcodeproj/project.xcworkspace/
 
 # macOS
 .DS_Store

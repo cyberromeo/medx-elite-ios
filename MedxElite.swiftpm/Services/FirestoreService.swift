@@ -443,6 +443,418 @@ public actor FirestoreService {
         }
     }
 
+    // MARK: - The second bank, and the series
+    //
+    // Both are single documents under `medx_meta`, seeded by the PWA's
+    // `scripts/seed-marrow.mjs`. One read each, which is the whole reason they are shaped
+    // that way: the Marrow tree is 20 subjects / 960 modules / 14,577 questions and the
+    // series is 376 papers, and neither screen should pay a collection scan to draw a list.
+
+    public func fetchMarrowBankIndex(idToken: String) async throws -> MedxBankIndex {
+        try await fetchDocument(collection: "medx_meta", docId: "qbank_fmge", idToken: idToken)
+    }
+
+    /// Both banks as one subject list, each entry tagged with where it came from.
+    ///
+    /// Every consumer — the QBank tabs, a subject page, the custom-module builder — wants the
+    /// same tree and differs only in how it filters. A bank that has not been seeded must
+    /// leave the other one working, so a Marrow failure is swallowed rather than thrown: the
+    /// screen shows ARISE and its segmented control says Marrow is unavailable.
+    public func fetchQBankBanks(idToken: String) async throws -> [MedxBankSubject] {
+        async let ariseTask = fetchQBankSubjects(idToken: idToken)
+        async let marrowTask = fetchMarrowBankIndex(idToken: idToken)
+
+        let arise = try await ariseTask
+        let marrow = try? await marrowTask
+
+        return arise.map { MedxBankSubject(arise: $0) } + (marrow?.subjects ?? [])
+    }
+
+    public func fetchSeriesIndex(idToken: String) async throws -> MedxSeriesIndex {
+        try await fetchDocument(collection: "medx_meta", docId: "series_fmge", idToken: idToken)
+    }
+
+    // MARK: - Ordered, paged queries
+
+    /// A page of a collection ordered by one field, with an optional cursor.
+    ///
+    /// `runQuery` above can only ask a single equality filter, which is all the duel and the
+    /// bookmark reads need. The VOD bucket is ~2,900 documents that have to come back newest
+    /// first, 48 at a time, so it needs `orderBy` + `limit` + a cursor — and ordering by
+    /// `uploadedAt` also filters the collection's `_meta` bookkeeping document out for free,
+    /// because Firestore omits documents that lack the ordered field.
+    ///
+    /// Never cached: a page is a window onto a growing collection, and a cached second page
+    /// is a page of the wrong documents.
+    public func runOrderedQuery(
+        collection: String,
+        orderByField: String,
+        descending: Bool = true,
+        limit: Int,
+        startAfterTimestamp: String? = nil,
+        idToken: String
+    ) async throws -> [[String: Any]] {
+        let urlString = "https://firestore.googleapis.com/v1/projects/\(FirebaseConfig.projectId)/databases/(default)/documents:runQuery"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        var structured: [String: Any] = [
+            "from": [["collectionId": collection]],
+            "orderBy": [[
+                "field": ["fieldPath": orderByField],
+                "direction": descending ? "DESCENDING" : "ASCENDING"
+            ]],
+            "limit": limit
+        ]
+        if let startAfterTimestamp {
+            // `before: false` is what turns `startAt` into "start *after* this value", which
+            // is the difference between paging and re-serving the last row of every page.
+            structured["startAt"] = [
+                "values": [["timestampValue": startAfterTimestamp]],
+                "before": false
+            ]
+        }
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["structuredQuery": structured])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        guard let results = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw URLError(.cannotParseResponse)
+        }
+        return results.compactMap { $0["document"] as? [String: Any] }
+    }
+
+    // MARK: - The VOD bucket
+
+    /// One page of the feed, newest upload first.
+    public func fetchVodPage(pageSize: Int = 48, cursor: String? = nil, idToken: String) async throws -> MedxVodPage {
+        let documents = try await runOrderedQuery(
+            collection: "medx_vod",
+            orderByField: "uploadedAt",
+            descending: true,
+            limit: pageSize,
+            startAfterTimestamp: cursor,
+            idToken: idToken
+        )
+
+        let items: [MedxVodItem] = documents.compactMap { doc in
+            guard let raw = doc["fields"] as? [String: Any] else { return nil }
+            let fallbackId = (doc["name"] as? String)?.split(separator: "/").last.map(String.init) ?? ""
+            return MedxVodItem(fields: Self.normalizeFirestoreMap(raw), fallbackId: fallbackId)
+        }
+
+        return MedxVodPage(
+            items: items,
+            cursor: items.last?.uploadedAtRaw,
+            done: documents.count < pageSize
+        )
+    }
+
+    /// The watermark. Deliberately one document read, which is what makes the background
+    /// new-drop check cheap enough to run on every wake.
+    public func fetchVodMeta(idToken: String) async throws -> MedxVodMeta? {
+        let urlString = "\(FirebaseConfig.firestoreRestBase)/medx_vod/_meta"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        // A bucket that has never been synced has no `_meta`, which is not an error.
+        if http.statusCode == 404 { return nil }
+        guard (200...299).contains(http.statusCode) else { throw URLError(.badServerResponse) }
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rawFields = json["fields"] as? [String: Any] else {
+            return nil
+        }
+        let fields = Self.normalizeFirestoreMap(rawFields)
+        let lastRaw = fields["lastUploadedAt"] as? String
+        return MedxVodMeta(
+            count: (fields["count"] as? Int) ?? 0,
+            lastUploadedAt: lastRaw.flatMap { MedxVodItem.parseTimestamp($0) },
+            lastUploadedAtRaw: lastRaw,
+            updatedAt: (fields["updatedAt"] as? String).flatMap { MedxVodItem.parseTimestamp($0) }
+        )
+    }
+
+    // MARK: - Custom modules
+    //
+    // The collection is read *whole* rather than filtered by author: there are two people using
+    // this app and one bank behind it, so a paper either of them builds is one the other can
+    // run, edit and delete. `uid` on the document records who created it, nothing more.
+
+    public func fetchCustomModules(idToken: String) async throws -> [MedxCustomModule] {
+        // Never cached. A stale list here is the one thing that would resurrect a paper the
+        // other one deleted, and `MedxCustomModuleRules.reconcile` needs a read it can trust.
+        try await fetchCollection(collection: "medx_custom_modules", idToken: idToken, useCache: false)
+    }
+
+    public func saveCustomModule(_ module: MedxCustomModule, idToken: String) async throws {
+        let urlString = "\(FirebaseConfig.firestoreRestBase)/medx_custom_modules/\(module.id)"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let encoded = try JSONEncoder().encode(module)
+        guard var dict = try JSONSerialization.jsonObject(with: encoded) as? [String: Any] else { return }
+        // `synced` is this device's bookkeeping and has no business in the shared document.
+        dict.removeValue(forKey: "synced")
+
+        request.httpBody = try JSONSerialization.data(
+            withJSONObject: ["fields": Self.convertToFirestoreFields(dict)]
+        )
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    /// The document id is the whole address, so this works on the other one's paper exactly as
+    /// it works on your own — which is the sharing, and is also the one write in this app that
+    /// touches a document another account created.
+    public func deleteCustomModule(id: String, idToken: String) async throws {
+        let urlString = "\(FirebaseConfig.firestoreRestBase)/medx_custom_modules/\(id)"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    /// A single equality filter, returning the raw documents.
+    ///
+    /// `runQuery` above decodes straight into a `Codable` model and caches, which is right for
+    /// bookmarks and attempts. The duel documents are hand-decoded — `askedAt` is epoch millis and
+    /// the log is nested maps — and must never be cached, so this stops one step earlier.
+    public func runRawQuery(
+        collection: String,
+        whereField field: String,
+        equals stringValue: String,
+        idToken: String
+    ) async throws -> [[String: Any]] {
+        let urlString = "https://firestore.googleapis.com/v1/projects/\(FirebaseConfig.projectId)/databases/(default)/documents:runQuery"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "structuredQuery": [
+                "from": [["collectionId": collection]],
+                "where": [
+                    "fieldFilter": [
+                        "field": ["fieldPath": field],
+                        "op": "EQUAL",
+                        "value": ["stringValue": stringValue]
+                    ]
+                ]
+            ]
+        ])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        guard let results = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw URLError(.cannotParseResponse)
+        }
+        return results.compactMap { $0["document"] as? [String: Any] }
+    }
+
+    // MARK: - Generic document writes
+    //
+    // The duel needs shapes the domain helpers above do not cover: several documents committed
+    // together, a single field patched without touching its siblings, an `arrayUnion`, and a read
+    // of three known documents in one round trip. All four are plain Firestore REST; they live
+    // here so the transport stays about the game rather than about HTTP.
+
+    /// Full-document write. `merge` sends an `updateMask` covering exactly the keys given, which
+    /// is what stops a partial write blanking the fields it did not mention.
+    public func writeDocument(
+        collection: String,
+        docId: String,
+        fields: [String: Any],
+        merge: Bool,
+        idToken: String
+    ) async throws {
+        var urlString = "\(FirebaseConfig.firestoreRestBase)/\(collection)/\(docId)"
+        if merge {
+            let mask = fields.keys
+                .compactMap { $0.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) }
+                .map { "updateMask.fieldPaths=\($0)" }
+                .joined(separator: "&")
+            if !mask.isEmpty { urlString += "?\(mask)" }
+        }
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(
+            withJSONObject: ["fields": Self.convertToFirestoreFields(fields)]
+        )
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    /// One write in a `documents:commit` batch.
+    public struct MedxWrite: Sendable {
+        let collection: String
+        let docId: String
+        let fields: [String: Any]
+        /// Field paths to append to, `arrayUnion` style. The values come from `fields[path]`.
+        let appendPaths: [String]
+        let merge: Bool
+
+        public init(
+            collection: String,
+            docId: String,
+            fields: [String: Any],
+            appendPaths: [String] = [],
+            merge: Bool = false
+        ) {
+            self.collection = collection
+            self.docId = docId
+            self.fields = fields
+            self.appendPaths = appendPaths
+            self.merge = merge
+        }
+    }
+
+    /// Several documents in one atomic commit.
+    ///
+    /// The deal needs this: the deck and the lobby have to become visible together, or the guest
+    /// could see a joinable game whose questions have not landed yet.
+    ///
+    /// `appendPaths` becomes an `appendMissingElements` transform — Firestore's `arrayUnion` —
+    /// which de-duplicates by deep equality. That is what makes a re-delivered round advance a
+    /// no-op instead of a duplicate log entry.
+    public func commit(writes: [MedxWrite], idToken: String) async throws {
+        guard !writes.isEmpty else { return }
+        let urlString = "https://firestore.googleapis.com/v1/projects/\(FirebaseConfig.projectId)/databases/(default)/documents:commit"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+
+        let prefix = "projects/\(FirebaseConfig.projectId)/databases/(default)/documents"
+        var payload: [[String: Any]] = []
+
+        for write in writes {
+            var plain = write.fields
+            var transforms: [[String: Any]] = []
+            for path in write.appendPaths {
+                guard let value = plain.removeValue(forKey: path),
+                      let converted = Self.convertToFirestoreValue(value),
+                      let array = converted["arrayValue"] as? [String: Any]
+                else { continue }
+                transforms.append([
+                    "fieldPath": path,
+                    "appendMissingElements": array
+                ])
+            }
+
+            var entry: [String: Any] = [
+                "update": [
+                    "name": "\(prefix)/\(write.collection)/\(write.docId)",
+                    "fields": Self.convertToFirestoreFields(plain)
+                ]
+            ]
+            if write.merge || !transforms.isEmpty {
+                entry["updateMask"] = ["fieldPaths": Array(plain.keys)]
+            }
+            if !transforms.isEmpty {
+                entry["updateTransforms"] = transforms
+            }
+            payload.append(entry)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["writes": payload])
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    /// Several *known* documents in one round trip.
+    ///
+    /// The duel reads a game plus both player rows on every poll tick, and their ids are
+    /// deterministic (`gameId__uid`, with both uids hard-coded in `Profile.allProfiles`), so this
+    /// is one request instead of a get plus a query. Missing documents come back as `nil`.
+    public func batchGet(
+        paths: [(collection: String, docId: String)],
+        idToken: String
+    ) async throws -> [String: [String: Any]] {
+        guard !paths.isEmpty else { return [:] }
+        let urlString = "https://firestore.googleapis.com/v1/projects/\(FirebaseConfig.projectId)/databases/(default)/documents:batchGet"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+
+        let prefix = "projects/\(FirebaseConfig.projectId)/databases/(default)/documents"
+        let names = paths.map { "\(prefix)/\($0.collection)/\($0.docId)" }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["documents": names])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        guard let results = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw URLError(.cannotParseResponse)
+        }
+
+        var out: [String: [String: Any]] = [:]
+        for result in results {
+            guard let found = result["found"] as? [String: Any],
+                  let name = found["name"] as? String,
+                  let docId = name.split(separator: "/").last,
+                  let rawFields = found["fields"] as? [String: Any]
+            else { continue }
+            out[String(docId)] = Self.normalizeFirestoreMap(rawFields)
+        }
+        return out
+    }
+
+    /// Deletes any document by collection and id.
+    public func deleteDocument(collection: String, docId: String, idToken: String) async throws {
+        let urlString = "\(FirebaseConfig.firestoreRestBase)/\(collection)/\(docId)"
+        guard let url = URL(string: urlString) else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
     // MARK: - Normalization Helpers
 
     public static func normalizeFirestoreMap(_ fields: [String: Any]) -> [String: Any] {

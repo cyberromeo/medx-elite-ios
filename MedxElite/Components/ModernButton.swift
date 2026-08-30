@@ -62,3 +62,54 @@ public struct BouncyButtonStyle: ButtonStyle {
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
+
+// MARK: - Candy call to action
+
+/// The full-width primary action on a section's own hue.
+///
+/// `.buttonStyle(.borderedProminent).tint(MedxCandy.lime)` cannot be used for these: SwiftUI
+/// derives the label colour from the tint and picks white, which on lime measures under 1.5:1.
+/// This is the same capsule with `MedxCandy.onSolid` on top instead — see the note there for
+/// why the label does not invert with the appearance.
+///
+/// The label keeps its own font and frame, exactly as it would under `.borderedProminent`, so
+/// this drops into a full-width bar and a 34pt inline Run button alike.
+public struct MedxFilledButtonStyle: ButtonStyle {
+    private let hue: Color
+
+    public init(hue: Color) {
+        self.hue = hue
+    }
+
+    public func makeBody(configuration: Configuration) -> some View {
+        Filled(configuration: configuration, hue: hue)
+    }
+
+    /// A nested `View` rather than styling `configuration.label` directly, because
+    /// `@Environment` read inside `makeBody` is not re-evaluated when the environment changes —
+    /// and `isEnabled` is the whole reason a disabled Deal button has to look disabled.
+    private struct Filled: View {
+        let configuration: ButtonStyleConfiguration
+        let hue: Color
+
+        @Environment(\.isEnabled) private var isEnabled
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        var body: some View {
+            configuration.label
+                .foregroundStyle(isEnabled ? MedxCandy.onSolid : Color.secondary)
+                .background(Capsule().fill(isEnabled ? hue : MedxSurface.fieldFill))
+                .contentShape(Capsule())
+                .opacity(configuration.isPressed ? 0.86 : 1)
+                .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
+                .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+        }
+    }
+}
+
+public extension View {
+    /// `.medxFilled(MedxSection.duel.fill)` — the candy equivalent of `.borderedProminent`.
+    func medxFilled(_ hue: Color) -> some View {
+        buttonStyle(MedxFilledButtonStyle(hue: hue))
+    }
+}

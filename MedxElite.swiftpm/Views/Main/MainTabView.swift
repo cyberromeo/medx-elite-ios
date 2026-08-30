@@ -34,11 +34,24 @@ public struct MainTabView: View {
             .sheet(isPresented: $appState.showSearch) {
                 MedxQuestionSearchView(seed: appState.searchSeed)
             }
-            .sheet(isPresented: $appState.showCustomModule) {
+            .sheet(isPresented: $appState.showQuickSitting) {
                 MedxCustomModuleSheet()
             }
             .sheet(isPresented: $appState.showSettings) {
                 SettingsView()
+            }
+            .sheet(isPresented: $appState.showCustomModules) {
+                NavigationStack {
+                    CustomModulesView()
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button("Done") { appState.showCustomModules = false }
+                            }
+                        }
+                }
+            }
+            .fullScreenCover(isPresented: $appState.showFaceoff) {
+                FaceoffLobbyView()
             }
             .sheet(isPresented: $appState.showBookmarks) {
                 NavigationStack {
@@ -149,12 +162,27 @@ public struct MainTabView: View {
                 Text("Study")
             }
 
+            Section("Play") {
+                sidebarAction("Faceoff", icon: "bolt.horizontal") {
+                    appState.open(route: .faceoff)
+                }
+            }
+
             Section("Library") {
+                sidebarAction("Classes", icon: "play.rectangle") {
+                    appState.open(route: .classes)
+                }
+                sidebarAction("VOD feed", icon: "antenna.radiowaves.left.and.right") {
+                    appState.open(route: .vodFeed)
+                }
+                sidebarAction("Batch papers", icon: "flag.pattern.checkered") {
+                    appState.open(route: .batchPapers)
+                }
+                sidebarAction("Custom modules", icon: "slider.horizontal.3") {
+                    appState.open(route: .customModules)
+                }
                 sidebarAction("Search questions", icon: "magnifyingglass") {
                     appState.open(route: .search(nil))
-                }
-                sidebarAction("Custom module", icon: "slider.horizontal.3") {
-                    appState.open(route: .customModule)
                 }
                 sidebarAction("Bookmarks", icon: "bookmark") {
                     appState.showBookmarks = true
@@ -204,7 +232,7 @@ public struct MainTabView: View {
         case .qbank: QBankSubjectListView()
         case .tests: TestsListView()
         case .flashcards: FlashcardsSubjectListView()
-        case .videos: VideosBatchListView()
+        case .library: LibraryView()
         }
     }
 
@@ -233,7 +261,7 @@ public struct MainTabView: View {
         let due = Array(stats.due.prefix(5))
         guard !due.isEmpty else {
             // Nothing overdue is good news, not an error — offer to build something instead.
-            appState.open(route: .customModule)
+            appState.open(route: .quickSitting)
             return
         }
 

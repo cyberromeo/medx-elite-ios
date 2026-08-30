@@ -13,6 +13,14 @@ struct MedxEliteApp: App {
     /// underneath it, so this only controls how long the mark is visible.
     @State private var showSplash = true
 
+    /// A `BGTaskScheduler` registration has to happen before the app finishes launching, and it
+    /// traps if it happens later — so it goes in `init`, not in the `.task` that runs after the
+    /// first frame. It also traps if the identifier is missing from
+    /// `Info.plist ▸ BGTaskSchedulerPermittedIdentifiers`, which is why both live together.
+    init() {
+        MedxVodWatcher.registerBackgroundTask()
+    }
+
     var body: some Scene {
         WindowGroup {
             ZStack {
@@ -74,6 +82,12 @@ struct MedxEliteApp: App {
         await MedxNotificationManager.shared.refreshAuthorization()
         stats.publishSnapshot()
 
+        // The Firebase SDK is configured for one feature — Faceoff's snapshot listeners — and its
+        // sign-in is separate from the REST one, so a restored session has to re-do it. Both are
+        // fire-and-forget: the rest of the app is on the REST path either way.
+        MedxFirebaseBridge.shared.configure()
+        Task { await authService.restoreSDKSession() }
+
         // Long enough for the mark to read as an entrance rather than a flicker, short
         // enough that it never becomes a wait.
         try? await Task.sleep(nanoseconds: 1_100_000_000)
@@ -89,9 +103,15 @@ struct MedxEliteApp: App {
             ActivityStore.shared.flushPendingWrites()
             // Leaving the app is exactly when the widgets need the latest numbers.
             stats.publishSnapshot()
+            // Re-armed on the way out, so the next opportunistic wake has something to run.
+            MedxVodWatcher.shared.scheduleBackgroundCheck()
 
         case .active:
             Task { await MedxNotificationManager.shared.refreshAuthorization() }
+            // The foreground check is the *guarantee* behind the new-drop notification: iOS may
+            // not run the background task for days, so returning to the app is what actually
+            // keeps the badge and the watermark honest. One document read.
+            Task { await MedxVodWatcher.shared.refreshFromForeground() }
 
             guard let uid = authService.currentSession?.uid else { return }
             Task {
@@ -108,7 +128,7 @@ struct MedxEliteApp: App {
 
     // MARK: - Deep links
 
-    /// Widget taps arrive as `medxelite://<route>`.
+    /// Widget taps and notification taps arrive as `medxelite://<route>`.
     @MainActor
     private func handle(url: URL) {
         guard url.scheme == "medxelite" else { return }
@@ -122,6 +142,24 @@ struct MedxEliteApp: App {
             appState.open(route: .downloads)
         case "qbank":
             appState.open(route: .qbank)
+        case "tests":
+            appState.open(route: .tests)
+        case "library":
+            appState.open(route: .library)
+        case "classes":
+            appState.open(route: .classes)
+        case "vod":
+            appState.open(route: .vodFeed)
+        case "custom":
+            appState.open(route: .customModules)
+        case "faceoff":
+            // `medxelite://faceoff/<gameId>` opens that room; the bare host opens the lobby.
+            let gameId = url.pathComponents.first { $0 != "/" && !$0.isEmpty }
+            if let gameId {
+                appState.open(route: .faceoffRoom(gameId))
+            } else {
+                appState.open(route: .faceoff)
+            }
         default:
             appState.open(route: .home)
         }

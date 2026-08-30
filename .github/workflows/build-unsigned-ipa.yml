@@ -21,7 +21,10 @@ on:
 jobs:
   build:
     runs-on: ${{ inputs.runner || 'macos-26' }}
-    timeout-minutes: 30
+    # 30 was enough before Faceoff. firebase-ios-sdk builds Firestore's C++ core from source —
+    # BoringSSL, abseil, gRPC and leveldb — which on a cold cache is the longest single step in
+    # this job by a wide margin.
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +52,33 @@ jobs:
           fi
           xcodebuild -project MedxElite.xcodeproj -list
 
+      - name: Cache resolved Swift packages
+        uses: actions/cache@v4
+        with:
+          path: .spm-cache
+          key: spm-${{ runner.os }}-${{ hashFiles('MedxElite.xcodeproj/project.pbxproj') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Resolve Swift package dependencies
+        # Split out of the build on purpose. Faceoff is the one feature that uses the Firebase
+        # iOS SDK, and this is the only step in the whole pipeline that can fail for a reason
+        # that has nothing to do with the app's own code — a moved tag, a network blip, or a
+        # firebase-ios-sdk major that this runner's Xcode will not take. Failing here says so
+        # plainly instead of surfacing 200 lines into a compile log.
+        #
+        # `Package.resolved` is deliberately *not* committed: it would have to carry exact
+        # commit hashes for firebase-ios-sdk and its ten transitive dependencies, and a
+        # hand-written one with the wrong hashes breaks the build rather than pinning it. The
+        # `upToNextMajorVersion` requirement in project.pbxproj is the pin; this step is what
+        # turns it into a lockfile, and the cache above is what keeps it stable between runs.
+        run: |
+          xcodebuild \
+            -project MedxElite.xcodeproj \
+            -clonedSourcePackagesDirPath .spm-cache \
+            -resolvePackageDependencies
+          echo "--- resolved:"
+          cat MedxElite.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved || true
+
       - name: Build (unsigned, Release, device)
         # `SYMROOT` rather than `-derivedDataPath`, which xcodebuild only accepts alongside
         # `-scheme` — and this project ships no shared .xcscheme, so the build is driven by
@@ -66,6 +96,7 @@ jobs:
             -target MedxElite \
             -configuration Release \
             -sdk iphoneos \
+            -clonedSourcePackagesDirPath .spm-cache \
             SYMROOT="$PWD/build" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \

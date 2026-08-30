@@ -9,6 +9,7 @@ public struct HomeView: View {
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var stats = MedxStudyStatsStore.shared
     @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
+    @ObservedObject private var lobbyWatcher = MedxLobbyWatcher.shared
 
     @State private var attempts: [SittingAttempt] = []
     @State private var summary = HomeSummary.empty
@@ -37,10 +38,19 @@ public struct HomeView: View {
         activityStore.watchHistory(for: uid).first { !$0.isCompleted && $0.resumePosition > 0 }
     }
 
+    /// Lobbies the other one has dealt and nobody has joined.
+    private var openLobbies: [MedxDuelGame] { lobbyWatcher.theirs }
+
     public var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 22) {
                 greetingLine
+
+                // Above even the countdown: a dealt game is the one thing on this screen with
+                // somebody waiting at the other end of it.
+                if let invite = openLobbies.first {
+                    faceoffInvite(invite)
+                }
 
                 CountdownWidgetView()
 
@@ -98,10 +108,58 @@ public struct HomeView: View {
         }
         .task {
             await loadHomeData()
+            lobbyWatcher.start()
         }
         .onChange(of: attempts) { _, updated in
             summary = HomeSummary(attempts: updated, history: activityStore.watchHistory(for: uid))
         }
+    }
+
+    // MARK: - Faceoff invite
+
+    /// "Sri wants a game", live.
+    ///
+    /// Tapping it opens the room straight away rather than the lobby: there is exactly one thing to
+    /// do with a dealt game, and a screen in between it and joining is a screen nobody wants.
+    private func faceoffInvite(_ game: MedxDuelGame) -> some View {
+        let host = Profile.byId(game.hostProfile) ?? Profile.byUid(game.hostUid)
+        let hue = host?.duelFill ?? MedxCandy.pink
+
+        return Button {
+            HapticManager.medium()
+            appState.open(route: .faceoffRoom(game.id))
+        } label: {
+            HStack(spacing: 14) {
+                MedxSticker(host?.sticker ?? "bolt", size: 34, tilt: -8)
+                    .frame(width: 46, height: 46)
+                    .background(hue.opacity(0.2), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(host?.displayName ?? "Someone") wants a game")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.primary)
+                    Text("\(game.source?.name ?? "a paper") · \(game.total) questions")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+
+                Text("Join")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(MedxCandy.onSolid)
+                    .padding(.horizontal, 14)
+                    .frame(height: 34)
+                    .background(hue, in: Capsule())
+            }
+            .padding(14)
+            .medxCard(raised: true)
+            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+        }
+        .buttonStyle(BouncyButtonStyle())
+        .accessibilityLabel("\(host?.displayName ?? "Someone") wants a game")
+        .accessibilityHint("Opens the faceoff")
     }
 
     // MARK: - Header
@@ -187,9 +245,9 @@ public struct HomeView: View {
         .medxCard()
         .contextMenu {
             Button {
-                appState.open(route: .customModule)
+                appState.open(route: .quickSitting)
             } label: {
-                Label("Build a custom module", systemImage: "slider.horizontal.3")
+                Label("Build a quick sitting", systemImage: "dice")
             }
             Button {
                 appState.open(route: .settings)
@@ -345,16 +403,16 @@ public struct HomeView: View {
     private func detail(for shortcut: HomeShortcut) -> String {
         switch shortcut {
         case .qbank:
-            return summary.qbankSittings == 0 ? "Start a module" : "\(summary.qbankSittings) sittings"
-        case .search:
-            return "All 17,890 questions"
-        case .customModule:
-            return "Pick subject & length"
+            return summary.qbankSittings == 0 ? "Both banks" : "\(summary.qbankSittings) sittings"
         case .tests:
-            return summary.testSittings == 0 ? "Take a paper" : "\(summary.testSittings) attempted"
-        case .flashcards:
-            return "High-yield visuals"
-        case .videos:
+            return summary.testSittings == 0 ? "352 papers" : "\(summary.testSittings) attempted"
+        case .faceoff:
+            return openLobbies.isEmpty ? "Head to head" : "\(openLobbies.count) waiting"
+        case .quickSitting:
+            return "Pick scope & length"
+        case .customModules:
+            return "Saved by either of you"
+        case .classes:
             return summary.watchedClasses == 0 ? "Classroom" : "\(summary.watchedClasses) started"
         }
     }
@@ -364,9 +422,9 @@ public struct HomeView: View {
     private func continueSection(entry: WatchHistoryEntry) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             MedxSectionHeader("Continue") {
-                Button("All videos") {
+                Button("All classes") {
                     HapticManager.light()
-                    appState.open(tab: .videos)
+                    appState.open(route: .classes)
                 }
                 .font(.subheadline.weight(.semibold))
                 .buttonStyle(.plain)
@@ -557,59 +615,71 @@ public struct HomeView: View {
 // MARK: - Shortcuts
 
 private enum HomeShortcut: String, CaseIterable, Identifiable {
-    case qbank, search, customModule, tests, flashcards, videos
+    case qbank, tests, faceoff, quickSitting, customModules, classes
 
     var id: String { rawValue }
 
     var route: MedxRoute {
         switch self {
         case .qbank: return .qbank
-        case .search: return .search(nil)
-        case .customModule: return .customModule
         case .tests: return .tests
-        case .flashcards: return .flashcards
-        case .videos: return .videos
+        case .faceoff: return .faceoff
+        case .quickSitting: return .quickSitting
+        case .customModules: return .customModules
+        case .classes: return .classes
         }
     }
 
     var title: String {
         switch self {
         case .qbank: return "Question Bank"
-        case .search: return "Search"
-        case .customModule: return "Custom module"
-        case .tests: return "Batch Tests"
-        case .flashcards: return "Flashcards"
-        case .videos: return "Classes"
+        case .tests: return "Test series"
+        case .faceoff: return "Faceoff"
+        case .quickSitting: return "Quick sitting"
+        case .customModules: return "Custom modules"
+        case .classes: return "Classes"
         }
     }
 
     var hint: String {
         switch self {
-        case .search: return "Opens full-text question search"
-        case .customModule: return "Builds a sitting from your own choices"
-        default: return "Opens the \(title) tab"
+        case .faceoff: return "Deal a head-to-head paper, or join one"
+        case .quickSitting: return "Builds a one-off sitting from your own filters"
+        case .customModules: return "Papers either of you has saved"
+        default: return "Opens \(title)"
         }
     }
 
     var icon: String {
         switch self {
         case .qbank: return "books.vertical.fill"
-        case .search: return "magnifyingglass"
-        case .customModule: return "slider.horizontal.3"
-        case .tests: return "checkmark.seal.fill"
-        case .flashcards: return "rectangle.stack.fill"
-        case .videos: return "play.rectangle.fill"
+        case .tests: return "trophy.fill"
+        case .faceoff: return "bolt.horizontal.fill"
+        case .quickSitting: return "dice.fill"
+        case .customModules: return "slider.horizontal.3"
+        case .classes: return "play.rectangle.fill"
         }
     }
 
     var tint: Color {
         switch self {
-        case .qbank: return MedxTheme.primaryBlue
-        case .search: return MedxTheme.tealAccent
-        case .customModule: return MedxTheme.primaryPink
-        case .tests: return MedxTheme.successGreen
-        case .flashcards: return MedxTheme.indigoAccent
-        case .videos: return MedxTheme.primaryPurple
+        case .qbank: return MedxCandy.lime
+        case .tests: return MedxCandy.tangerine
+        case .faceoff: return MedxCandy.pink
+        case .quickSitting: return MedxCandy.mint
+        case .customModules: return MedxCandy.butter
+        case .classes: return MedxCandy.violet
+        }
+    }
+
+    var sticker: String {
+        switch self {
+        case .qbank: return "brain"
+        case .tests: return "trophy"
+        case .faceoff: return "bolt"
+        case .quickSitting: return "crystal"
+        case .customModules: return "memo"
+        case .classes: return "clapper"
         }
     }
 }
@@ -626,6 +696,10 @@ struct HomeSummary: Equatable {
     var weekAnswered = 0
     var weekCorrect = 0
 
+    /// A paper rather than a module. `series` is here because the Tests tab is the Marrow
+    /// catalogue now, and a grand paper filed under QBank would make both figures wrong.
+    private static let paperKinds: Set<String> = ["test", "series"]
+
     var weekAccuracy: Int {
         guard weekAnswered > 0 else { return 0 }
         return Int((Double(weekCorrect) / Double(weekAnswered) * 100).rounded())
@@ -639,7 +713,11 @@ struct HomeSummary: Equatable {
         let weekAgo = Date().addingTimeInterval(-7 * 86_400)
 
         for attempt in attempts {
-            if attempt.kind == "test" { testSittings += 1 } else { qbankSittings += 1 }
+            if Self.paperKinds.contains(attempt.kind) {
+                testSittings += 1
+            } else {
+                qbankSittings += 1
+            }
 
             guard let finished = attempt.finishedDate, finished >= weekAgo else { continue }
             weekSittings += 1

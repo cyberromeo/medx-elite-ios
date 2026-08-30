@@ -1,10 +1,10 @@
 # Medx-elite iOS Native Application
 
-A brand-new native iOS application built in **pure Swift and SwiftUI**, targeting **iOS 17/18+**, connected directly to the **Medx-elite Firebase backend** (`medx-e9acd`) and Arise CDNs.
+A native iOS application built in **pure Swift and SwiftUI**, targeting **iOS 17+**, connected directly to the **Medx-elite Firebase backend** (`medx-e9acd`) and Arise CDNs. It is the same backend the `Medx elite pwa` sibling runs on, and it now carries the same feature set: two question banks, the Marrow FMGE test series, the two-player Faceoff, shared custom modules and the raw VOD bucket.
 
-Designed to Apple's Human Interface Guidelines: flat semantic surfaces, native navigation and toolbars, system materials reserved for chrome that actually floats, Dynamic Type throughout, and full VoiceOver labelling. Materials appear in exactly one place — `medxBar` — and nowhere in content. The one deliberate exception is the brand itself: the app icon and the launch screen get a layered glass treatment, because an icon is chrome *about* the app rather than content *within* it.
+Designed to Apple's Human Interface Guidelines — native navigation and toolbars, Dynamic Type throughout, full VoiceOver labelling, system materials reserved for chrome that actually floats — with the PWA's visual identity layered on top: a per-destination candy accent, the eyebrow / title / lead page header, pill chips, and 62 Fluent Emoji stickers as card and empty-state marks. Materials appear in exactly one place, `medxBar`, and nowhere in content. The one deliberate exception to the flat-surface rule is the brand itself: the app icon and the launch screen get a layered glass treatment, because an icon is chrome *about* the app rather than content *within* it.
 
-Two targets ship from this project: the app, and a `MedxWidgets` extension carrying two Home Screen widgets, three Lock Screen accessories and two Live Activities.
+Five top-level destinations: **Home · QBank · Tests · Cards · Library**. Two targets ship from this project: the app, and a `MedxWidgets` extension carrying two Home Screen widgets, three Lock Screen accessories and **three** Live Activities.
 
 ---
 
@@ -17,9 +17,13 @@ Two targets ship from this project: the app, and a `MedxWidgets` extension carry
 | Glass is allowed on the **app icon and the splash screen only** | `MedxLogoMark`, `.agents/make_app_icon.py` |
 | Never put an interactive glass effect inside a button label | it swallows the tap on iOS 26; this is what broke the flashcard close button |
 | Fonts are native text styles at the point of use | `.headline`, `.subheadline.weight(.semibold)`, `.caption.monospacedDigit()` |
-| Colour tokens name *meaning*, never brand | `MedxTheme` — all system colours, so Dark Mode and Increase Contrast work for free |
+| **Semantic** colour names *meaning*, never brand | `MedxTheme` — all system colours, so Dark Mode and Increase Contrast work for free |
+| **Wayfinding** colour is assigned per destination, never decorative | `MedxCandy` + `MedxSection` — eight dynamic hue pairs from the PWA's `tokens.css`, each with a soft companion |
+| A glyph on a candy soft wash is mixed 52% toward the label colour | `MedxCandy.onSoft` — measured, not guessed: butter-on-butter was 1.25:1 |
+| A label on a **solid** candy fill is a fixed near-black, never `.systemBackground` | `MedxCandy.onSolid`, `MedxFilledButtonStyle` — every hue is light in *both* appearances |
 | One accent for interactive chrome, chosen in Settings | `MedxTheme.accent` — **not** `Color.accentColor`, which reads the asset catalogue and does not follow `.tint()` |
 | Entry animations are opacity and offset, never scale | `medxScrollReveal()` |
+| Stickers are decoration and are always hidden from VoiceOver | `MedxSticker` — `NSDataAsset`-backed WebP, `.accessibilityHidden(true)`, no tilt under Reduce Motion |
 
 ---
 
@@ -27,16 +31,22 @@ Two targets ship from this project: the app, and a `MedxWidgets` extension carry
 
 | Feature | Description |
 |---|---|
-| **Profiles & Authentication** | Graveyard (Mathu) and QuantumGuy (Sri) profile switching with iOS Keychain saved-password fast unlock. |
-| **Home Dashboard** | Exam countdown (editable by long press), today's goal ring and streak, a spaced-revision row, six quick actions, Continue-watching resume, a 7-day roll-up, QBank coverage ring, accuracy chart, and the syllabus checklist. |
+| **Profiles & Authentication** | Graveyard (Mathu) and QuantumGuy (Sri) profile switching with iOS Keychain saved-password fast unlock. A second, fire-and-forget sign-in to the Firebase iOS SDK backs Faceoff's snapshot listeners; failing it costs the duel its listeners and nothing else. |
+| **Home Dashboard** | A live Faceoff invite card above everything else when the other one has dealt a game, exam countdown (editable by long press), today's goal ring and streak, a spaced-revision row, six quick actions, Continue-watching resume, a 7-day roll-up, QBank coverage ring, accuracy chart, and the syllabus checklist. |
 | **Syllabus Tracker Matrix** | Live 23-subject checklist (Videos, R1, R2, PYQs, Rev, QBank) with optimistic updates and rollback if the Firestore write fails. |
-| **Question Bank** | 17,890 questions across 23 subjects and 1,211 modules. Searchable subjects, collapsing chapters, per-module best-score badges, long-press to start a module directly in either mode, and long-press a subject to search it or build a module from it. |
-| **Interactive Runner** | **Exam Mode** (overall timer, bulk submit, scored review, Lock Screen Live Activity) and **Revision Mode** (60s per question, instant reveal). Native toolbar and bottom action bar, swipe left/right between questions, double-tap the stem to bookmark, question navigator. Sittings auto-saved to `medx_attempts`. |
+| **Two question banks** | An Arise / Marrow segmented control, as in the PWA. **Arise**: 17,890 questions across 23 subjects and 1,211 modules. **Marrow FMGE**: 14,577 questions across 20 subjects and 960 modules. Searchable subjects with sticker marks and a bank tag, collapsing chapters, per-module best-score badges, long-press to start a module in either mode. |
+| **Marrow FMGE test series** | The Tests tab: 352 keyed papers in three groups (GTs / Mini tests / Subject tests) with counts, month sections newest-first, a per-paper best-score bar, and a mode picker that says what it is about to do. A grand paper over 50 questions is sat in **timed blocks of 50** with a between-blocks summary and no way back. |
+| **Batch papers** | The four Arise `medx_tests` papers, moved into Library: scored and practice split, a scope filter, prior-attempt stats and best-score history. |
+| **Faceoff** | Two players, one question, one minute. Deal from a custom module or any series paper, 10 / 20 / 30 / all questions, a 3·2·1, a points curve that rewards speed, a versus bar sized by score, a reveal spelling out `40 + 28 = 68`, and a round-by-round scoreboard. Each side files its own `medx_attempts` row, so a duel folds into accuracy, streak and the daily goal. |
+| **Saved custom modules** | Papers either of you builds, shared: pick modules across both banks with one toggle primitive at module / chapter / subject / whole-search scope, cap at 20 / 40 / 100 or none, shuffle, then run, edit or delete — from either device. Local-first, so the list is instant and works offline; the Firestore mirror is allowed to fail and the screen says so. |
+| **Quick sitting** | The other kind of custom module, kept: filter the question index by subject, scope and length — wrong, unattempted or bookmarked — and go. |
+| **Interactive Runner** | **Exam Mode** (overall or per-block timer, bulk submit, scored review, Lock Screen Live Activity) and **Revision Mode** (60s per question, instant reveal). Native toolbar and bottom action bar, swipe left/right between questions, double-tap the stem to bookmark, question navigator. The stem's eyebrow carries the palette of whichever screen the paper was opened from. Sittings auto-saved to `medx_attempts`. |
 | **Rich question rendering** | Custom HTML renderer: inline `<img>` figures render and zoom full-screen, authored light-mode colours and highlights are re-mapped for Dark Mode, and parses are cached so a 40-question review scrolls at frame rate. |
-| **Batch Tests** | Scored and practice papers with a scope filter, Arise prior-attempt stats, and best-score history. |
 | **Flashcard Gallery** | 895 high-yield cards from the Arise CloudFront CDN. Contact-sheet grid, Photos-style pager with pinch zoom, swipe from anywhere on the card, and an artwork override (Auto / Phone / Tablet × Portrait / Landscape) plus a quarter-turn rotate for reading landscape cards on a portrait phone. |
 | **Video Classroom** | 67 recorded classes by Batch and Subject. Native HLS `AVPlayer` with background audio, PiP, and silent resume. |
-| **Offline Downloads** | Per-class HLS downloads with quality choice, pause/resume, a Live Activity for progress, and playback with no signal through a custom `medxoffline://` scheme rather than a local HTTP server. Watch progress is shared between a download and the streaming copy of the same class, and offline progress is pushed to Firestore on the next sync. |
+| **The VOD feed** | Every recording in the raw ARISE bucket (~2,900 documents), newest first: a watermark card, day-header sections, a CC filter, `new` pills against the last-seen watermark, and paging 48 at a time — auto-paged three screens deep, then by tap. |
+| **New-drop notifications** | One `medx_vod/_meta` read per check, on every foreground and opportunistically every two hours in the background, tells you when something lands: *"4 new recordings in the VOD bucket — Class 7F2A11 and 3 more."* |
+| **Offline Downloads** | Per-class HLS downloads with quality choice, pause/resume from **inside the Live Activity**, and playback with no signal through a custom `medxoffline://` scheme rather than a local HTTP server. Watch progress is shared between a download and the streaming copy of the same class, and offline progress is pushed to Firestore on the next sync. |
 | **Offline Performance** | Multi-tier caching for documents (`CacheManager`) and images (`MedxImageLoader`, with downsampled decode). |
 
 ---
@@ -47,15 +57,55 @@ Two targets ship from this project: the app, and a `MedxWidgets` extension carry
 |---|---|
 | **Home Screen widgets** | `Exam countdown` (small / medium) and `Daily goal & streak` (small / medium), both reading one shared `MedxStudySnapshot`. |
 | **Lock Screen widgets** | The countdown as `accessoryCircular`, `accessoryRectangular` and `accessoryInline`. |
-| **Live Activities** | Exam-mode sitting on the Lock Screen and Dynamic Island — the clock is handed over as an end date so the *system* ticks it and the app only pushes the answered count. Download progress gets its own activity. |
-| **Local notifications** | Daily question reminder at a chosen hour, a streak-protection nudge at 21:00 only while the streak is actually at risk, and a spaced-revision digest at 08:00 only when something is due. Rebuilt on every foreground so the wording carries live numbers. |
-| **Spotlight** | Bookmarks and all 1,211 modules indexed with `CoreSpotlight`; a module result opens its mode picker. One switch in Settings deletes the whole index. |
-| **App Intents / Siri** | "Start today's revision", "Exam countdown" (answers without launching) and "Search questions", donated as `AppShortcut`s. |
-| **Question search** | Full-text search over the whole bank with filters for image-based, attempted / wrong / unattempted, bookmarked, and subject. Results can be turned straight into a sitting. |
-| **Custom modules** | Choose subjects, scope, length and mode; questions are assembled from bookmarks, the index, or random module sampling — whichever can supply them. |
-| **iPad** | `NavigationSplitView` two-column layout at regular width, `TabView` on iPhone. |
-| **Theming** | Eight system accents and a light/dark/automatic override in Settings, carried through to the widgets and Live Activities. |
+| **Live Activities** | Three, sharing one chrome vocabulary (`MedxActivityChrome`: ring, pace bar, versus bar). **Exam sitting** — a ring with the clock in its middle, the block chip, right/wrong when the mode reveals it, and a pace bar showing answered against elapsed. **Download** — ring, segments, derived ETA and **Pause / Resume / Cancel buttons** in the activity itself. **Faceoff** — the versus bar, the round clock and "Question 7 of 20", so the score is glanceable from the Lock Screen mid-duel. Every clock is handed over as an end date, so the *system* ticks it and the app pushes only when a count changes. |
+| **Local notifications** | Four kinds: a daily question reminder at a chosen hour, a streak-protection nudge at 21:00 only while the streak is actually at risk, a spaced-revision digest at 08:00 only when something is due, and a new-VOD-drop alert. The first three are rebuilt on every foreground so the wording carries live numbers. |
+| **Background refresh** | One `BGAppRefreshTask` (`quest.srihari.medxelite.vodcheck`), re-armed on every background transition with a two-hour floor, costing **one document read** per run. iOS is free to never run it, so the foreground check is the guarantee and Settings says exactly that rather than implying push. |
+| **Spotlight** | Bookmarks and all 1,211 Arise modules indexed with `CoreSpotlight`; a module result opens its mode picker. One switch in Settings deletes the whole index. |
+| **App Intents / Siri** | "Start today's revision", "Exam countdown" (answers without launching) and "Search questions", donated as `AppShortcut`s. Separately, `MedxSharedIntents` holds the three iOS 17 `LiveActivityIntent`s the download activity's buttons run. |
+| **Question search** | Full-text search over the indexed bank with filters for image-based, attempted / wrong / unattempted, bookmarked, and subject. Results can be turned straight into a sitting. |
+| **Deep links** | `medxelite://` for home, qbank, tests, cards, library, classes, vod, custom, search, faceoff, and `faceoff/<gameId>` straight into a room. |
+| **iPad** | `NavigationSplitView` at regular width with three sidebar sections (Study / Play / Library), `TabView` on iPhone. |
+| **Theming** | Eight system accents and a light/dark/automatic override in Settings, carried through to the widgets and Live Activities. The section palette is additive and does not follow the accent. |
 | **Spaced revision** | A 1/3/7/21/45-day schedule per module, driving the Home row, the digest notification and the Siri shortcut. |
+
+### Faceoff, and why it needs the SDK
+
+A duel is the one feature where both devices must see each other's move inside a second, and
+Firestore REST has no equivalent of `onSnapshot`. So this is the only part of the app that touches
+the **Firebase iOS SDK** — everything else still runs on the hand-rolled REST client.
+
+That is wired to be optional rather than load-bearing:
+
+- Every SDK symbol sits behind `#if canImport(FirebaseFirestore)`, so both copies of every file
+  stay byte-identical and the Swift Playgrounds target — which cannot build firebase-ios-sdk —
+  still compiles.
+- `MedxDuelTransport` is a protocol with two implementations. `MedxFirestoreDuelTransport` uses
+  real `addSnapshotListener` streams; `MedxDuelRestTransport` polls at a rate that follows the
+  derived phase (3s in the lobby, 1s once a round is open, immediately after every local write)
+  and fetches the game plus both player documents in **one** `documents:batchGet`, which it can do
+  because player document ids are deterministic — `gameId__uid`.
+- `MedxDuelTransportFactory.make()` picks the SDK when `MedxFirebaseBridge.isReady`, and the poller
+  otherwise. A failed `FirebaseApp.configure` or SDK sign-in therefore degrades to a working
+  Faceoff rather than to no Faceoff. **Settings ▸ Diagnostics ▸ Faceoff transport** says which one
+  is live.
+
+Three write rules are carried over from the PWA unchanged, because they are what the deployed
+rules on `medx-e9acd` actually take (the repo's `firestore.rules` is stale and does not describe
+the live backend):
+
+1. **Nobody writes anybody else's document.** The host owns the game document; each player owns
+   exactly one player document and that is the only place they may write a move. The guest joining
+   *is* the readiness signal; the host is what flips the game to live.
+2. **No composite indexes.** Every query is a single equality filter and sorting is in memory;
+   `listMyDuels` is two queries merged locally.
+3. **No read before auth resolves**, or Firestore reports a permission error that is really a race.
+
+Everything the room draws is *derived* from the three documents — phase, clock, answers, tally and
+scores all fall out of them, so the two screens turn over on the same input rather than one waiting
+on a referee. Nothing is written to reach a phase. The three writes that do exist each guard a
+specific failure: a client whose clock ran out writes its **own** timeout row; only the host opens
+the next round, claiming the ref before the write and releasing it if it fails; and the log row
+goes in with `arrayUnion`, so a redelivered snapshot is a no-op rather than a duplicate.
 
 ### Offline video architecture
 
@@ -83,6 +133,20 @@ an **opt-in build** in Settings with a progress bar, resumable across launches, 
 warms `FirestoreService`'s module cache — so building the index makes those modules playable
 offline too. Search works on whatever is indexed so far and says so.
 
+The index is built from `medx_qbank_subjects`, which is the **Arise** tree only. Marrow modules are
+read on demand and are not in it; Settings says so rather than claiming "all questions".
+
+### Two subject models, on purpose
+
+`QBankSubject.subjectId` and `QBankChapter.id` are `Int`, and Marrow's ids are strings
+(`mw_618a04d13dcbce9c59c6bb59`). Widening those two types would ripple into
+`MedxQuestionIndexStore`, `MedxSpotlightIndexer` and every `[Int: …]` tally in the app, so instead
+`MedxBankSubject` / `MedxBankChapter` were **added** alongside them: `String` ids, a `bank` tag,
+`init(arise:)` to adapt the Arise tree in, and `asQBankSubject` (nil for Marrow) to hand it back to
+the two ARISE-only consumers with their signatures untouched. `QBankModuleSummary` is reused as-is
+— module ids were already strings, and Marrow modules sit in `medx_qbank_modules` in the identical
+shape, spillover included.
+
 
 ---
 
@@ -91,45 +155,63 @@ offline too. Search works on whatever is indexed so far and says so.
 ```
 medx-elite-ios/
 ├── MedxElite.xcodeproj/             # Native Xcode project: MedxElite + MedxWidgets targets
-├── Package.swift                    # Swift Package Manifest (iOS 17+)
+│                                    #   + the firebase-ios-sdk package reference
+├── Package.swift                    # Swift Package Manifest (iOS 17+) — no Firebase package
 ├── Config/
 │   ├── MedxElite.entitlements       # App Group, shared with the widget extension
 │   └── MedxWidgets.entitlements
 ├── MedxWidgets/                     # Widget extension — Xcode target only, not mirrored
-│   ├── MedxWidgetsBundle.swift      # Both widgets + both Live Activities
+│   ├── MedxWidgetsBundle.swift      # 2 Home Screen + 3 Lock Screen widgets + 3 Live Activities
 │   └── Info.plist
 ├── MedxElite/
 │   ├── App/
-│   │   ├── MedxEliteApp.swift       # Lifecycle, deep links, Spotlight continuation, splash
+│   │   ├── MedxEliteApp.swift       # Lifecycle, deep links, BG task registration, splash
 │   │   ├── AppState.swift           # Global state + `MedxRoute`, the one external-entry map
 │   │   └── MedxSplashView.swift     # Launch animation over the live root
 │   ├── Models/
 │   │   ├── Profile.swift            # Graveyard & QuantumGuy profile definitions
-│   │   ├── QBank.swift              # Subjects, chapters, modules, questions, options
-│   │   ├── Test.swift               # Batch tests, gradable status, performance stats
+│   │   ├── QBank.swift              # Arise tree + `MedxBank`/`MedxBankSubject` for both banks
+│   │   ├── Test.swift               # Arise batch papers, gradable status, performance stats
+│   │   ├── Series.swift             # Marrow FMGE series index + `MedxSeriesRules` (blocks, months)
+│   │   ├── CustomModule.swift       # Shared saved modules + the reconcile rules
+│   │   ├── Duel.swift               # Faceoff game, players, rounds, deck, log rows
+│   │   ├── Vod.swift                # Raw bucket items, `rec<hex>` display rules, `_meta`
 │   │   ├── Flashcard.swift          # Flashcard subjects, cards, auto-detected CDN variants
 │   │   ├── Video.swift              # Recorded classes, batches, durations, HLS stream URLs
-│   │   ├── Attempt.swift            # Attempts, responses, `RunnerPayload` (+ inline questions)
+│   │   ├── Attempt.swift            # Attempts, responses, sections, `RunnerPayload`, kinds
 │   │   └── UserTracker.swift        # Syllabus matrix checklist document model
 │   ├── Services/
 │   │   ├── FirebaseConfig.swift     # Backend API keys, project IDs, and endpoints
-│   │   ├── AuthService.swift        # Firebase Auth REST & iOS Keychain store
+│   │   ├── AuthService.swift        # Firebase Auth REST & Keychain (+ the SDK sign-in)
+│   │   ├── MedxFirebaseBridge.swift # `FirebaseApp.configure` from code; `isReady`, `status`
 │   │   ├── FirestoreService.swift   # High-performance Firestore REST client & parser
+│   │   ├── MedxDuelRules.swift      # Pure port of `duelRules.js` — Foundation only
+│   │   ├── MedxDuelTransport.swift  # The protocol, paths and codec
+│   │   ├── MedxDuelRestTransport.swift    # Phase-driven poller (Playgrounds, SDK fallback)
+│   │   ├── MedxFirestoreDuelTransport.swift # Real snapshot listeners, behind `canImport`
+│   │   ├── MedxDuelRoom.swift       # The room + `MedxLobbyWatcher` + the transport factory
+│   │   ├── MedxCustomModuleStore.swift    # Local-first store, mirror, reconcile, run assembly
+│   │   ├── MedxVodWatcher.swift     # `_meta` watermark check, foreground + `BGAppRefreshTask`
 │   │   ├── HapticManager.swift      # Tactile haptic feedback engine
 │   │   ├── CacheManager.swift       # On-disk & memory document cache
 │   │   ├── HLSProxyServer.swift     # Live-stream header proxy + `VideoDownloadStore`
-│   │   ├── MedxSharedState.swift    # App Group snapshot + ActivityAttributes (shared target)
+│   │   ├── MedxSharedState.swift    # App Group snapshot + ActivityAttributes (both targets)
+│   │   ├── MedxActivityChrome.swift # Ring, pace bar, versus bar (both targets)
+│   │   ├── MedxSharedIntents.swift  # The three download `LiveActivityIntent`s (both targets)
 │   │   ├── MedxStudyStatsStore.swift# Streak, goal, spaced revision + `MedxLiveActivityController`
-│   │   ├── MedxNotificationManager.swift # The three reminders
+│   │   ├── MedxNotificationManager.swift # The four reminder kinds
 │   │   ├── MedxSpotlightIndexer.swift    # CoreSpotlight index for bookmarks and modules
-│   │   ├── MedxAppIntents.swift     # Siri shortcuts
+│   │   ├── MedxAppIntents.swift     # Siri shortcuts (app target only)
 │   │   └── MedxQuestionIndexStore.swift  # The opt-in full-text index
 │   ├── Theme/
 │   │   ├── ColorSystem.swift        # Semantic system-colour tokens + rich-text colour map
+│   │   ├── MedxSections.swift       # `MedxCandy`, `MedxSection`, duel colours, kind hues
 │   │   ├── AccentTheme.swift        # `MedxAccent`, appearance override, `MedxTheme.accent`
 │   │   ├── GlassModifier.swift      # MedxSurface, medxCard/medxTile/medxBar, shared controls
 │   │   └── Typography.swift         # The two named font shapes worth keeping
 │   ├── Components/
+│   │   ├── MedxSticker.swift        # WebP sticker loader + the 23 subject-art rules
+│   │   ├── MedxPageHeader.swift     # Page header, `MedxSegmented`, `MedxPill`, `MedxRuleHeader`
 │   │   ├── HTMLRichTextView.swift   # HTML renderer: inline images, dark-mode remap, parse cache
 │   │   ├── ProgressRingView.swift   # Circular progress indicator
 │   │   ├── CountdownWidgetView.swift# Live countdown; long press to edit the exam date
@@ -138,22 +220,28 @@ medx-elite-ios/
 │   │   ├── MedxOfflineAssetLoader.swift # `medxoffline://` resource loader for downloads
 │   │   ├── MedxLogoMark.swift       # The vector mark — splash and icon share its coordinates
 │   │   ├── FlashcardDeckView.swift  # Photos-style zoomable flashcard pager
-│   │   ├── ModernButton.swift       # Primary action button + BouncyButtonStyle
-│   │   └── FloatingTabBar.swift     # TabItem (the five top-level destinations)
+│   │   ├── ModernButton.swift       # Primary button, BouncyButtonStyle, MedxFilledButtonStyle
+│   │   └── FloatingTabBar.swift     # TabItem — Home · QBank · Tests · Cards · Library
 │   ├── Views/
 │   │   ├── Auth/                    # ProfileSelectView, PasswordPromptView
 │   │   ├── Main/MainTabView.swift   # Tab bar / split view + every external presentation
 │   │   ├── Home/                    # HomeView, QBankProgressCard, SyllabusTrackerSheet
-│   │   ├── QBank/                   # Subject list, chapters, StartSessionSheet,
+│   │   ├── QBank/                   # Subject list (both banks), chapters, StartSessionSheet,
 │   │   │                            # MedxQuestionSearchView, MedxCustomModuleSheet
-│   │   ├── Runner/                  # QuizRunnerView, QuestionOptionButton, SittingReviewView
-│   │   ├── Tests/                   # TestsListView, TestDetailCard
+│   │   ├── Runner/                  # QuizRunnerView (+ blocks), QuestionOptionButton,
+│   │   │                            # SittingReviewView
+│   │   ├── Tests/                   # TestsListView (Marrow series), BatchPapersView,
+│   │   │                            # TestDetailCard
+│   │   ├── Faceoff/                 # FaceoffLobbyView, DuelRoomView, DuelResultView
+│   │   ├── Custom/                  # CustomModulesView, ModuleBuilderSheet
+│   │   ├── Library/LibraryView.swift# The hub: Watch / Play / Build / Saved
 │   │   ├── Flashcards/              # FlashcardsSubjectListView, FlashcardStudyView
-│   │   ├── Videos/                  # VideosBatchListView, VideoSubjectView
+│   │   ├── Videos/                  # VideosBatchListView, VideoSubjectView, VodFeedView
 │   │   └── Settings/SettingsView.swift
 │   └── Resources/
-│       ├── Info.plist               # ATS, background modes, Live Activities, URL scheme
-│       └── Assets.xcassets/         # App icon (3 appearances), accent, launch background
+│       ├── Info.plist               # ATS, background modes + BG task ids, Live Activities, scheme
+│       └── Assets.xcassets/         # App icon (3 appearances), accent, launch background,
+│                                    #   Stickers/ — 62 WebP `NSDataAsset` data sets
 └── README.md
 ```
 
@@ -163,18 +251,26 @@ medx-elite-ios/
 
 The sources exist twice on purpose — `MedxElite/` is the Xcode target and
 `MedxElite.swiftpm/` is the Swift Playgrounds target. **They must stay byte-identical.**
-After any edit, copy the file to its twin and verify:
+After any edit, mirror and verify:
 
 ```bash
-diff -rq MedxElite MedxElite.swiftpm
+python .agents/mirror.py && python .agents/mirror.py --check && diff -rq MedxElite MedxElite.swiftpm
 ```
 
 Only three differences are expected: `MedxElite.swiftpm/.swiftpm`,
 `MedxElite.swiftpm/Package.swift`, and `MedxElite/Resources/Info.plist`.
-`project.pbxproj` lists every file explicitly, so a *new* `.swift` file is not compiled
-until the pbxproj is hand-edited — prefer adding types to an existing file in the same
-folder. `MedxWidgets/` and `Config/` sit outside the mirror; Swift Playgrounds cannot build
-an app extension, so the Playgrounds app has the whole app but no widgets.
+`project.pbxproj` lists every file explicitly, so a *new* `.swift` file is not compiled until it is
+registered — use `.agents/add_sources.py` rather than editing four places by hand:
+
+```bash
+python .agents/add_sources.py MedxElite/Views/Faceoff/DuelRoomView.swift
+python .agents/add_sources.py MedxElite/Services/MedxActivityChrome.swift --targets MedxElite,MedxWidgets
+```
+
+`MedxWidgets/` and `Config/` sit outside the mirror; Swift Playgrounds cannot build an app
+extension, so the Playgrounds app has the whole app but no widgets — **and no Firebase**, which is
+why every SDK touch is behind `#if canImport(FirebaseFirestore)` and Faceoff falls back to its REST
+poller there.
 
 ### Structural checks
 
@@ -182,34 +278,42 @@ There is no Swift toolchain on the maintenance machine, so `.agents/` holds stan
 compiler diagnostics that matter most. Run them all after any change:
 
 ```bash
-python .agents/pbxproj_audit.py && python .agents/symbol_audit.py . && python .agents/return_audit.py MedxElite && python .agents/availability_audit.py && python .agents/label_audit.py && python .agents/viewbuilder_audit.py
+python .agents/pbxproj_audit.py && python .agents/symbol_audit.py . && python .agents/return_audit.py MedxElite && python .agents/availability_audit.py && python .agents/label_audit.py && python .agents/viewbuilder_audit.py && python .agents/balance.py $(find MedxElite MedxWidgets -name '*.swift')
 ```
 
 | Script | Stands in for |
 |---|---|
-| `pbxproj_audit.py` | "Build input file cannot be found" — resolves every file reference and checks each source is compiled exactly once per target |
-| `symbol_audit.py` | "cannot find X in scope" |
+| `pbxproj_audit.py` | "Build input file cannot be found" and "no such module" — resolves every file reference, checks each source is compiled exactly once per target, and checks each Swift package product resolves to a declared package and is linked exactly once from the Frameworks phase |
+| `symbol_audit.py` | "cannot find X in scope" — skips code inside `#if canImport(...)`, since those symbols cannot resolve on a machine without the package |
 | `return_audit.py` | a multi-statement `some View` missing its `return` |
-| `availability_audit.py` | API newer than the iOS 17.0 deployment target |
+| `availability_audit.py` | API newer than the iOS 17.0 deployment target — `LiveActivityIntent` and `Button(intent:)` sit exactly on it |
 | `label_audit.py` | wrong or missing argument labels |
 | `viewbuilder_audit.py` | an eleventh child in a `@ViewBuilder` container ("extra argument in call") |
-| `balance.py` | unbalanced braces, parens or quotes |
+| `balance.py` | unbalanced braces, parens or quotes — takes **file paths**, not a directory |
+| `mirror.py` | keeps `MedxElite.swiftpm/` identical to `MedxElite/`; `--check` only reports |
+| `add_sources.py` | registers a source in `project.pbxproj` (build file, file reference, group, sources phase); idempotent |
 | `make_app_icon.py` | regenerates the app icon from `MedxLogoMark`'s coordinates (`--preview` for a contact sheet) |
+
+None of this is a compiler. The only real build is Option C below.
 
 ### Option A: Open in Xcode
 1. Open the folder `medx-elite-ios` in Xcode:
    ```bash
    open medx-elite-ios/MedxElite.xcodeproj
    ```
-2. Select target device / Simulator (e.g. **iPhone 15/16 Pro** or **iPad Pro**).
-3. Press `Cmd + R` to Build & Run. The `MedxWidgets` extension is embedded automatically;
+2. Let it resolve **firebase-ios-sdk** on first open — `File ▸ Packages ▸ Resolve Package Versions`
+   if it does not start on its own. This is the one dependency in the project; Firestore's C++ core
+   builds from source, so the first build is slow and later ones are cached.
+3. Select target device / Simulator (e.g. **iPhone 15/16 Pro** or **iPad Pro**).
+4. Press `Cmd + R` to Build & Run. The `MedxWidgets` extension is embedded automatically;
    pick its scheme to preview a widget in isolation.
-4. The App Group `group.quest.srihari.medxelite` must exist on the signing team — without it
+5. The App Group `group.quest.srihari.medxelite` must exist on the signing team — without it
    the app still runs, but the widgets fall back to empty placeholder data.
 
 ### Option B: Open as a Swift Package
 1. Open `medx-elite-ios/Package.swift` in Xcode or Swift Playgrounds.
-2. Build and run directly. Widgets and Live Activities are absent in this target.
+2. Build and run directly. Widgets and Live Activities are absent in this target, and so is the
+   Firebase SDK — Faceoff runs on its REST poller instead of snapshot listeners.
 
 ### Option C: GitHub Actions → SideStore / AltStore
 
@@ -220,13 +324,24 @@ workflow uses `-target` rather than `-scheme` because the project ships no share
 and it **fails the build** if `PlugIns/MedxWidgets.appex` is missing, so a broken embed phase
 cannot ship quietly.
 
+It is also **the only real compiler in this pipeline**, and the step most likely to break is
+`Resolve Swift package dependencies`: it is split out from the build for exactly that reason, so a
+firebase-ios-sdk problem reads as a resolution failure rather than as a compile error 200 lines
+deep. `Package.resolved` is deliberately not committed — it would need exact commit hashes for
+firebase-ios-sdk and its transitive dependencies, and a hand-written one with wrong hashes breaks
+the build rather than pinning it. The `upToNextMajorVersion` requirement in `project.pbxproj` is the
+pin; the runner's cache is what keeps resolution stable between runs.
+
 What works when sideloaded with a **free** Apple ID:
 
 | Feature | Sideloaded with a free account |
 |---|---|
 | The whole app, offline downloads, search, custom modules | ✅ no entitlement needed |
-| Local notifications | ✅ no entitlement needed |
-| Live Activities (exam timer, download progress) | ✅ `NSSupportsLiveActivities` is an `Info.plist` key, not an entitlement |
+| Local notifications, including the VOD-drop alert | ✅ no entitlement needed |
+| Background refresh for the VOD check | ✅ `UIBackgroundModes: fetch` + `BGTaskSchedulerPermittedIdentifiers` are `Info.plist` keys, not entitlements |
+| Faceoff | ✅ the Firebase SDK needs no entitlement; if its sign-in fails the duel polls instead |
+| Live Activities (exam timer, download progress, Faceoff score) | ✅ `NSSupportsLiveActivities` is an `Info.plist` key, not an entitlement |
+| Live Activity buttons (pause / resume / cancel a download) | ✅ `LiveActivityIntent`, iOS 17+ |
 | Spotlight indexing, Siri shortcuts | ✅ no entitlement needed |
 | Widgets appear and show the **exam countdown** | ✅ the extension installs; the countdown needs only a date |
 | Widgets show **goal / streak / due** | ⚠️ needs the App Group — see below |
@@ -250,19 +365,34 @@ installing this app consumes two.
 ---
 
 ## Backend Connectivity
-- **Firebase Project**: `medx-e9acd`
+- **Firebase Project**: `medx-e9acd`, reached over the Firestore REST API everywhere except
+  Faceoff, which uses the Firebase iOS SDK for snapshot listeners.
 - **Firestore Collections**:
-  - `medx_qbank_subjects`
-  - `medx_qbank_modules`
-  - `medx_qbank_module_parts`
-  - `medx_tests`
-  - `medx_test_questions`
-  - `medx_flashcard_subjects`
-  - `medx_videos`
-  - `medx_attempts`
-  - `medx_bookmarks`
-  - `medx_watch_history`
-  - `user_tracker/{uid}`
+
+  | Path | Access | Used by |
+  |---|---|---|
+  | `medx_qbank_subjects` | read | QBank, the question index, Spotlight |
+  | `medx_meta/qbank_fmge` | read | QBank's Marrow tab, the module builder |
+  | `medx_qbank_modules` | read | both banks — Marrow modules are the same shape |
+  | `medx_qbank_module_parts` | read | module spillover |
+  | `medx_meta/series_fmge` | read | Tests, the Faceoff host sheet |
+  | `medx_tests` | read | Batch papers |
+  | `medx_test_questions` | read | Batch papers **and** Marrow series papers |
+  | `medx_custom_modules` | read all, write own, delete any | Custom modules |
+  | `medx_duels/{id}` + `/deck/{part}` | host writes, both read | Faceoff |
+  | `medx_duel_players/{gameId}__{uid}` | each writes only their own | Faceoff |
+  | `medx_vod` (orderBy `uploadedAt`) | read, paged 48 at a time | the VOD feed |
+  | `medx_vod/_meta` | read | the drop watcher — one read per check |
+  | `medx_flashcard_subjects` | read | Cards |
+  | `medx_videos` | read | Classes |
+  | `medx_attempts` | read + write | every sitting, including duels |
+  | `medx_bookmarks` | read + write | Bookmarks |
+  | `medx_watch_history` | read + write | resume, Continue watching |
+  | `user_tracker/{uid}` | read + write | the syllabus matrix |
+
+  Nothing here is a collection the PWA is not already using, so no rules change should be needed —
+  but the repo's `firestore.rules` is stale and does not describe the deployed backend, so each of
+  the Faceoff and custom-module paths is worth confirming on device rather than assuming.
 - **Images CDN**: `https://cdn.jsdelivr.net/gh/cyberromeo/img@main/qbank/`
 - **Flashcards CDN**: `https://d2vhwjmp3pf4cn.cloudfront.net`
 
@@ -274,3 +404,29 @@ a `String` where a model expects an object is a `typeMismatch`, and because the 
 wrapped in `try?` that silently dropped the whole document. That is what made the Tests tab
 render empty. For the same reason, models decode leniently (`try?` per field,
 `decodeLenientArray` for element-wise arrays) and empty collections are never cached.
+
+---
+
+## First run on device
+
+Nothing above is a compiler and nothing above talks to the live backend, so the order below matters
+— each step depends on the one before it.
+
+1. **Sign in as each profile.** Check **Settings ▸ Diagnostics ▸ Faceoff transport**: it should read
+   *Signed in as …*. Confirm the app still works with it reading *Polling* — that is the state a
+   failed SDK sign-in leaves, and everything except the duel's latency should be identical.
+2. **QBank.** The Marrow tab lists 20 subjects; open an `mw_` module and run a sitting in both modes.
+3. **Tests.** Three groups with counts; open a grand paper and confirm it runs as `3 × 50` with
+   separate clocks, a between-blocks summary, and no way back.
+4. **Custom modules.** Build one on one device, run it on the other, delete it from the second, and
+   confirm it does not resurrect on the first. A refused cross-user delete should say so rather than
+   pretending.
+5. **Faceoff on two devices.** Deal, join, play three questions, background the host mid-round and
+   confirm the guest is *told* rather than left hanging, then finish and check both attempt rows
+   landed and moved the daily goal.
+6. **VOD feed.** Page past three screens and confirm auto-paging stops. Then
+   **Settings ▸ Diagnostics ▸ Forget the VOD watermark** and confirm the foreground check posts a
+   notification.
+7. **Live Activities.** Start an exam sitting and a download; check the Lock Screen and the Dynamic
+   Island, press Pause in the download activity, and confirm nothing is left stranded after leaving
+   the runner by every route.

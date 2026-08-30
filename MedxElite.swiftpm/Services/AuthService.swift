@@ -109,6 +109,25 @@ public final class AuthService: ObservableObject {
         self.currentSession = session
         self.currentProfile = profile
         self.isAuthenticated = true
+
+        // Faceoff needs snapshot listeners, and the Firestore SDK takes its credential from
+        // FirebaseAuth rather than from the token above — so the same password goes through it
+        // too. Deliberately not awaited into the sign-in result: everything except the duel runs
+        // on the REST path, so a refusal here must not fail signing in.
+        Task { await MedxFirebaseBridge.shared.signIn(email: profile.email, password: pwd) }
+    }
+
+    /// Re-signs the SDK in for a session restored from disk.
+    ///
+    /// `loadSavedSession()` runs in `init` and cannot await, and the REST session needs nothing
+    /// more than its refresh token — but the SDK does, so this is called from the app's launch task
+    /// once for a profile whose password is in the keychain. Without it, a relaunch would fall back
+    /// to the polling transport for no reason.
+    public func restoreSDKSession() async {
+        guard let profile = currentProfile,
+              let password = loadPasswordFromKeychain(profileId: profile.id)
+        else { return }
+        await MedxFirebaseBridge.shared.signIn(email: profile.email, password: password)
     }
 
     public func getValidIdToken() async throws -> String {
@@ -168,6 +187,8 @@ public final class AuthService: ObservableObject {
         self.currentProfile = nil
         self.isAuthenticated = false
         UserDefaults.standard.removeObject(forKey: sessionKey)
+        MedxFirebaseBridge.shared.signOut()
+        MedxLiveActivityController.shared.endAll()
     }
 
     // MARK: - Local Session Persistence

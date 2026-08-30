@@ -29,7 +29,11 @@ public struct FlashcardsSubjectListView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .failed(let message):
                     ContentUnavailableView {
-                        Label("Couldn't Load Flashcards", systemImage: "wifi.exclamationmark")
+                        Label {
+                            Text("Couldn't Load Flashcards")
+                        } icon: {
+                            MedxSticker("cards", size: 44)
+                        }
                     } description: {
                         Text(message)
                     } actions: {
@@ -43,11 +47,15 @@ public struct FlashcardsSubjectListView: View {
                     }
                 case .loaded:
                     if subjects.isEmpty {
-                        ContentUnavailableView(
-                            "No Flashcards",
-                            systemImage: "rectangle.stack.badge.minus",
-                            description: Text("Flashcard subjects will appear here when available.")
-                        )
+                        ContentUnavailableView {
+                            Label {
+                                Text("No Flashcards")
+                            } icon: {
+                                MedxSticker("cards", size: 44)
+                            }
+                        } description: {
+                            Text("Flashcard subjects will appear here when available.")
+                        }
                     } else {
                         content(layout: layout)
                     }
@@ -55,8 +63,8 @@ public struct FlashcardsSubjectListView: View {
             }
             .background(MedxSurface.groupedBackground.ignoresSafeArea())
         }
-        .navigationTitle("Flashcards")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationTitle("Cards")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 FlashcardArtworkMenu {
@@ -85,24 +93,36 @@ public struct FlashcardsSubjectListView: View {
     private func content(layout: FlashcardLayout) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
+                MedxPageHeader(
+                    section: .cards,
+                    title: "Cards",
+                    lead: "Image decks, tapped through one at a time. Nothing here is scored — "
+                        + "these are the pictures you either recognise or you do not.",
+                    sticker: "cards"
+                )
+
                 MedxMetricsRow {
                     MedxMetric(
                         icon: "rectangle.stack.fill",
                         value: totalCards.formatted(),
                         label: "cards",
-                        color: MedxTheme.indigoAccent
+                        color: MedxCandy.butter
                     )
                     MedxMetric(
                         icon: "books.vertical.fill",
                         value: "\(subjects.count)",
                         label: "subjects",
-                        color: MedxTheme.cyanAccent
+                        color: MedxCandy.sky
                     )
                 }
 
                 if filteredSubjects.isEmpty {
                     ContentUnavailableView {
-                        Label("No Matches", systemImage: "magnifyingglass")
+                        Label {
+                            Text("No Matches")
+                        } icon: {
+                            MedxSticker("search", size: 40)
+                        }
                     } description: {
                         Text("No subject matches “\(searchText)”.")
                     }
@@ -152,9 +172,11 @@ public struct FlashcardsSubjectListView: View {
                         } else {
                             MedxSurface.tileFill
                                 .overlay(
-                                    Image(systemName: "sparkles.rectangle.stack.fill")
-                                        .font(.system(size: 22, weight: .semibold))
-                                        .foregroundStyle(MedxTheme.indigoAccent)
+                                    MedxSticker(
+                                        MedxSubjectArt.sticker(for: subject.name),
+                                        size: 40,
+                                        tilt: -7
+                                    )
                                 )
                         }
                     }

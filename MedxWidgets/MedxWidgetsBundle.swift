@@ -16,25 +16,16 @@ struct MedxWidgetsBundle: WidgetBundle {
         MedxDailyGoalWidget()
         MedxExamSittingLiveActivity()
         MedxDownloadLiveActivity()
+        MedxDuelLiveActivity()
     }
 }
 
 // MARK: - Shared plumbing
-
-extension Color {
-    /// The student's chosen accent, travelling as a hex string in the snapshot because an
-    /// extension cannot resolve the app's dynamic `UIColor` tokens.
-    init(medxHex: String) {
-        let components = medxHex.medxRGBComponents
-        self.init(
-            .sRGB,
-            red: components.red,
-            green: components.green,
-            blue: components.blue,
-            opacity: 1
-        )
-    }
-}
+//
+// `Color(medxHex:)`, the ring, the pace bar, the versus bar and the timer text all live in
+// `MedxElite/Services/MedxActivityChrome.swift`, which is compiled into this target as well as the
+// app — the same arrangement as `MedxSharedState.swift`. That is what keeps the three activities
+// looking like one family rather than three separate attempts at the same idea.
 
 struct MedxSnapshotEntry: TimelineEntry {
     let date: Date
@@ -251,6 +242,7 @@ enum MedxWidgetLink {
     static let revision = URL(string: "medxelite://revision")!
     static let search = URL(string: "medxelite://search")!
     static let downloads = URL(string: "medxelite://downloads")!
+    static let faceoff = URL(string: "medxelite://faceoff")!
 }
 
 struct MedxWidgetStat: View {
@@ -419,41 +411,69 @@ struct MedxExamSittingLiveActivity: Widget {
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             let accent = Color(medxHex: context.attributes.accentHex)
+            let state = context.state
+            let total = max(
+                state.sectionTotal > 0 ? state.sectionTotal : context.attributes.totalQuestions,
+                1
+            )
+            let done = Double(state.answered) / Double(total)
 
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Label("\(context.state.answered)/\(context.attributes.totalQuestions)", systemImage: "checkmark.circle")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(accent)
+                    HStack(spacing: 8) {
+                        MedxActivityRing(fraction: done, tint: accent, lineWidth: 4) {
+                            Text("\(state.answered)")
+                                .font(.caption2.weight(.bold).monospacedDigit())
+                                .minimumScaleFactor(0.5)
+                        }
+                        .frame(width: 34, height: 34)
+
+                        MedxActivityTimer(endDate: state.endDate)
+                            .font(.callout.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(accent)
+                    }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    MedxExamTimerText(endDate: context.state.endDate)
-                        .font(.caption.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(accent)
+                    // Exam mode keeps the running score off the Lock Screen — the key has not been
+                    // shown yet, so a right/wrong tally there would be a spoiler.
+                    if state.revealsAnswers {
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text("\(state.correct) right")
+                                .font(.caption2.weight(.semibold).monospacedDigit())
+                                .foregroundStyle(.green)
+                            Text("\(state.wrong) wrong")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text("\(state.answered)/\(total)")
+                            .font(.caption.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(accent)
+                    }
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(context.attributes.sittingName)
+                    Text(state.sectionLabel ?? context.attributes.sittingName)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    ProgressView(
-                        value: Double(context.state.answered),
-                        total: Double(max(context.attributes.totalQuestions, 1))
+                    MedxPaceBar(
+                        done: done,
+                        elapsed: MedxExamPace.elapsedFraction(state: state, total: total),
+                        tint: accent
                     )
-                    .tint(accent)
                 }
             } compactLeading: {
-                Image(systemName: "timer")
-                    .foregroundStyle(accent)
+                MedxActivityRing(fraction: done, tint: accent, lineWidth: 3)
+                    .frame(width: 18, height: 18)
             } compactTrailing: {
-                MedxExamTimerText(endDate: context.state.endDate)
+                MedxActivityTimer(endDate: state.endDate)
                     .monospacedDigit()
                     .frame(width: 44)
             } minimal: {
-                Image(systemName: "timer")
-                    .foregroundStyle(accent)
+                MedxActivityRing(fraction: done, tint: accent, lineWidth: 3)
+                    .frame(width: 18, height: 18)
             }
             .keylineTint(accent)
             .widgetURL(MedxWidgetLink.home)
@@ -461,16 +481,20 @@ struct MedxExamSittingLiveActivity: Widget {
     }
 }
 
-/// `Text(timerInterval:)` lets the system tick the clock, so the app only pushes an update
-/// when the answered count changes — not once a second. The range is clamped because a
-/// finished sitting can leave `endDate` in the past, and an inverted range traps.
-struct MedxExamTimerText: View {
-    let endDate: Date
-
-    var body: some View {
-        let now = Date()
-        let end = max(endDate, now.addingTimeInterval(1))
-        return Text(timerInterval: now...end, countsDown: true)
+/// How far through the block's clock the sitting is.
+///
+/// The activity is only pushed when a *count* changes, so it never learns how long the block was —
+/// only when it ends. One minute a question is the app's rule everywhere, so the block's length is
+/// derived from its question count and the elapsed share falls out of that.
+enum MedxExamPace {
+    static func elapsedFraction(
+        state: MedxExamActivityAttributes.ContentState,
+        total: Int
+    ) -> Double {
+        let budget = Double(total) * 60
+        guard budget > 0 else { return 0 }
+        let left = max(0, state.endDate.timeIntervalSinceNow)
+        return min(max(1 - (left / budget), 0), 1)
     }
 }
 
@@ -479,43 +503,73 @@ struct MedxExamLockScreenView: View {
 
     private var accent: Color { Color(medxHex: context.attributes.accentHex) }
 
+    private var total: Int {
+        max(
+            context.state.sectionTotal > 0 ? context.state.sectionTotal : context.attributes.totalQuestions,
+            1
+        )
+    }
+
+    private var done: Double { Double(context.state.answered) / Double(total) }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 14) {
+            // The ring carries the clock in its middle: one glance, two readings, and the timer is
+            // still `Text(timerInterval:)` so the *system* ticks it — the app pushes only when a
+            // count changes, never once a second.
+            MedxActivityRing(fraction: done, tint: accent, lineWidth: 6) {
+                MedxActivityTimer(endDate: context.state.endDate)
+                    .font(.system(.footnote, design: .rounded).weight(.bold))
+                    .monospacedDigit()
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+            }
+            .frame(width: 62, height: 62)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
                     Text(context.attributes.sittingName)
-                        .font(.headline)
+                        .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
-                    Text(context.attributes.subject.isEmpty ? "Exam mode" : context.attributes.subject)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+
+                    if let label = context.state.sectionLabel, context.state.isSectioned {
+                        Text("\(label) of \(context.state.sectionCount)")
+                            .font(.caption2.weight(.bold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(accent.opacity(0.22), in: Capsule())
+                    }
                 }
 
-                Spacer(minLength: 8)
+                MedxPaceBar(
+                    done: done,
+                    elapsed: MedxExamPace.elapsedFraction(state: context.state, total: total),
+                    tint: accent
+                )
 
-                MedxExamTimerText(endDate: context.state.endDate)
-                    .font(.title3.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(accent)
-            }
+                HStack(spacing: 8) {
+                    Text("\(context.state.answered)/\(total) answered")
+                        .font(.caption.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(accent)
 
-            ProgressView(
-                value: Double(context.state.answered),
-                total: Double(max(context.attributes.totalQuestions, 1))
-            )
-            .tint(accent)
+                    if context.state.revealsAnswers {
+                        Text("· \(context.state.correct) right")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.green)
+                    }
 
-            HStack {
-                Text("Question \(context.state.currentNumber) of \(context.attributes.totalQuestions)")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(context.state.answered) answered")
-                    .font(.caption.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(accent)
+                    Spacer(minLength: 0)
+
+                    Text("Q\(context.state.currentNumber)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .padding(16)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(context.attributes.sittingName)
+        .accessibilityValue("\(context.state.answered) of \(total) answered")
     }
 }
 
@@ -529,14 +583,19 @@ struct MedxDownloadLiveActivity: Widget {
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             let accent = Color(medxHex: context.attributes.accentHex)
+            let state = context.state
 
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Image(systemName: context.state.isFinished ? "checkmark.circle.fill" : "arrow.down.circle")
-                        .foregroundStyle(accent)
+                    MedxActivityRing(fraction: state.fraction, tint: accent, lineWidth: 4) {
+                        Text("\(Int(state.fraction * 100))")
+                            .font(.caption2.weight(.bold).monospacedDigit())
+                            .minimumScaleFactor(0.5)
+                    }
+                    .frame(width: 34, height: 34)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text("\(Int(context.state.fraction * 100))%")
+                    Text(MedxDownloadCopy.eta(state))
                         .font(.caption.weight(.semibold).monospacedDigit())
                         .foregroundStyle(accent)
                 }
@@ -547,22 +606,80 @@ struct MedxDownloadLiveActivity: Widget {
                         .lineLimit(1)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    ProgressView(value: context.state.fraction)
-                        .tint(accent)
+                    MedxDownloadControls(context: context, accent: accent)
                 }
             } compactLeading: {
-                Image(systemName: "arrow.down")
-                    .foregroundStyle(accent)
+                MedxActivityRing(fraction: state.fraction, tint: accent, lineWidth: 3)
+                    .frame(width: 18, height: 18)
             } compactTrailing: {
-                Text("\(Int(context.state.fraction * 100))%")
+                Text("\(Int(state.fraction * 100))%")
                     .monospacedDigit()
             } minimal: {
-                Image(systemName: "arrow.down")
-                    .foregroundStyle(accent)
+                MedxActivityRing(fraction: state.fraction, tint: accent, lineWidth: 3)
+                    .frame(width: 18, height: 18)
             }
             .keylineTint(accent)
             .widgetURL(MedxWidgetLink.downloads)
         }
+    }
+}
+
+/// The two lines the download activity has to get right.
+enum MedxDownloadCopy {
+    /// Segments, not bytes. The downloader works segment by segment and never learns a total size,
+    /// so "412 of 980" is a number it can actually stand behind.
+    static func segments(_ state: MedxDownloadActivityAttributes.ContentState) -> String {
+        guard state.totalSegments > 0 else { return state.statusText }
+        return "\(state.completedSegments.formatted()) of \(state.totalSegments.formatted()) segments"
+    }
+
+    /// Withheld until there is enough of a sample to mean anything — see `estimateRemaining`.
+    static func eta(_ state: MedxDownloadActivityAttributes.ContentState) -> String {
+        if state.isFinished { return "Done" }
+        if state.isPaused { return "Paused" }
+        guard let seconds = state.secondsRemaining, seconds > 0 else {
+            return "\(Int(state.fraction * 100))%"
+        }
+        if seconds < 60 { return "\(seconds)s left" }
+        return "\(seconds / 60)m left"
+    }
+}
+
+/// Pause / Resume and Cancel, on the Lock Screen.
+///
+/// The real upgrade over a bar and a percentage: a download that has picked the wrong moment can be
+/// stopped without unlocking the phone and finding the screen it started from. The intents run in
+/// the app's process — see `MedxSharedIntents.swift` for why they go through a notification rather
+/// than reaching into the downloader directly.
+struct MedxDownloadControls: View {
+    let context: ActivityViewContext<MedxDownloadActivityAttributes>
+    let accent: Color
+
+    var body: some View {
+        HStack(spacing: 8) {
+            MedxPaceBar(done: context.state.fraction, elapsed: context.state.fraction, tint: accent)
+
+            if !context.state.isFinished {
+                if context.state.isPaused {
+                    Button(intent: MedxResumeDownloadIntent(videoId: context.attributes.videoId)) {
+                        Image(systemName: "play.fill")
+                    }
+                    .tint(accent)
+                } else {
+                    Button(intent: MedxPauseDownloadIntent(videoId: context.attributes.videoId)) {
+                        Image(systemName: "pause.fill")
+                    }
+                    .tint(accent)
+                }
+
+                Button(intent: MedxCancelDownloadIntent(videoId: context.attributes.videoId)) {
+                    Image(systemName: "xmark")
+                }
+                .tint(.secondary)
+            }
+        }
+        .buttonStyle(.bordered)
+        .font(.caption.weight(.bold))
     }
 }
 
@@ -573,30 +690,212 @@ struct MedxDownloadLockScreenView: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: context.state.isFinished ? "checkmark.circle.fill" : "arrow.down.circle.fill")
-                .font(.title2)
-                .foregroundStyle(context.state.isFinished ? Color.green : accent)
+            MedxActivityRing(
+                fraction: context.state.fraction,
+                tint: context.state.isFinished ? .green : accent,
+                lineWidth: 6
+            ) {
+                if context.state.isFinished {
+                    Image(systemName: "checkmark")
+                        .font(.footnote.weight(.black))
+                        .foregroundStyle(.green)
+                } else {
+                    Text("\(Int(context.state.fraction * 100))")
+                        .font(.system(.footnote, design: .rounded).weight(.bold))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
+                }
+            }
+            .frame(width: 58, height: 58)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(context.attributes.title)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
 
-                ProgressView(value: context.state.fraction)
-                    .tint(accent)
+                Text(MedxDownloadCopy.segments(context.state))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
 
-                HStack {
-                    Text(context.state.statusText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Spacer(minLength: 6)
-                    Text("\(Int(context.state.fraction * 100))%")
+                HStack(spacing: 8) {
+                    Text(MedxDownloadCopy.eta(context.state))
                         .font(.caption.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(accent)
+                        .foregroundStyle(context.state.isPaused ? .secondary : accent)
+
+                    Spacer(minLength: 0)
+
+                    if !context.state.isFinished {
+                        if context.state.isPaused {
+                            Button(intent: MedxResumeDownloadIntent(videoId: context.attributes.videoId)) {
+                                Label("Resume", systemImage: "play.fill")
+                            }
+                            .tint(accent)
+                        } else {
+                            Button(intent: MedxPauseDownloadIntent(videoId: context.attributes.videoId)) {
+                                Label("Pause", systemImage: "pause.fill")
+                            }
+                            .tint(accent)
+                        }
+
+                        Button(intent: MedxCancelDownloadIntent(videoId: context.attributes.videoId)) {
+                            Image(systemName: "xmark")
+                        }
+                        .tint(.secondary)
+                        .accessibilityLabel("Cancel download")
+                    }
                 }
+                .buttonStyle(.bordered)
+                .font(.caption.weight(.bold))
+                .labelStyle(.titleAndIcon)
             }
         }
         .padding(16)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+// MARK: - Faceoff Live Activity
+
+/// A live duel on the Lock Screen and in the Dynamic Island.
+///
+/// The compact island is the point of this one: `12–9` and the round clock, which means the score is
+/// readable mid-duel without unlocking. Pushed on reveal and on advance only — the round clock is
+/// handed over as an end date, so the system ticks it.
+struct MedxDuelLiveActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: MedxDuelActivityAttributes.self) { context in
+            MedxDuelLockScreenView(context: context)
+                .activityBackgroundTint(Color.black.opacity(0.45))
+                .activitySystemActionForegroundColor(.white)
+        } dynamicIsland: { context in
+            let mine = Color(medxHex: context.attributes.myHex)
+            let theirs = Color(medxHex: context.attributes.theirHex)
+            let state = context.state
+
+            return DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    MedxDuelSide(
+                        name: context.attributes.myName,
+                        points: state.myPoints,
+                        hue: mine,
+                        alignment: .leading
+                    )
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    MedxDuelSide(
+                        name: context.attributes.theirName,
+                        points: state.theirPoints,
+                        hue: theirs,
+                        alignment: .trailing
+                    )
+                }
+                DynamicIslandExpandedRegion(.center) {
+                    VStack(spacing: 1) {
+                        if state.isArming {
+                            Text("Starting")
+                                .font(.caption2.weight(.bold))
+                        } else {
+                            MedxActivityTimer(endDate: state.roundEndDate)
+                                .font(.callout.weight(.bold).monospacedDigit())
+                        }
+                        Text("Q\(state.qIndex + 1)/\(context.attributes.totalQuestions)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    MedxActivityVersusBar(share: state.myShare, mine: mine, theirs: theirs)
+                }
+            } compactLeading: {
+                Text("\(state.myPoints)")
+                    .font(.caption.weight(.bold).monospacedDigit())
+                    .foregroundStyle(mine)
+            } compactTrailing: {
+                Text("\(state.theirPoints)")
+                    .font(.caption.weight(.bold).monospacedDigit())
+                    .foregroundStyle(theirs)
+            } minimal: {
+                Image(systemName: "bolt.fill")
+                    .foregroundStyle(state.myPoints >= state.theirPoints ? mine : theirs)
+            }
+            .keylineTint(state.myPoints >= state.theirPoints ? mine : theirs)
+            .widgetURL(MedxWidgetLink.faceoff)
+        }
+    }
+}
+
+struct MedxDuelSide: View {
+    let name: String
+    let points: Int
+    let hue: Color
+    let alignment: HorizontalAlignment
+
+    var body: some View {
+        VStack(alignment: alignment, spacing: 0) {
+            Text("\(points)")
+                .font(.system(.title3, design: .rounded).weight(.bold))
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .foregroundStyle(hue)
+            Text(name)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+    }
+}
+
+struct MedxDuelLockScreenView: View {
+    let context: ActivityViewContext<MedxDuelActivityAttributes>
+
+    private var mine: Color { Color(medxHex: context.attributes.myHex) }
+    private var theirs: Color { Color(medxHex: context.attributes.theirHex) }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(alignment: .center) {
+                MedxDuelSide(
+                    name: context.attributes.myName,
+                    points: context.state.myPoints,
+                    hue: mine,
+                    alignment: .leading
+                )
+
+                Spacer(minLength: 8)
+
+                VStack(spacing: 1) {
+                    if context.state.isArming {
+                        Text("Starting")
+                            .font(.footnote.weight(.bold))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        MedxActivityTimer(endDate: context.state.roundEndDate)
+                            .font(.system(.title3, design: .rounded).weight(.bold))
+                            .monospacedDigit()
+                    }
+                    Text("Question \(context.state.qIndex + 1) of \(context.attributes.totalQuestions)")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 8)
+
+                MedxDuelSide(
+                    name: context.attributes.theirName,
+                    points: context.state.theirPoints,
+                    hue: theirs,
+                    alignment: .trailing
+                )
+            }
+
+            MedxActivityVersusBar(share: context.state.myShare, mine: mine, theirs: theirs)
+        }
+        .padding(16)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Faceoff")
+        .accessibilityValue("\(context.attributes.myName) \(context.state.myPoints), "
+                            + "\(context.attributes.theirName) \(context.state.theirPoints)")
     }
 }

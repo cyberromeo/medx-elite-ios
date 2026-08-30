@@ -1,9 +1,9 @@
 import Foundation
 import UserNotifications
 
-/// The three reminders, and nothing else.
+/// The reminders, and the one event notification.
 ///
-/// Content depends on live numbers, so every request is rebuilt from scratch on each
+/// Content depends on live numbers, so every scheduled request is rebuilt from scratch on each
 /// foreground (`MedxStudyStatsStore.publishSnapshot()` calls `reschedule(with:)`) rather
 /// than scheduled once and left to go stale.
 @MainActor
@@ -14,14 +14,21 @@ public final class MedxNotificationManager: NSObject, ObservableObject {
         case dailyQuestions = "medx.reminder.daily"
         case streakProtection = "medx.reminder.streak"
         case revisionDue = "medx.reminder.revision"
+        /// Not a reminder: posted when the bucket watermark actually moves. It has no hour and
+        /// is not part of `reschedule`, only of the toggle set.
+        case vodDrops = "medx.reminder.voddrop"
 
         public var id: String { rawValue }
+
+        /// Whether this one is a repeating calendar request that `reschedule` owns.
+        var isScheduled: Bool { self != .vodDrops }
 
         public var title: String {
             switch self {
             case .dailyQuestions: return "Daily question reminder"
             case .streakProtection: return "Streak protection"
             case .revisionDue: return "Revision due"
+            case .vodDrops: return "New class recordings"
             }
         }
 
@@ -30,6 +37,10 @@ public final class MedxNotificationManager: NSObject, ObservableObject {
             case .dailyQuestions: return "A nudge at your chosen hour with what is left of today's goal."
             case .streakProtection: return "At 9 pm, only when nothing has been logged yet."
             case .revisionDue: return "At 8 am, only when the spaced schedule has modules waiting."
+            case .vodDrops:
+                return "When something new lands in the ARISE VOD bucket. Checked on every launch, "
+                    + "and in the background when iOS allows it — there is no push, so a launch is "
+                    + "the only guarantee."
             }
         }
 
@@ -38,6 +49,7 @@ public final class MedxNotificationManager: NSObject, ObservableObject {
             case .dailyQuestions: return "bell.badge"
             case .streakProtection: return "flame"
             case .revisionDue: return "arrow.triangle.2.circlepath"
+            case .vodDrops: return "antenna.radiowaves.left.and.right"
             }
         }
 
@@ -120,10 +132,13 @@ public final class MedxNotificationManager: NSObject, ObservableObject {
 
     // MARK: - Scheduling
 
-    /// Tears down all three requests and re-adds the ones that still apply. Cheap, and it
+    /// Tears down the scheduled requests and re-adds the ones that still apply. Cheap, and it
     /// means the copy on the Lock Screen always reflects the last time the app was open.
+    ///
+    /// `vodDrops` is deliberately untouched: it is posted when the bucket moves, not on a clock,
+    /// so clearing it here would delete a notification the student has not read yet.
     public func reschedule(with snapshot: MedxStudySnapshot) {
-        let identifiers = Kind.allCases.map(\.rawValue)
+        let identifiers = Kind.allCases.filter(\.isScheduled).map(\.rawValue)
         center.removePendingNotificationRequests(withIdentifiers: identifiers)
 
         guard isAuthorized else { return }
@@ -147,6 +162,41 @@ public final class MedxNotificationManager: NSObject, ObservableObject {
     public func cancelAll() {
         center.removeAllPendingNotificationRequests()
         pendingCount = 0
+    }
+
+    // MARK: - New recordings
+
+    /// Posted the moment the bucket watermark moves, not on a schedule.
+    ///
+    /// The count is in the copy because it is the only thing worth knowing from the Lock Screen —
+    /// "something new" is not actionable, "four new, one of them is Class 7F2A" is. Delivered
+    /// with a one-second trigger rather than immediately so it still arrives as a banner when the
+    /// check runs during a background refresh.
+    public func postVodDrop(items: [MedxVodItem]) async {
+        guard isAuthorized, enabled.contains(.vodDrops), !items.isEmpty else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = items.count == 1
+            ? "1 new recording in the bucket"
+            : "\(items.count) new recordings in the bucket"
+
+        let headline = items[0].display.title
+        content.body = items.count == 1
+            ? headline
+            : "\(headline) and \(items.count - 1) more."
+        content.sound = .default
+        content.categoryIdentifier = Kind.vodDrops.rawValue
+        content.threadIdentifier = Kind.vodDrops.rawValue
+        // Coalesced by the bucket rather than by drop, so four separate checks in an evening
+        // replace one another in Notification Centre instead of stacking.
+        content.relevanceScore = 1
+
+        let request = UNNotificationRequest(
+            identifier: Kind.vodDrops.rawValue,
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        )
+        try? await center.add(request)
     }
 
     // MARK: - Copy
@@ -223,6 +273,7 @@ public final class MedxNotificationManager: NSObject, ObservableObject {
         case .dailyQuestions: return .qbank
         case .streakProtection: return .home
         case .revisionDue: return .todaysRevision
+        case .vodDrops: return .vodFeed
         case nil: return nil
         }
     }

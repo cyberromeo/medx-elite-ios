@@ -460,6 +460,29 @@ public final class VideoDownloadStore: ObservableObject {
 
     private init() {
         loadFromDisk()
+        observeLiveActivityIntents()
+    }
+
+    /// The Pause / Resume / Cancel buttons inside the download Live Activity.
+    ///
+    /// A `LiveActivityIntent` runs in this process but is *declared* in
+    /// `MedxSharedIntents.swift`, which is compiled into the widget extension too and therefore
+    /// cannot see this type. So the intents post a notification and the decision about what pausing
+    /// means stays here, where the downloader is.
+    private func observeLiveActivityIntents() {
+        observe(.medxDownloadPauseRequested) { $0.pause($1) }
+        observe(.medxDownloadResumeRequested) { $0.resume($1) }
+        observe(.medxDownloadCancelRequested) { $0.remove($1) }
+    }
+
+    private func observe(
+        _ name: Notification.Name,
+        _ action: @escaping @MainActor (VideoDownloadStore, String) -> Void
+    ) {
+        NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { note in
+            guard let id = note.userInfo?[MedxDownloadIntentKey.videoId] as? String else { return }
+            Task { @MainActor in action(VideoDownloadStore.shared, id) }
+        }
     }
 
     // MARK: - Locations
@@ -595,7 +618,16 @@ public final class VideoDownloadStore: ObservableObject {
         tasks[videoId] = nil
         update(videoId) { if $0.state != .completed { $0.state = .paused } }
         persist(videoId)
-        endDownloadActivity(videoId, statusText: "Paused")
+        // The activity *stays*, flipped to its paused face. Ending it here is what the first
+        // version did, and it meant pausing from the Lock Screen removed the only place Resume
+        // could be pressed — the whole point of the buttons.
+        MedxLiveActivityController.shared.updateDownload(
+            id: videoId,
+            completed: items[videoId]?.completedSegments ?? 0,
+            total: items[videoId]?.totalSegments ?? 0,
+            statusText: "Paused",
+            isPaused: true
+        )
         pump()
     }
 
@@ -607,6 +639,13 @@ public final class VideoDownloadStore: ObservableObject {
             $0.errorMessage = nil
         }
         persist(videoId)
+        MedxLiveActivityController.shared.updateDownload(
+            id: videoId,
+            completed: item.completedSegments,
+            total: item.totalSegments,
+            statusText: "Queued",
+            isPaused: false
+        )
         pump()
     }
 

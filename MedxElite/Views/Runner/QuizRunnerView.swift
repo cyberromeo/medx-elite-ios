@@ -26,6 +26,18 @@ public struct QuizRunnerView: View {
     @State private var showExitAlert = false
     @State private var showNavigator = false
     @State private var startedAt = Date()
+    /// The blocks this paper is sat in. Always at least one element once loaded — an
+    /// unsectioned paper is a single block over the whole thing, which is what lets every
+    /// navigation guard, the clock and the navigator read `activeSection` without first
+    /// asking whether sections exist.
+    @State private var sections: [MedxRunnerSection] = []
+    @State private var sectionIndex = 0
+    /// Blocks already submitted, scored at the moment their own clock was still meaningful.
+    @State private var sectionLog: [MedxAttemptSection] = []
+    @State private var sectionStartedAt = Date()
+    /// Raised between blocks, so a submitted section is acknowledged rather than the paper
+    /// silently jumping thirty questions forward.
+    @State private var handover: MedxSectionHandover?
     /// What the Lock Screen was last told, so a navigation tap does not push an identical
     /// Live Activity update.
     @State private var lastPushedAnswered = -1
@@ -54,7 +66,9 @@ public struct QuizRunnerView: View {
                     questions: questions,
                     responses: responses,
                     gradable: payload.gradable,
-                    elapsedSeconds: completedSeconds
+                    elapsedSeconds: completedSeconds,
+                    sections: sectionLog,
+                    section: payload.section
                 ) {
                     onFinishedSession()
                     dismiss()
@@ -74,10 +88,7 @@ public struct QuizRunnerView: View {
         .onDisappear {
             // Belt and braces: `finishSitting` already ends it, but leaving by any other
             // route must not strand a timer on the Lock Screen.
-            MedxLiveActivityController.shared.endExam(
-                answered: answeredCount,
-                currentNumber: currentIndex + 1
-            )
+            MedxLiveActivityController.shared.endExam(state: examActivityState)
         }
     }
 
@@ -91,20 +102,35 @@ public struct QuizRunnerView: View {
                 Button("Keep Going", role: .cancel) {}
                 Button("Leave", role: .destructive) { dismiss() }
             } message: {
-                Text("Your progress in this sitting will not be saved.")
+                Text(isSectioned
+                     ? "Nothing is saved — including the \(sectionLog.count == 1 ? "block" : "blocks") you have already submitted."
+                     : "Your progress in this sitting will not be saved.")
             }
             .sheet(isPresented: $showNavigator) {
                 QuestionNavigatorSheet(
-                    questionCount: questions.count,
+                    range: navigatorRange,
                     currentIndex: currentIndex,
                     furthestIndex: furthestIndex,
                     statuses: statuses,
-                    lockAhead: payload.mode == .revision
+                    lockAhead: payload.mode == .revision,
+                    sectionLabel: isSectioned ? activeSection.label : nil
                 ) { index in
                     showNavigator = false
                     jump(to: index)
                 }
             }
+            .fullScreenCover(item: $handover) { summary in
+                MedxSectionHandoverSheet(summary: summary) {
+                    beginActiveSection()
+                }
+            }
+    }
+
+    /// What the navigator may offer, clamped to the questions that exist.
+    private var navigatorRange: Range<Int> {
+        let lower = min(activeSection.start, questions.count)
+        let upper = min(activeSection.end, questions.count)
+        return lower < upper ? lower..<upper : 0..<0
     }
 
     @ViewBuilder
@@ -139,9 +165,40 @@ public struct QuizRunnerView: View {
 
     private var subtitleLine: String {
         var parts: [String] = [payload.mode == .exam ? "Exam" : "Revision"]
-        if !payload.subject.isEmpty { parts.append(payload.subject) }
+        if isSectioned {
+            parts.append("\(activeSection.label) of \(sections.count)")
+        } else if !payload.subject.isEmpty {
+            parts.append(payload.subject)
+        }
         if !payload.gradable { parts.append("Ungraded") }
         return parts.joined(separator: " · ")
+    }
+
+    /// The block being sat. Falls back to the whole paper before `loadSittingQuestions` has
+    /// resolved the sections, so nothing reading this has to unwrap.
+    private var activeSection: MedxRunnerSection {
+        guard sections.indices.contains(sectionIndex) else {
+            return MedxRunnerSection(
+                label: "Section 1",
+                start: 0,
+                count: max(questions.count, 1),
+                minutes: max(questions.count, 1)
+            )
+        }
+        return sections[sectionIndex]
+    }
+
+    /// One block over the whole paper is not a sectioned sitting — it is every other paper in
+    /// the app. Only a genuine split changes the chrome, the guards and the submit button.
+    private var isSectioned: Bool { sections.count > 1 }
+
+    private var isFinalSection: Bool { sectionIndex >= sections.count - 1 }
+
+    /// How many of *this block's* questions have an answer — what the section handover reports.
+    private var questionsInSection: [Question] {
+        let range = activeSection
+        guard range.start < questions.count else { return [] }
+        return Array(questions[range.start..<min(range.end, questions.count)])
     }
 
     /// In revision mode the per-question clock stops once the answer is revealed.
@@ -150,8 +207,11 @@ public struct QuizRunnerView: View {
         return responses[question.id] != nil
     }
 
+    /// The last question *of this block*. In a sectioned paper that is where the Next button
+    /// becomes Submit — there is no way back into a submitted block, so it cannot simply run
+    /// on into the next fifty questions.
     private var isLastQuestion: Bool {
-        currentIndex >= questions.count - 1
+        currentIndex >= activeSection.end - 1
     }
 
     /// Exam mode never blocks navigation; revision requires the answer to be revealed first.
@@ -177,8 +237,8 @@ public struct QuizRunnerView: View {
     }
 
     /// Exam mode mirrors the sitting onto the Lock Screen and the Dynamic Island. The clock
-    /// itself is handed over as an end date so the system ticks it — only the answered count
-    /// and the question number need pushing, and only when they actually change.
+    /// itself is handed over as an end date so the system ticks it — only the counts, the
+    /// question number and the block need pushing, and only when they actually change.
     private func refreshLiveActivity() {
         guard payload.mode == .exam, loadState == .ready, !isFinished else { return }
         let answered = answeredCount
@@ -187,13 +247,29 @@ public struct QuizRunnerView: View {
         lastPushedAnswered = answered
         lastPushedNumber = number
 
-        MedxLiveActivityController.shared.updateExam(
-            answered: answered,
-            currentNumber: number,
-            endDate: examEndDate
+        MedxLiveActivityController.shared.updateExam(state: examActivityState)
+    }
+
+    /// One place builds the activity's state, so the start, every update and the end cannot
+    /// disagree about what the numbers mean.
+    private var examActivityState: MedxExamActivityAttributes.ContentState {
+        let scored = responses.values.filter { $0.chosenId != nil }
+        return MedxExamActivityAttributes.ContentState(
+            answered: answeredCount,
+            correct: payload.gradable ? scored.filter(\.correct).count : 0,
+            wrong: payload.gradable ? scored.filter { !$0.correct }.count : 0,
+            currentNumber: currentIndex + 1,
+            endDate: examEndDate,
+            sectionLabel: isSectioned ? activeSection.label : nil,
+            sectionIndex: sectionIndex,
+            sectionCount: sections.count,
+            sectionTotal: activeSection.count,
+            revealsAnswers: payload.mode == .revision
         )
     }
 
+    /// The end of the *block's* clock, not the paper's. A stranded activity from a submitted
+    /// section then goes stale on its own rather than counting down something that has ended.
     private var examEndDate: Date {
         Date().addingTimeInterval(TimeInterval(max(remainingSeconds, 0)))
     }
@@ -306,7 +382,8 @@ public struct QuizRunnerView: View {
                     RunnerQuestionCard(
                         question: question,
                         number: currentIndex + 1,
-                        showsUngradedNotice: !payload.gradable
+                        showsUngradedNotice: !payload.gradable,
+                        section: payload.section
                     )
                     // Double-tap the stem to bookmark, the way Photos favourites a picture.
                     // The toolbar button stays the discoverable route; VoiceOver gets the
@@ -466,10 +543,10 @@ public struct QuizRunnerView: View {
 
                 Button {
                     HapticManager.medium()
-                    if isLastQuestion { finishSitting() } else { nextQuestion() }
+                    if isLastQuestion { submitSection() } else { nextQuestion() }
                 } label: {
                     HStack(spacing: 6) {
-                        Text(isLastQuestion ? "Finish" : "Next")
+                        Text(advanceLabel)
                             .font(.subheadline.weight(.semibold))
                         Image(systemName: isLastQuestion ? "checkmark" : "chevron.right")
                             .font(.caption.weight(.bold))
@@ -485,6 +562,12 @@ public struct QuizRunnerView: View {
         .padding(.top, 8)
         .padding(.bottom, 6)
         .medxBar(topDivider: true)
+    }
+
+    private var advanceLabel: String {
+        guard isLastQuestion else { return "Next" }
+        if isSectioned && !isFinalSection { return "Submit section" }
+        return "Finish"
     }
 
     /// Swipe left / right between questions. `simultaneousGesture` so the vertical scroll
@@ -514,6 +597,8 @@ public struct QuizRunnerView: View {
 
     private var loadingState: some View {
         VStack(spacing: 14) {
+            MedxSticker(payload.section.sticker, size: 54, tilt: -8)
+
             ProgressView()
                 .controlSize(.large)
             Text("Preparing your sitting")
@@ -529,7 +614,11 @@ public struct QuizRunnerView: View {
 
     private func unavailableState(message: String) -> some View {
         ContentUnavailableView {
-            Label("Sitting Unavailable", systemImage: "exclamationmark.triangle")
+            Label {
+                Text("Sitting Unavailable")
+            } icon: {
+                MedxSticker("ghost", size: 44)
+            }
         } description: {
             Text(message)
         } actions: {
@@ -590,7 +679,9 @@ public struct QuizRunnerView: View {
 
     private func handleTimeout() {
         if payload.mode == .exam {
-            finishSitting()
+            // A spent block closes that block, not the paper. Only the last one ends the
+            // sitting, which `submitSection` handles.
+            submitSection()
         } else if let question = currentQuestion, responses[question.id] == nil {
             responses[question.id] = QuestionResponse(
                 questionId: question.id,
@@ -605,7 +696,9 @@ public struct QuizRunnerView: View {
     }
 
     private func tick() {
-        guard loadState == .ready, !isFinished, !isTimerPaused else { return }
+        // The handover between blocks holds the clock: the next section's minutes start when
+        // it is actually opened, not while its summary is being read.
+        guard loadState == .ready, !isFinished, handover == nil, !isTimerPaused else { return }
         if remainingSeconds > 0 {
             remainingSeconds -= 1
         } else {
@@ -614,7 +707,7 @@ public struct QuizRunnerView: View {
     }
 
     private func goBack() {
-        guard currentIndex > 0 else { return }
+        guard currentIndex > activeSection.start else { return }
         HapticManager.light()
         currentIndex -= 1
         resetTimerForCurrentQuestion()
@@ -622,7 +715,7 @@ public struct QuizRunnerView: View {
     }
 
     private func nextQuestion() {
-        guard currentIndex + 1 < questions.count else { return }
+        guard currentIndex + 1 < activeSection.end else { return }
         currentIndex += 1
         furthestIndex = max(furthestIndex, currentIndex)
         resetTimerForCurrentQuestion()
@@ -630,7 +723,13 @@ public struct QuizRunnerView: View {
     }
 
     private func jump(to index: Int) {
-        guard questions.indices.contains(index), index != currentIndex else { return }
+        // The navigator only offers this block's questions, but a stale sheet must not be able
+        // to jump into a submitted one.
+        guard questions.indices.contains(index),
+              index >= activeSection.start,
+              index < activeSection.end,
+              index != currentIndex
+        else { return }
         HapticManager.light()
         currentIndex = index
         furthestIndex = max(furthestIndex, index)
@@ -646,14 +745,88 @@ public struct QuizRunnerView: View {
     }
 
     private func finishSitting() {
+        // The block that was still open when the paper ended is scored too, so a paper
+        // submitted early does not lose the section it was in.
+        logSection()
         completedSeconds = Int(Date().timeIntervalSince(startedAt))
         isFinished = true
         HapticManager.success()
-        MedxLiveActivityController.shared.endExam(
-            answered: answeredCount,
-            currentNumber: currentIndex + 1
-        )
+        MedxLiveActivityController.shared.endExam(state: examActivityState)
         saveSittingAttempt()
+    }
+
+    /// Close the block being sat, or open the next one.
+    ///
+    /// A sectioned paper is scored per block *as it is submitted*, because that is the only
+    /// moment the block's own clock is still meaningful. There is no way back into a submitted
+    /// block — that is what makes it a section rather than a bookmark.
+    private func submitSection() {
+        guard isSectioned, !isFinished else {
+            finishSitting()
+            return
+        }
+        logSection()
+
+        guard !isFinalSection else {
+            completedSeconds = Int(Date().timeIntervalSince(startedAt))
+            isFinished = true
+            HapticManager.success()
+            MedxLiveActivityController.shared.endExam(state: examActivityState)
+            saveSittingAttempt()
+            return
+        }
+
+        let closed = activeSection
+        let closedRow = sectionLog.last
+        sectionIndex += 1
+        currentIndex = activeSection.start
+        furthestIndex = max(furthestIndex, currentIndex)
+        refreshStatuses()
+        HapticManager.success()
+
+        handover = MedxSectionHandover(
+            closedLabel: closed.label,
+            score: closedRow?.score ?? 0,
+            attempted: closedRow?.attempted ?? 0,
+            total: closed.count,
+            gradable: payload.gradable,
+            nextLabel: activeSection.label,
+            nextCount: activeSection.count,
+            nextMinutes: activeSection.minutes,
+            remainingSections: sections.count - sectionIndex
+        )
+    }
+
+    /// Starts the block's clock, which is deliberately *not* running while the handover is on
+    /// screen: a summary you are still reading must not be spending the next block's minutes.
+    private func beginActiveSection() {
+        handover = nil
+        sectionStartedAt = Date()
+        remainingSeconds = activeSection.seconds
+        lastPushedAnswered = -1
+        refreshStatuses()
+    }
+
+    /// One row per submitted block, in the exact shape the PWA writes.
+    ///
+    /// Skipped entirely for an unsectioned paper rather than filing a one-row breakdown of
+    /// itself, and guarded on the index so submitting twice cannot double-count.
+    private func logSection() {
+        guard isSectioned else { return }
+        guard !sectionLog.contains(where: { $0.index == sectionIndex }) else { return }
+
+        let slice = questionsInSection
+        let rows = slice.compactMap { responses[$0.id] }
+        sectionLog.append(
+            MedxAttemptSection(
+                index: sectionIndex,
+                label: activeSection.label,
+                total: slice.count,
+                score: rows.filter(\.correct).count,
+                attempted: rows.filter { $0.chosenId != nil }.count,
+                seconds: Int(Date().timeIntervalSince(sectionStartedAt))
+            )
+        )
     }
 
     private func saveSittingAttempt() {
@@ -676,7 +849,8 @@ public struct QuizRunnerView: View {
             attempted: attempted,
             durationSeconds: completedSeconds,
             finishedAt: ISO8601DateFormatter().string(from: Date()),
-            responses: Array(responses.values)
+            responses: Array(responses.values),
+            sections: sectionLog.isEmpty ? nil : sectionLog.sorted { $0.index < $1.index }
         )
 
         Task {
@@ -717,8 +891,19 @@ public struct QuizRunnerView: View {
             furthestIndex = 0
             responses = [:]
             revealedQuestions = [:]
-            remainingSeconds = payload.mode == .exam ? max(loaded.count * 60, 60) : 60
+            sectionIndex = 0
+            sectionLog = []
+
+            // Sections only apply to a timed paper. Sitting a grand paper in revision mode is
+            // 60 seconds a question with the answer revealed as you go, and blocking the back
+            // half of it behind a submit would be pointless there.
+            let requested = payload.mode == .exam ? (payload.sections ?? []) : []
+            let resolved = MedxRunnerSection.clamped(requested, to: loaded.count)
+            sections = resolved.count > 1 ? resolved : [wholePaperSection(count: loaded.count)]
+
             startedAt = Date()
+            sectionStartedAt = Date()
+            remainingSeconds = payload.mode == .exam ? sections[0].seconds : 60
             loadState = .ready
             refreshStatuses()
 
@@ -727,12 +912,26 @@ public struct QuizRunnerView: View {
                     name: payload.name,
                     subject: payload.subject,
                     totalQuestions: loaded.count,
-                    endDate: examEndDate
+                    state: examActivityState
                 )
             }
         } catch {
             loadState = .unavailable("We couldn't load this sitting. Check your connection and try again.")
         }
+    }
+
+    /// The single block an unsectioned paper is sat in. Its clock is the paper's own official
+    /// duration where it has one — a Marrow subject paper is not always one minute a question
+    /// — and one minute a question otherwise.
+    private func wholePaperSection(count: Int) -> MedxRunnerSection {
+        let total = max(count, 1)
+        let seconds = payload.examSeconds ?? (total * 60)
+        return MedxRunnerSection(
+            label: "Section 1",
+            start: 0,
+            count: total,
+            minutes: max(Int((Double(seconds) / 60).rounded()), 1)
+        )
     }
 
     private func formatTime(_ seconds: Int) -> String {
@@ -757,13 +956,16 @@ struct RunnerQuestionCard: View {
     let question: Question
     let number: Int
     let showsUngradedNotice: Bool
+    /// The palette of the screen the paper was opened from, so the eyebrow on every stem says
+    /// which of the five destinations this sitting belongs to without spending a row on it.
+    let section: MedxSection
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Text("QUESTION \(number)")
                     .font(.caption2.weight(.bold).monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(section.onSoft)
                     .tracking(0.6)
 
                 Spacer(minLength: 0)
@@ -982,12 +1184,18 @@ enum RunnerOutcome: Equatable {
 // MARK: - Question navigator
 
 struct QuestionNavigatorSheet: View {
-    let questionCount: Int
+    /// The questions this sheet may offer, absolute in the paper. A sectioned sitting passes
+    /// only the block being sat — a submitted block cannot be re-entered, so listing it here
+    /// would be offering a jump that `jump(to:)` then has to refuse.
+    let range: Range<Int>
     let currentIndex: Int
     let furthestIndex: Int
     let statuses: [RunnerQuestionStatus]
     /// Revision reveals answers as you go, so jumping past the frontier is not allowed.
     let lockAhead: Bool
+    /// Set for a sectioned paper, so the title says which block is on screen. The tile numbers
+    /// stay absolute in the paper — "question 63" is what the answer key calls it.
+    let sectionLabel: String?
     let onSelect: (Int) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -1003,7 +1211,7 @@ struct QuestionNavigatorSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 52), spacing: 10)], spacing: 10) {
-                        ForEach(0..<questionCount, id: \.self) { index in
+                        ForEach(Array(range), id: \.self) { index in
                             tile(for: index)
                         }
                     }
@@ -1029,7 +1237,7 @@ struct QuestionNavigatorSheet: View {
                 .padding(20)
             }
             .background(MedxSurface.groupedBackground.ignoresSafeArea())
-            .navigationTitle("Questions")
+            .navigationTitle(sectionLabel ?? "Questions")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -1066,5 +1274,99 @@ struct QuestionNavigatorSheet: View {
         .disabled(isLocked)
         .accessibilityLabel("Question \(index + 1)")
         .accessibilityValue(isCurrent ? "Current, \(status.legendLabel)" : status.legendLabel)
+    }
+}
+
+// MARK: - Between sections
+
+/// What was just submitted and what is about to open.
+///
+/// A submitted block cannot be re-entered, so the paper jumping fifty questions forward on its
+/// own would be the single most alarming thing the runner could do. This is the acknowledgement
+/// that makes it a handover instead.
+struct MedxSectionHandover: Identifiable, Hashable {
+    let closedLabel: String
+    let score: Int
+    let attempted: Int
+    let total: Int
+    let gradable: Bool
+    let nextLabel: String
+    let nextCount: Int
+    let nextMinutes: Int
+    let remainingSections: Int
+
+    var id: String { closedLabel + "→" + nextLabel }
+}
+
+struct MedxSectionHandoverSheet: View {
+    let summary: MedxSectionHandover
+    let onContinue: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    MedxPageHeader(
+                        section: .tests,
+                        eyebrow: "\(summary.closedLabel) submitted",
+                        title: summary.nextLabel,
+                        lead: "\(summary.nextCount) questions, \(summary.nextMinutes) minutes. "
+                            + "The block you just submitted is closed for good, and this one's "
+                            + "clock starts when you tap below.",
+                        sticker: "hourglass"
+                    )
+
+                    MedxMetricsRow {
+                        if summary.gradable {
+                            MedxMetric(
+                                icon: "checkmark.circle.fill",
+                                value: "\(summary.score)/\(summary.total)",
+                                label: "scored",
+                                color: MedxTheme.successGreen
+                            )
+                        }
+                        MedxMetric(
+                            icon: "hand.tap.fill",
+                            value: "\(summary.attempted)/\(summary.total)",
+                            label: "attempted",
+                            color: MedxCandy.tangerine
+                        )
+                        MedxMetric(
+                            icon: "square.stack.3d.up.fill",
+                            value: "\(summary.remainingSections)",
+                            label: summary.remainingSections == 1 ? "block left" : "blocks left",
+                            color: MedxCandy.sky
+                        )
+                    }
+
+                    if !summary.gradable {
+                        Text("This paper came through without an answer key, so nothing here is scored — only what you attempted is recorded.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, MedxSurface.gutter)
+                .padding(.top, 24)
+                .padding(.bottom, 24)
+            }
+
+            Button {
+                HapticManager.medium()
+                onContinue()
+            } label: {
+                Text("Start \(summary.nextLabel)")
+                    .font(.body.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 50)
+            }
+            .medxFilled(MedxCandy.tangerine)
+            .padding(.horizontal, MedxSurface.gutter)
+            .padding(.vertical, 10)
+            .medxBar(topDivider: true)
+        }
+        .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        // Full screen and one way out on purpose. There is nothing behind this worth looking
+        // at — the block it would show is closed — and a swipe-to-dismiss would start the next
+        // section's clock by accident.
+        .interactiveDismissDisabled()
     }
 }

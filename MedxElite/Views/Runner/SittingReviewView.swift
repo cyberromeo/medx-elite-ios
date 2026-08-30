@@ -10,6 +10,11 @@ public struct SittingReviewView: View {
     public let responses: [Int: QuestionResponse]
     public let gradable: Bool
     public let elapsedSeconds: Int
+    /// Per-block scores for a sectioned paper. Empty for everything else, which is what keeps
+    /// the breakdown off every ordinary sitting's review.
+    public let sections: [MedxAttemptSection]
+    /// The palette the paper was opened wearing — see `RunnerPayload.section`.
+    public let section: MedxSection
     public var onDone: () -> Void
 
     @State private var filter: ReviewFilter = .all
@@ -27,6 +32,8 @@ public struct SittingReviewView: View {
         responses: [Int: QuestionResponse],
         gradable: Bool = true,
         elapsedSeconds: Int = 0,
+        sections: [MedxAttemptSection] = [],
+        section: MedxSection = .qbank,
         onDone: @escaping () -> Void
     ) {
         self.sourceId = sourceId
@@ -36,6 +43,8 @@ public struct SittingReviewView: View {
         self.responses = responses
         self.gradable = gradable
         self.elapsedSeconds = elapsedSeconds
+        self.sections = sections.sorted { $0.index < $1.index }
+        self.section = section
         self.onDone = onDone
     }
 
@@ -44,6 +53,76 @@ public struct SittingReviewView: View {
     private var attemptedCount: Int { responses.values.filter { $0.chosenId != nil }.count }
     private var wrongCount: Int { responses.values.filter { $0.chosenId != nil && !$0.correct }.count }
     private var skippedCount: Int { totalCount - attemptedCount }
+
+    // MARK: - Section breakdown
+
+    /// Block by block, in the order they were sat. Worth its own card rather than folding into
+    /// the hero: on a 150-question grand paper the interesting thing is almost always *which*
+    /// of the three blocks went wrong, and that is invisible in a single total.
+    private var sectionBreakdown: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            MedxSectionHeader(
+                "Blocks",
+                subtitle: "Each one was timed on its own and submitted for good"
+            )
+
+            VStack(spacing: 8) {
+                ForEach(sections) { block in
+                    HStack(spacing: 12) {
+                        Text(block.label)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .frame(minWidth: 78, alignment: .leading)
+
+                        VStack(alignment: .leading, spacing: 5) {
+                            ProgressView(
+                                value: Double(gradable ? block.score : block.attempted),
+                                total: Double(max(block.total, 1))
+                            )
+                            .tint(gradable ? blockTint(block) : MedxCandy.tangerine)
+
+                            Text(blockLine(block))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if gradable {
+                            Text("\(block.score)/\(block.total)")
+                                .font(.subheadline.weight(.semibold).monospacedDigit())
+                                .foregroundStyle(blockTint(block))
+                        }
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .medxCard()
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(block.label)
+                    .accessibilityValue(
+                        gradable
+                            ? "\(block.score) of \(block.total) correct, \(blockLine(block))"
+                            : blockLine(block)
+                    )
+                }
+            }
+        }
+    }
+
+    /// A block's own accuracy decides its colour, so a weak block is visible without reading
+    /// the numbers. Deliberately the same three thresholds the hero ring uses.
+    private func blockTint(_ block: MedxAttemptSection) -> Color {
+        guard block.attempted > 0 else { return .secondary }
+        let share = Double(block.score) / Double(max(block.total, 1))
+        if share >= 0.7 { return MedxTheme.successGreen }
+        if share >= 0.5 { return MedxTheme.warningOrange }
+        return MedxTheme.destructiveRed
+    }
+
+    private func blockLine(_ block: MedxAttemptSection) -> String {
+        let minutes = block.seconds / 60
+        let seconds = block.seconds % 60
+        let clock = String(format: "%d:%02d", minutes, seconds)
+        return "\(block.attempted) of \(block.total) attempted · \(clock)"
+    }
 
     private var formattedElapsed: String {
         let seconds = max(elapsedSeconds, 0)
@@ -73,13 +152,20 @@ public struct SittingReviewView: View {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     heroCard
 
-                    Picker("Filter", selection: $filter) {
-                        Text("All (\(totalCount))").tag(ReviewFilter.all)
-                        Text("Wrong (\(wrongCount))").tag(ReviewFilter.wrong)
-                        Text("Skipped (\(skippedCount))").tag(ReviewFilter.skipped)
+                    if !sections.isEmpty {
+                        sectionBreakdown
                     }
-                    .pickerStyle(.segmented)
-                    .onChange(of: filter) { _, _ in HapticManager.selection() }
+
+                    MedxSegmented(
+                        section: section,
+                        segments: [
+                            MedxSegment(value: ReviewFilter.all, label: "All", count: totalCount),
+                            MedxSegment(value: ReviewFilter.wrong, label: "Wrong", count: wrongCount),
+                            MedxSegment(value: ReviewFilter.skipped, label: "Skipped", count: skippedCount)
+                        ],
+                        selection: $filter
+                    )
+                    .accessibilityLabel("Filter")
 
                     if filteredQuestions.isEmpty, filter != .all {
                         emptyFilterState
@@ -157,17 +243,23 @@ public struct SittingReviewView: View {
                     }
 
                     Spacer(minLength: 0)
+
+                    MedxSticker(resultSticker(percent: percent), size: 40, tilt: -9)
                 }
             } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Practice complete")
-                        .font(.title3.weight(.semibold))
-                    Text("This paper has no official answer key, so it isn't graded. You answered \(attemptedCount) of \(totalCount) questions.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .top, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Practice complete")
+                            .font(.title3.weight(.semibold))
+                        Text("This paper has no official answer key, so it isn't graded. You answered \(attemptedCount) of \(totalCount) questions.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    MedxSticker("memo", size: 36, tilt: -8)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             MedxMetricsRow {
@@ -175,21 +267,31 @@ public struct SittingReviewView: View {
                     MedxMetric(icon: "checkmark.circle.fill", value: "\(scoreCount)", label: "correct", color: MedxTheme.successGreen)
                     MedxMetric(icon: "xmark.circle.fill", value: "\(wrongCount)", label: "wrong", color: MedxTheme.destructiveRed)
                 } else {
-                    MedxMetric(icon: "checkmark.circle.fill", value: "\(attemptedCount)", label: "attempted", color: MedxTheme.primaryPurple)
+                    MedxMetric(icon: "checkmark.circle.fill", value: "\(attemptedCount)", label: "attempted", color: MedxCandy.violet)
                 }
-                MedxMetric(icon: "clock.fill", value: formattedElapsed, label: "time taken", color: MedxTheme.primaryBlue)
+                MedxMetric(icon: "clock.fill", value: formattedElapsed, label: "time taken", color: MedxCandy.sky)
             }
         }
         .padding(18)
         .medxCard(cornerRadius: 20)
     }
 
+    /// A mark for the result, and the one place in this app where a sticker carries meaning
+    /// rather than decoration — it is read before any of the numbers are.
+    private func resultSticker(percent: Int) -> String {
+        if percent >= 85 { return "trophy" }
+        if percent >= 70 { return "medal" }
+        if percent >= 50 { return "bulb" }
+        return "crutch"
+    }
+
     private var emptyFilterState: some View {
         ContentUnavailableView {
-            Label(
-                filter == .wrong ? "Nothing wrong here" : "Nothing skipped",
-                systemImage: filter == .wrong ? "checkmark.seal.fill" : "checkmark.circle.fill"
-            )
+            Label {
+                Text(filter == .wrong ? "Nothing wrong here" : "Nothing skipped")
+            } icon: {
+                MedxSticker(filter == .wrong ? "party" : "bullseye", size: 42)
+            }
         } description: {
             Text(filter == .wrong
                  ? "You didn't get any question wrong in this sitting."

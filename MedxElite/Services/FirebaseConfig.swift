@@ -6,6 +6,9 @@ public enum FirebaseConfig {
     public static let authDomain = "medx-e9acd.firebaseapp.com"
     public static let storageBucket = "medx-e9acd.firebasestorage.app"
     public static let appId = "1:300960747898:web:c8ad40db21d815a6a946c3"
+    /// Needed only by `MedxFirebaseBridge`, which builds `FirebaseOptions` in code rather than
+    /// from a `GoogleService-Info.plist` — so this file stays the one source of backend truth.
+    public static let messagingSenderId = "300960747898"
 
     public static let firestoreRestBase = "https://firestore.googleapis.com/v1/projects/\(projectId)/databases/(default)/documents"
     public static let identityToolkitBase = "https://identitytoolkit.googleapis.com/v1/accounts"

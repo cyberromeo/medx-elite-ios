@@ -70,15 +70,22 @@ public struct ProfileSelectView: View {
         } label: {
             HStack(spacing: 14) {
                 ProfileAvatarView(profile: profile, size: 52)
+                    .overlay(alignment: .bottomTrailing) {
+                        MedxSticker(profile.sticker, size: 20)
+                            .padding(3)
+                            .background(MedxSurface.cardFill, in: Circle())
+                            .offset(x: 3, y: 3)
+                    }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(profile.displayName)
                         .font(.headline)
                         .foregroundStyle(.primary)
 
-                    Text("@\(profile.handle)")
+                    Text("@\(profile.handle) · \(profile.tag)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
 
                 Spacer(minLength: 0)
