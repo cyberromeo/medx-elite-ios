@@ -354,12 +354,11 @@ public struct QBankSubjectListView: View {
             loadState = .loaded
 
             // The subject tree is the only place the module list exists, so this is where
-            // Spotlight and the index's progress denominator get their numbers. Both are still
-            // ARISE-only — they are keyed on an integer subject id — so the Marrow subjects
-            // drop out here rather than being coerced into a shape they do not fit.
-            let ariseTree = loadedSubjects.compactMap { $0.asQBankSubject }
-            MedxQuestionIndexStore.shared.noteExpectations(subjects: ariseTree)
-            Task { await MedxSpotlightIndexer.shared.indexModules(ariseTree) }
+            // Spotlight and the index's progress denominator get their numbers. Both now cover
+            // both banks: the index keys on `MedxBankSubject.id` as a string, and Spotlight only
+            // ever wanted the names.
+            MedxQuestionIndexStore.shared.noteExpectations(subjects: loadedSubjects)
+            Task { await MedxSpotlightIndexer.shared.indexModules(loadedSubjects) }
         } catch {
             loadState = subjects.isEmpty
                 ? .failed("Check your connection and try again.")

@@ -14,7 +14,7 @@ public struct SettingsView: View {
     @ObservedObject private var playback = MedxPlaybackDiagnostics.shared
     @ObservedObject private var vod = MedxVodWatcher.shared
     @State private var attempts: [SittingAttempt] = []
-    @State private var subjects: [QBankSubject] = []
+    @State private var subjects: [MedxBankSubject] = []
     @State private var showSignOutConfirm = false
     @State private var showForgetCachedConfirm = false
     @State private var showDeleteDownloadsConfirm = false
@@ -647,12 +647,11 @@ public struct SettingsView: View {
         } header: {
             MedxSettingsHeader("Question search", sticker: "search", hue: MedxCandy.lime)
         } footer: {
-            // The index is built from `medx_qbank_subjects`, which is the ARISE tree only. Marrow
-            // modules are read on demand and are not in here, so saying "all questions" without
-            // that qualifier would be a lie the moment somebody searches for a Marrow stem.
+            // Both banks, so the split is worth naming: "32,467 questions" on its own does not
+            // tell you whether the Marrow half actually landed.
             Text(index.isComplete
-                 ? "All \(index.indexedCount.formatted()) ARISE questions are searchable offline. Marrow modules are not indexed — searching those needs a connection."
-                 : "Searching every question needs their text on this device. Building fetches all \(max(index.expectedModules, 1211)) ARISE modules once — it is resumable, and it also makes those modules playable offline. Marrow is not indexed.")
+                 ? "All \(index.indexedCount.formatted()) questions are searchable offline — \(index.indexedCount(bank: .arise).formatted()) ARISE and \(index.indexedCount(bank: .marrow).formatted()) Marrow."
+                 : "Searching every question needs their text on this device. Building fetches all \(max(index.expectedModules, 2171)) modules across both banks once — it is resumable, and it also makes those modules playable offline.")
                 .font(.caption)
         }
     }
@@ -970,11 +969,12 @@ public struct SettingsView: View {
         }
     }
 
-    /// Needed by the index builder, which walks the module list out of the subject tree.
+    /// Needed by the index builder, which walks the module list out of the subject tree — both
+    /// banks', so the Marrow modules are indexed alongside the ARISE ones.
     private func loadSubjects() async {
         guard subjects.isEmpty else { return }
         guard let token = try? await authService.getValidIdToken() else { return }
-        subjects = (try? await FirestoreService.shared.fetchQBankSubjects(idToken: token)) ?? []
+        subjects = (try? await FirestoreService.shared.fetchQBankBanks(idToken: token)) ?? []
         index.noteExpectations(subjects: subjects)
     }
 

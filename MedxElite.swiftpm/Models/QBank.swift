@@ -395,6 +395,17 @@ public enum MedxBank: String, CaseIterable, Identifiable, Codable, Sendable {
         id.hasPrefix(marrowPrefix) ? .marrow : .arise
     }
 
+    public static let arisePrefix = "qb_"
+
+    /// Whether an id names a real module in `medx_qbank_modules`, as opposed to one of the
+    /// synthetic `search-…` / `custom-…` ids a filtered sitting is given. Both seeders prefix
+    /// theirs — ARISE `qb_<n>`, Marrow `mw_<hex>` — and the distinction matters because an
+    /// attempt row's `sourceId` is the only place a `medx_attempts` response can learn which
+    /// module, and therefore which bank, it belongs to.
+    public static func isModuleId(_ id: String) -> Bool {
+        id.hasPrefix(arisePrefix) || id.hasPrefix(marrowPrefix)
+    }
+
     public var label: String {
         switch self {
         case .arise: return "Arise"
@@ -423,11 +434,11 @@ public enum MedxBank: String, CaseIterable, Identifiable, Codable, Sendable {
 ///
 /// `QBankSubject.subjectId` is an `Int` and `QBankChapter.id` is an `Int`, which the ARISE
 /// tree satisfies and Marrow does not: its ids are `mw_618a04d13dcbce9c59c6bb59` and
-/// `mw_618a04d13dcbce9c59c6bb59_anatomy`. Widening those two types would ripple through the
-/// question index, the Spotlight indexer and every `[Int: …]` tally keyed on a subject, so
-/// this is added alongside them instead and is the model every *new* screen reads. The ARISE
-/// tree adapts in through `init(arise:)`; `asQBankSubject` adapts back out for the two
-/// services that still want the original shape.
+/// `mw_618a04d13dcbce9c59c6bb59_anatomy`. Rather than widen those two types — they are read by
+/// the batch-paper screens and every `[Int: …]` tally keyed on a subject — this is added
+/// alongside them and is the model every *new* screen reads, with the ARISE tree adapting in
+/// through `init(arise:)`. The question index and Spotlight are both keyed on `id` as a string,
+/// so they cover both banks.
 public struct MedxBankSubject: Identifiable, Hashable, Codable, Sendable {
     public let id: String
     public let bank: MedxBank
@@ -504,22 +515,6 @@ public struct MedxBankSubject: Identifiable, Hashable, Codable, Sendable {
         self.questionCount = arise.questionCount ?? 0
         self.chapters = (arise.chapters ?? []).map { MedxBankChapter(arise: $0) }
     }
-
-    /// Back to the original shape, for `MedxQuestionIndexStore.noteExpectations(subjects:)`
-    /// and `MedxSpotlightIndexer.indexModules(_:)`. `nil` for Marrow, whose ids do not fit an
-    /// `Int` — which is also the honest answer, since neither of those two features covers
-    /// the Marrow bank yet.
-    public var asQBankSubject: QBankSubject? {
-        guard bank == .arise, let numeric = Int(id) else { return nil }
-        return QBankSubject(
-            subjectId: numeric,
-            name: name,
-            slug: slug,
-            moduleCount: moduleCount,
-            questionCount: questionCount,
-            chapters: chapters.map { $0.asQBankChapter }
-        )
-    }
 }
 
 public struct MedxBankChapter: Identifiable, Hashable, Codable, Sendable {
@@ -561,10 +556,6 @@ public struct MedxBankChapter: Identifiable, Hashable, Codable, Sendable {
         self.id = String(arise.id)
         self.name = arise.name
         self.modules = arise.modules ?? []
-    }
-
-    public var asQBankChapter: QBankChapter {
-        QBankChapter(id: Int(id) ?? 0, name: name, modules: modules)
     }
 }
 /// `medx_meta/qbank_fmge` — the whole Marrow tree in one document, so the QBank screen costs

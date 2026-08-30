@@ -57,11 +57,6 @@ public struct HomeView: View {
                 goalSection
                     .medxScrollReveal()
 
-                if stats.dueCount > 0 {
-                    dueRevisionRow
-                        .medxScrollReveal()
-                }
-
                 quickActionsSection
                     .medxScrollReveal()
 
@@ -300,51 +295,6 @@ public struct HomeView: View {
         }
         .frame(width: 82, height: 82)
         .accessibilityHidden(true)
-    }
-
-    // MARK: - Spaced revision
-
-    private var dueRevisionRow: some View {
-        Button {
-            HapticManager.medium()
-            appState.open(route: .todaysRevision)
-        } label: {
-            HStack(spacing: 14) {
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(MedxTheme.tealAccent)
-                    .frame(width: 34, height: 34)
-                    .background(MedxTheme.tealAccent.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    .symbolEffect(.pulse, isActive: true)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(stats.dueCount == 1 ? "1 module due for revision" : "\(stats.dueCount) modules due for revision")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .contentTransition(.numericText())
-                    Text(dueSubtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 0)
-
-                MedxDisclosure()
-            }
-            .padding(14)
-            .medxCard()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
-        }
-        .buttonStyle(BouncyButtonStyle())
-        .accessibilityLabel("Start today's revision")
-        .accessibilityValue(dueSubtitle)
-    }
-
-    private var dueSubtitle: String {
-        guard let first = stats.due.first else { return "Tap to start a mixed revision sitting" }
-        let extra = stats.dueCount - 1
-        return extra > 0 ? "\(first.name) and \(extra) more" : first.name
     }
 
     // MARK: - Quick actions

@@ -32,7 +32,7 @@ Five top-level destinations: **Home · QBank · Tests · Cards · Library**. Two
 | Feature | Description |
 |---|---|
 | **Profiles & Authentication** | Graveyard (Mathu) and QuantumGuy (Sri) profile switching with iOS Keychain saved-password fast unlock. A second, fire-and-forget sign-in to the Firebase iOS SDK backs Faceoff's snapshot listeners; failing it costs the duel its listeners and nothing else. |
-| **Home Dashboard** | A live Faceoff invite card above everything else when the other one has dealt a game, exam countdown (editable by long press), today's goal ring and streak, a spaced-revision row, six quick actions, Continue-watching resume, a 7-day roll-up, QBank coverage ring, accuracy chart, and the syllabus checklist. |
+| **Home Dashboard** | A live Faceoff invite card above everything else when the other one has dealt a game, exam countdown (editable by long press), today's goal ring and streak, six quick actions, Continue-watching resume, a 7-day roll-up, QBank coverage ring, accuracy chart, and the syllabus checklist. |
 | **Syllabus Tracker Matrix** | Live 23-subject checklist (Videos, R1, R2, PYQs, Rev, QBank) with optimistic updates and rollback if the Firestore write fails. |
 | **Two question banks** | An Arise / Marrow segmented control, as in the PWA. **Arise**: 17,890 questions across 23 subjects and 1,211 modules. **Marrow FMGE**: 14,577 questions across 20 subjects and 960 modules. Searchable subjects with sticker marks and a bank tag, collapsing chapters, per-module best-score badges, long-press to start a module in either mode. |
 | **Marrow FMGE test series** | The Tests tab: 352 keyed papers in three groups (GTs / Mini tests / Subject tests) with counts, month sections newest-first, a per-paper best-score bar, and a mode picker that says what it is about to do. A grand paper over 50 questions is sat in **timed blocks of 50** with a between-blocks summary and no way back. |
@@ -60,13 +60,13 @@ Five top-level destinations: **Home · QBank · Tests · Cards · Library**. Two
 | **Live Activities** | Three, sharing one chrome vocabulary (`MedxActivityChrome`: ring, pace bar, versus bar). **Exam sitting** — a ring with the clock in its middle, the block chip, right/wrong when the mode reveals it, and a pace bar showing answered against elapsed. **Download** — ring, segments, derived ETA and **Pause / Resume / Cancel buttons** in the activity itself. **Faceoff** — the versus bar, the round clock and "Question 7 of 20", so the score is glanceable from the Lock Screen mid-duel. Every clock is handed over as an end date, so the *system* ticks it and the app pushes only when a count changes. |
 | **Local notifications** | Four kinds: a daily question reminder at a chosen hour, a streak-protection nudge at 21:00 only while the streak is actually at risk, a spaced-revision digest at 08:00 only when something is due, and a new-VOD-drop alert. The first three are rebuilt on every foreground so the wording carries live numbers. |
 | **Background refresh** | One `BGAppRefreshTask` (`quest.srihari.medxelite.vodcheck`), re-armed on every background transition with a two-hour floor, costing **one document read** per run. iOS is free to never run it, so the foreground check is the guarantee and Settings says exactly that rather than implying push. |
-| **Spotlight** | Bookmarks and all 1,211 Arise modules indexed with `CoreSpotlight`; a module result opens its mode picker. One switch in Settings deletes the whole index. |
+| **Spotlight** | Bookmarks and all 2,171 modules from both banks indexed with `CoreSpotlight`, the bank named in each description so two same-titled subjects are distinguishable; a module result opens its mode picker. One switch in Settings deletes the whole index. |
 | **App Intents / Siri** | "Start today's revision", "Exam countdown" (answers without launching) and "Search questions", donated as `AppShortcut`s. Separately, `MedxSharedIntents` holds the three iOS 17 `LiveActivityIntent`s the download activity's buttons run. |
-| **Question search** | Full-text search over the indexed bank with filters for image-based, attempted / wrong / unattempted, bookmarked, and subject. Results can be turned straight into a sitting. |
+| **Question search** | Full-text search over the indexed 32,467 questions across both banks, with filters for bank, subject, image-based, attempted / wrong / unattempted and bookmarked. Results can be turned straight into a sitting. |
 | **Deep links** | `medxelite://` for home, qbank, tests, cards, library, classes, vod, custom, search, faceoff, and `faceoff/<gameId>` straight into a room. |
 | **iPad** | `NavigationSplitView` at regular width with three sidebar sections (Study / Play / Library), `TabView` on iPhone. |
 | **Theming** | Eight system accents and a light/dark/automatic override in Settings, carried through to the widgets and Live Activities. The section palette is additive and does not follow the accent. |
-| **Spaced revision** | A 1/3/7/21/45-day schedule per module, driving the Home row, the digest notification and the Siri shortcut. |
+| **Spaced revision** | A 1/3/7/21/45-day schedule per module, driving the 08:00 digest notification and the "Start today's revision" Siri shortcut. It has no card on Home — the schedule is a nudge, not a thing to be reminded of on every launch. |
 
 ### Faceoff, and why it needs the SDK
 
@@ -88,6 +88,22 @@ That is wired to be optional rather than load-bearing:
   otherwise. A failed `FirebaseApp.configure` or SDK sign-in therefore degrades to a working
   Faceoff rather than to no Faceoff. **Settings ▸ Diagnostics ▸ Faceoff transport** says which one
   is live.
+
+#### The one thing that has to be filled in: `FirebaseConfig.iosAppId`
+
+`FirebaseOptions` is built in code, so there is no `GoogleService-Info.plist` to fall out of step
+with `FirebaseConfig.swift`. The catch is that a Firebase app ID names one *registration* inside a
+project, not the project, and `+[FIRApp validateAppIDFormat:withVersion:]` requires its platform
+segment to be literally `ios`. `FirebaseConfig.appId` is the PWA's `1:…:web:…` one and the SDK
+**refuses it by raising an `NSException`** — which Swift cannot catch, so it terminates the app
+during launch rather than failing softly.
+
+`MedxFirebaseBridge.isAcceptableAppId` therefore checks the format *before* handing it over, and an
+unusable value is a Diagnostics line instead of a crash. `iosAppId` ships empty; to fill it, in the
+Firebase console for `medx-e9acd` go to Project settings ▸ Your apps ▸ Add app ▸ iOS with bundle id
+`quest.srihari.medxelite`, and paste the `1:300960747898:ios:<hex>` it gives back. Nothing else
+changes — no plist download, no rules change. Until then Faceoff runs on the REST poller, which is
+the same feature at a slightly worse latency, and the rest of the app never touched the SDK anyway.
 
 Three write rules are carried over from the PWA unchanged, because they are what the deployed
 rules on `medx-e9acd` actually take (the repo's `firestore.rules` is stale and does not describe
@@ -127,25 +143,39 @@ rewritten to plain sibling filenames. Playback then goes through a **custom URL 
 
 ### The question index
 
-Question bodies live in 1,211 Firestore module documents that are normally only fetched when a
-module is opened, so searching all 17,890 questions means having pulled them down once. That is
-an **opt-in build** in Settings with a progress bar, resumable across launches, and it also
-warms `FirestoreService`'s module cache — so building the index makes those modules playable
-offline too. Search works on whatever is indexed so far and says so.
+Question bodies live in 2,171 Firestore module documents — 1,211 Arise and 960 Marrow — that are
+normally only fetched when a module is opened, so searching all 32,467 questions means having
+pulled them down once. That is an **opt-in build** in Settings with a progress bar, resumable
+across launches, and it also warms `FirestoreService`'s module cache — so building the index makes
+those modules playable offline too. Search works on whatever is indexed so far and says so.
 
-The index is built from `medx_qbank_subjects`, which is the **Arise** tree only. Marrow modules are
-read on demand and are not in it; Settings says so rather than claiming "all questions".
+The index covers **both banks**, keyed on `MedxBankSubject.id` as a string, and so does Spotlight.
+Search offers a bank filter alongside the subject one, and every result row carries a bank chip,
+because both banks have an Anatomy, a Pathology and a Medicine.
+
+**Why the entries carry a composite key.** Arise question ids run 1…84,505 and Marrow's
+39,687…212,931, and **2,405 of them collide**. A `medx_attempts` row records only
+`questionId` — `QuestionResponse` has no module field and both clients write that collection, so
+one cannot be added retroactively — which means a bare id cannot say which bank an answer belongs
+to. `MedxAnswerHistory` therefore holds each fact twice: the plain `Set<Int>`, and a
+`moduleId#questionId` set built from attempts whose `sourceId` is a real module (`qb_…` / `mw_…`,
+not a synthetic `custom-…` / `search-…`). `MedxQuestionIndexStore.resolve` prefers the composite,
+trusts the bare id only where the index shows it is unique to one bank, and otherwise answers no.
+Without that, one wrong Arise answer would put a red cross on a Marrow question nobody had opened.
+
+`MedxIndexFile.version` gates the on-disk file. Version 2 is this two-bank layout; a file from the
+unversioned Arise-only one is deleted on launch rather than left to fail decoding forever, so the
+first run after this change starts the index from empty.
 
 ### Two subject models, on purpose
 
 `QBankSubject.subjectId` and `QBankChapter.id` are `Int`, and Marrow's ids are strings
-(`mw_618a04d13dcbce9c59c6bb59`). Widening those two types would ripple into
-`MedxQuestionIndexStore`, `MedxSpotlightIndexer` and every `[Int: …]` tally in the app, so instead
-`MedxBankSubject` / `MedxBankChapter` were **added** alongside them: `String` ids, a `bank` tag,
-`init(arise:)` to adapt the Arise tree in, and `asQBankSubject` (nil for Marrow) to hand it back to
-the two ARISE-only consumers with their signatures untouched. `QBankModuleSummary` is reused as-is
-— module ids were already strings, and Marrow modules sit in `medx_qbank_modules` in the identical
-shape, spillover included.
+(`mw_618a04d13dcbce9c59c6bb59`). Rather than widen those two types — the batch-paper screens and
+several `[Int: …]` tallies read them — `MedxBankSubject` / `MedxBankChapter` were **added**
+alongside them: `String` ids, a `bank` tag, and `init(arise:)` to adapt the Arise tree in. Every
+new screen reads those, including the question index and Spotlight. `QBankModuleSummary` is reused
+as-is — module ids were already strings, and Marrow modules sit in `medx_qbank_modules` in the
+identical shape, spillover included.
 
 
 ---
@@ -412,21 +442,25 @@ render empty. For the same reason, models decode leniently (`try?` per field,
 Nothing above is a compiler and nothing above talks to the live backend, so the order below matters
 — each step depends on the one before it.
 
-1. **Sign in as each profile.** Check **Settings ▸ Diagnostics ▸ Faceoff transport**: it should read
-   *Signed in as …*. Confirm the app still works with it reading *Polling* — that is the state a
-   failed SDK sign-in leaves, and everything except the duel's latency should be identical.
+1. **Sign in as each profile.** Check **Settings ▸ Diagnostics ▸ Faceoff transport**. With
+   `FirebaseConfig.iosAppId` still empty it reads *No iOS app ID in FirebaseConfig — Faceoff polls
+   instead*, and everything except the duel's latency should be identical; that is the same state a
+   failed SDK sign-in leaves. Once the id is filled in it should read *Signed in as …*.
 2. **QBank.** The Marrow tab lists 20 subjects; open an `mw_` module and run a sitting in both modes.
-3. **Tests.** Three groups with counts; open a grand paper and confirm it runs as `3 × 50` with
+3. **The question index.** Settings ▸ Question search says 2,171 modules, not 1,211. Build it — an
+   index from before the two-bank layout is deleted on launch, so this starts from empty — then
+   search a stem you know is Marrow's and check the result carries a Marrow chip.
+4. **Tests.** Three groups with counts; open a grand paper and confirm it runs as `3 × 50` with
    separate clocks, a between-blocks summary, and no way back.
-4. **Custom modules.** Build one on one device, run it on the other, delete it from the second, and
+5. **Custom modules.** Build one on one device, run it on the other, delete it from the second, and
    confirm it does not resurrect on the first. A refused cross-user delete should say so rather than
    pretending.
-5. **Faceoff on two devices.** Deal, join, play three questions, background the host mid-round and
+6. **Faceoff on two devices.** Deal, join, play three questions, background the host mid-round and
    confirm the guest is *told* rather than left hanging, then finish and check both attempt rows
    landed and moved the daily goal.
-6. **VOD feed.** Page past three screens and confirm auto-paging stops. Then
+7. **VOD feed.** Page past three screens and confirm auto-paging stops. Then
    **Settings ▸ Diagnostics ▸ Forget the VOD watermark** and confirm the foreground check posts a
    notification.
-7. **Live Activities.** Start an exam sitting and a download; check the Lock Screen and the Dynamic
+8. **Live Activities.** Start an exam sitting and a download; check the Lock Screen and the Dynamic
    Island, press Pause in the download activity, and confirm nothing is left stranded after leaving
    the runner by every route.

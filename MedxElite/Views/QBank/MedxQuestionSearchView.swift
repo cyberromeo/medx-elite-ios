@@ -1,11 +1,11 @@
 import SwiftUI
 
-/// Full-text search across the question bank, with the filters that make it useful for
-/// revision: image-based only, attempted / wrong / unattempted, and bookmarked.
+/// Full-text search across both question banks, with the filters that make it useful for
+/// revision: bank, subject, image-based only, attempted / wrong / unattempted, and bookmarked.
 ///
 /// Search runs against `MedxQuestionIndexStore`, which only knows about modules that have
 /// been indexed — so the coverage banner is not decoration, it is the honest answer to "did
-/// you really look at all 17,890?".
+/// you really look at all 32,467?".
 public struct MedxQuestionSearchView: View {
     @ObservedObject private var index = MedxQuestionIndexStore.shared
     @ObservedObject private var activityStore = ActivityStore.shared
@@ -17,7 +17,7 @@ public struct MedxQuestionSearchView: View {
     @State private var filters = MedxQuestionFilters()
     @State private var results: [MedxIndexedQuestion] = []
     @State private var history = MedxAnswerHistory()
-    @State private var subjects: [QBankSubject] = []
+    @State private var subjects: [MedxBankSubject] = []
     @State private var isPreparing = true
     @State private var isBuildingSitting = false
 
@@ -33,7 +33,8 @@ public struct MedxQuestionSearchView: View {
     private var searchKey: String {
         [
             query,
-            filters.subjectId.map(String.init) ?? "all",
+            filters.subjectKey ?? "all",
+            filters.bank?.rawValue ?? "both",
             filters.imageBased ? "img" : "-",
             filters.bookmarkedOnly ? "bm" : "-",
             filters.status.rawValue,
@@ -49,7 +50,7 @@ public struct MedxQuestionSearchView: View {
                 .navigationTitle("Search questions")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
-                .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search 17,890 questions")
+                .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search 32,467 questions")
                 .task { await prepare() }
                 .task(id: searchKey) { await runSearch() }
         }
@@ -108,9 +109,14 @@ public struct MedxQuestionSearchView: View {
                         Label("Practise this one", systemImage: "bolt")
                     }
                     Button {
-                        filters.subjectId = entry.subjectId
+                        filters.subjectKey = entry.subjectKey
                     } label: {
                         Label("Only \(entry.subject)", systemImage: "line.3.horizontal.decrease")
+                    }
+                    Button {
+                        filters.bank = entry.bank
+                    } label: {
+                        Label("Only \(entry.bank.label)", systemImage: "square.stack.3d.up")
                     }
                 }
             }
@@ -126,6 +132,10 @@ public struct MedxQuestionSearchView: View {
                 .multilineTextAlignment(.leading)
 
             HStack(spacing: 6) {
+                // Both banks have an Anatomy, a Pathology and a Medicine, so the subject name
+                // alone does not say where a hit came from.
+                MedxChip(entry.bank.label, tint: entry.bank == .marrow ? MedxCandy.violet : MedxCandy.lime)
+
                 MedxChip(entry.subject, tint: MedxTheme.accent)
 
                 Text(entry.moduleName)
@@ -152,19 +162,21 @@ public struct MedxQuestionSearchView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// Routed through the store rather than reading `history` directly, because deciding whether
+    /// a bare question id belongs to this entry needs the index's own two-bank ambiguity table.
     @ViewBuilder
     private func statusGlyph(for entry: MedxIndexedQuestion) -> some View {
-        if history.bookmarked.contains(entry.questionId) {
+        if index.isBookmarked(entry, history: history) {
             Image(systemName: "bookmark.fill")
                 .font(.caption2)
                 .foregroundStyle(MedxTheme.warningOrange)
                 .accessibilityLabel("Bookmarked")
-        } else if history.wrong.contains(entry.questionId) {
+        } else if index.isWrong(entry, history: history) {
             Image(systemName: "xmark.circle.fill")
                 .font(.caption2)
                 .foregroundStyle(MedxTheme.destructiveRed)
                 .accessibilityLabel("Answered wrong before")
-        } else if history.attempted.contains(entry.questionId) {
+        } else if index.isAttempted(entry, history: history) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.caption2)
                 .foregroundStyle(MedxTheme.successGreen)
@@ -178,17 +190,32 @@ public struct MedxQuestionSearchView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 Menu {
-                    Picker("Subject", selection: $filters.subjectId) {
-                        Text("All subjects").tag(Int?.none)
-                        ForEach(subjects) { subject in
-                            Text(subject.name).tag(Int?.some(subject.subjectId))
+                    Picker("Bank", selection: $filters.bank) {
+                        Text("Both banks").tag(MedxBank?.none)
+                        ForEach(MedxBank.allCases) { bank in
+                            Text(bank.label).tag(MedxBank?.some(bank))
                         }
                     }
                 } label: {
                     filterChip(
-                        title: subjects.first { $0.subjectId == filters.subjectId }?.name ?? "All subjects",
+                        title: filters.bank?.label ?? "Both banks",
+                        icon: "square.stack.3d.up",
+                        isOn: filters.bank != nil
+                    )
+                }
+
+                Menu {
+                    Picker("Subject", selection: $filters.subjectKey) {
+                        Text("All subjects").tag(String?.none)
+                        ForEach(pickableSubjects) { subject in
+                            Text(subjectLabel(subject)).tag(String?.some(subject.id))
+                        }
+                    }
+                } label: {
+                    filterChip(
+                        title: subjects.first { $0.id == filters.subjectKey }?.name ?? "All subjects",
                         icon: "books.vertical",
-                        isOn: filters.subjectId != nil
+                        isOn: filters.subjectKey != nil
                     )
                 }
 
@@ -236,6 +263,27 @@ public struct MedxQuestionSearchView: View {
             .padding(.vertical, 2)
         }
         .scrollClipDisabled()
+        // A subject belonging to the other bank, left set behind a bank chip, is a pair of filters
+        // that can never match anything — and the screen would blame the query for it.
+        .onChange(of: filters.bank) { _, bank in
+            guard let bank, let key = filters.subjectKey else { return }
+            if subjects.first(where: { $0.id == key })?.bank != bank {
+                filters.subjectKey = nil
+            }
+        }
+    }
+
+    /// Narrowed by the bank chip, so picking Marrow and then opening the subject menu does not
+    /// offer forty entries half of which would contradict the chip beside it.
+    private var pickableSubjects: [MedxBankSubject] {
+        guard let bank = filters.bank else { return subjects }
+        return subjects.filter { $0.bank == bank }
+    }
+
+    /// The bank is only worth spelling out when both are on the menu — with the bank chip set,
+    /// every row would carry the same prefix.
+    private func subjectLabel(_ subject: MedxBankSubject) -> String {
+        filters.bank == nil ? "\(subject.name) · \(subject.bank.label)" : subject.name
     }
 
     private func filterChip(title: String, icon: String, isOn: Bool) -> some View {
@@ -305,7 +353,7 @@ public struct MedxQuestionSearchView: View {
             Label("Nothing indexed yet", systemImage: "magnifyingglass")
         } description: {
             Text("Searching every question needs their text on this device once. "
-                 + "Building the index fetches all 1,211 modules — it can be paused and resumed.")
+                 + "Building the index fetches all 2,171 modules across both banks — it can be paused and resumed.")
         } actions: {
             Button {
                 HapticManager.medium()
@@ -369,9 +417,12 @@ public struct MedxQuestionSearchView: View {
     }
 
     private var sittingName: String {
-        if let subjectId = filters.subjectId,
-           let subject = subjects.first(where: { $0.subjectId == subjectId }) {
+        if let subjectKey = filters.subjectKey,
+           let subject = subjects.first(where: { $0.id == subjectKey }) {
             return "\(subject.name) · search"
+        }
+        if let bank = filters.bank {
+            return "\(bank.label) · search"
         }
         return query.isEmpty ? "Filtered questions" : "“\(query)”"
     }
@@ -415,7 +466,9 @@ public struct MedxQuestionSearchView: View {
         history = MedxAnswerHistory(attempts: [], bookmarks: activityStore.bookmarks(for: uid))
 
         guard let token = try? await authService.getValidIdToken() else { return }
-        async let subjectsTask = FirestoreService.shared.fetchQBankSubjects(idToken: token)
+        // Both banks: an index that covered only ARISE would quietly answer "no matches" for
+        // three-quarters of the Marrow tree.
+        async let subjectsTask = FirestoreService.shared.fetchQBankBanks(idToken: token)
         async let attemptsTask = FirestoreService.shared.fetchUserAttempts(uid: uid, idToken: token)
 
         let loadedSubjects = (try? await subjectsTask) ?? []
@@ -502,6 +555,7 @@ struct MedxSearchResultDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
+                MedxChip(entry.bank.label, tint: entry.bank == .marrow ? MedxCandy.violet : MedxCandy.lime)
                 MedxChip(entry.subject, tint: MedxTheme.accent)
                 if !entry.chapter.isEmpty {
                     MedxChip(entry.chapter, tint: .secondary)

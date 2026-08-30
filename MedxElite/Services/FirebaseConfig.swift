@@ -5,7 +5,27 @@ public enum FirebaseConfig {
     public static let projectId = "medx-e9acd"
     public static let authDomain = "medx-e9acd.firebaseapp.com"
     public static let storageBucket = "medx-e9acd.firebasestorage.app"
+    /// The **web** app registration — the one the PWA runs on. Kept because it is part of what this
+    /// file is for, but it is not usable by the Firebase iOS SDK: see `iosAppId`.
     public static let appId = "1:300960747898:web:c8ad40db21d815a6a946c3"
+
+    /// The **iOS** app registration, and the only app ID `FirebaseApp.configure` will accept.
+    ///
+    /// A Firebase app ID names one *registration* inside a project, not the project, and the SDK
+    /// checks the platform segment: `+[FIRApp validateAppIDFormat:withVersion:]` requires it to be
+    /// literally `ios`. Handing it `appId` above — the `:web:` one — makes it raise an `NSException`
+    /// that Swift cannot catch, which terminates the app during launch.
+    ///
+    /// Empty until an iOS app exists in the project. To create it, in the Firebase console for
+    /// `medx-e9acd`: Project settings ▸ Your apps ▸ Add app ▸ iOS, bundle ID
+    /// `quest.srihari.medxelite`. The console then shows an App ID of the form
+    /// `1:300960747898:ios:<hex>` — paste it here. No `GoogleService-Info.plist` download is needed;
+    /// `MedxFirebaseBridge` builds `FirebaseOptions` from these constants.
+    ///
+    /// While this is empty the app is fully functional: Faceoff uses `MedxDuelRestTransport`, which
+    /// polls instead of listening. Settings ▸ Diagnostics ▸ Faceoff transport says which is live.
+    public static let iosAppId = ""
+
     /// Needed only by `MedxFirebaseBridge`, which builds `FirebaseOptions` in code rather than
     /// from a `GoogleService-Info.plist` — so this file stays the one source of backend truth.
     public static let messagingSenderId = "300960747898"

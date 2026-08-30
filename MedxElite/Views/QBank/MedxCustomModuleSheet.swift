@@ -14,8 +14,8 @@ public struct MedxCustomModuleSheet: View {
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
 
-    @State private var subjects: [QBankSubject] = []
-    @State private var selectedSubjectIds: Set<Int> = []
+    @State private var subjects: [MedxBankSubject] = []
+    @State private var selectedSubjectIds: Set<String> = []
     @State private var filters = MedxQuestionFilters()
     @State private var length = 20
     @State private var mode: SittingMode = .revision
@@ -32,14 +32,14 @@ public struct MedxCustomModuleSheet: View {
 
     private var uid: String? { authService.currentSession?.uid }
 
-    private var chosenSubjects: [QBankSubject] {
-        selectedSubjectIds.isEmpty ? subjects : subjects.filter { selectedSubjectIds.contains($0.subjectId) }
+    private var chosenSubjects: [MedxBankSubject] {
+        selectedSubjectIds.isEmpty ? subjects : subjects.filter { selectedSubjectIds.contains($0.id) }
     }
 
     private var subjectSummary: String {
         switch selectedSubjectIds.count {
         case 0: return "All subjects"
-        case 1: return subjects.first { selectedSubjectIds.contains($0.subjectId) }?.name ?? "1 subject"
+        case 1: return subjects.first { selectedSubjectIds.contains($0.id) }?.name ?? "1 subject"
         default: return "\(selectedSubjectIds.count) subjects"
         }
     }
@@ -50,7 +50,7 @@ public struct MedxCustomModuleSheet: View {
             return bookmarkPool.count
         }
         guard !index.isEmpty else { return nil }
-        return index.pool(subjectIds: selectedSubjectIds, filters: filters, history: history).count
+        return index.pool(subjectKeys: selectedSubjectIds, filters: filters, history: history).count
     }
 
     private var bookmarkPool: [BookmarkedQuestion] {
@@ -255,7 +255,7 @@ public struct MedxCustomModuleSheet: View {
         }
 
         // 2. The index knows exactly which questions qualify; one fetch per module.
-        let pool = index.pool(subjectIds: selectedSubjectIds, filters: filters, history: history)
+        let pool = index.pool(subjectKeys: selectedSubjectIds, filters: filters, history: history)
         if !pool.isEmpty {
             return await index.questions(for: pool.shuffled(), limit: length)
         }
@@ -271,8 +271,8 @@ public struct MedxCustomModuleSheet: View {
 
         var candidates: [QBankModuleSummary] = []
         for subject in chosenSubjects {
-            for chapter in subject.chapters ?? [] {
-                candidates.append(contentsOf: (chapter.modules ?? []).filter { $0.questionCount > 0 })
+            for chapter in subject.chapters {
+                candidates.append(contentsOf: chapter.modules.filter { $0.questionCount > 0 })
             }
         }
         candidates.shuffle()
@@ -293,15 +293,25 @@ public struct MedxCustomModuleSheet: View {
             if filters.imageBased {
                 questions = questions.filter { MedxIndexedQuestion.hasFigure($0) }
             }
+            // The module is known here, so the composite `moduleId#questionId` is available and
+            // exact — worth using, because 2,405 question ids exist in both banks. The plain set
+            // still counts behind it, since it is the only record of a question met in an earlier
+            // custom or search sitting, whose module nothing wrote down.
+            func attempted(_ question: Question) -> Bool {
+                history.attemptedKeys.contains("\(module.id)#\(question.id)")
+                    || history.attempted.contains(question.id)
+            }
             switch filters.status {
             case .any:
                 break
             case .attempted:
-                questions = questions.filter { history.attempted.contains($0.id) }
+                questions = questions.filter(attempted)
             case .unattempted:
-                questions = questions.filter { !history.attempted.contains($0.id) }
+                questions = questions.filter { !attempted($0) }
             case .wrong:
-                questions = questions.filter { history.wrong.contains($0.id) }
+                questions = questions.filter {
+                    history.wrongKeys.contains("\(module.id)#\($0.id)") || history.wrong.contains($0.id)
+                }
             }
 
             collected.append(contentsOf: questions.shuffled())
@@ -317,7 +327,7 @@ public struct MedxCustomModuleSheet: View {
         guard let uid else { return }
         guard let token = try? await authService.getValidIdToken() else { return }
 
-        async let subjectsTask = FirestoreService.shared.fetchQBankSubjects(idToken: token)
+        async let subjectsTask = FirestoreService.shared.fetchQBankBanks(idToken: token)
         async let attemptsTask = FirestoreService.shared.fetchUserAttempts(uid: uid, idToken: token)
 
         subjects = (try? await subjectsTask) ?? []
@@ -331,8 +341,17 @@ public struct MedxCustomModuleSheet: View {
 // MARK: - Subject picker
 
 struct MedxSubjectMultiPicker: View {
-    let subjects: [QBankSubject]
-    @Binding var selection: Set<Int>
+    let subjects: [MedxBankSubject]
+    @Binding var selection: Set<String>
+
+    /// Grouped by bank, because both banks have an Anatomy and one flat list of forty subjects
+    /// with two of several names is unusable.
+    private var groups: [(bank: MedxBank, subjects: [MedxBankSubject])] {
+        MedxBank.allCases.compactMap { bank in
+            let matching = subjects.filter { $0.bank == bank }
+            return matching.isEmpty ? nil : (bank, matching)
+        }
+    }
 
     var body: some View {
         List {
@@ -354,33 +373,37 @@ struct MedxSubjectMultiPicker: View {
                 }
             }
 
-            Section {
-                ForEach(subjects) { subject in
-                    Button {
-                        HapticManager.selection()
-                        if selection.contains(subject.subjectId) {
-                            selection.remove(subject.subjectId)
-                        } else {
-                            selection.insert(subject.subjectId)
-                        }
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(subject.name)
-                                    .foregroundStyle(.primary)
-                                Text("\((subject.questionCount ?? 0).formatted()) questions")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+            ForEach(groups, id: \.bank) { group in
+                Section {
+                    ForEach(group.subjects) { subject in
+                        Button {
+                            HapticManager.selection()
+                            if selection.contains(subject.id) {
+                                selection.remove(subject.id)
+                            } else {
+                                selection.insert(subject.id)
                             }
-                            Spacer()
-                            if selection.contains(subject.subjectId) {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(MedxTheme.accent)
-                                    .transition(.scale.combined(with: .opacity))
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(subject.name)
+                                        .foregroundStyle(.primary)
+                                    Text("\(subject.questionCount.formatted()) questions")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if selection.contains(subject.id) {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(MedxTheme.accent)
+                                        .transition(.scale.combined(with: .opacity))
+                                }
                             }
+                            .frame(minHeight: 44)
                         }
-                        .frame(minHeight: 44)
                     }
+                } header: {
+                    Text(group.bank.label)
                 }
             }
         }

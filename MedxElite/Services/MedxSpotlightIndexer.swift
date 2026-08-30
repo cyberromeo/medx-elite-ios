@@ -106,19 +106,22 @@ public final class MedxSpotlightIndexer: ObservableObject {
         await submit(items, label: "bookmarks")
     }
 
-    public func indexModules(_ subjects: [QBankSubject]) async {
+    /// Both banks. Nothing in here needs a subject's id, only its name, so this widened to
+    /// `MedxBankSubject` for free — and Spotlight is where "Marrow anatomy" against "Anatomy"
+    /// most needs the bank in the description to tell two same-named subjects apart.
+    public func indexModules(_ subjects: [MedxBankSubject]) async {
         guard isEnabled, !subjects.isEmpty else { return }
 
         var items: [CSSearchableItem] = []
         for subject in subjects {
-            for chapter in subject.chapters ?? [] {
-                for module in chapter.modules ?? [] {
+            for chapter in subject.chapters {
+                for module in chapter.modules {
                     let attributes = CSSearchableItemAttributeSet(contentType: UTType.text)
                     attributes.title = module.name
-                    attributes.contentDescription = "\(subject.name) · \(chapter.name) · "
+                    attributes.contentDescription = "\(subject.bank.label) · \(subject.name) · \(chapter.name) · "
                         + "\(module.questionCount) questions"
                     attributes.keywords = [
-                        "MedX", "QBank", subject.name, chapter.name, "MCQ", "module"
+                        "MedX", "QBank", subject.bank.label, subject.name, chapter.name, "MCQ", "module"
                     ].filter { !$0.isEmpty }
                     // Bigger modules are the more likely target of a vague search.
                     attributes.rankingHint = NSNumber(value: min(module.questionCount, 100))
