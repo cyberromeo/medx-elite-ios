@@ -51,8 +51,8 @@ public struct CountdownWidgetView: View {
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .medxCard(cornerRadius: MedxRadius.card)
-            .contentShape(RoundedRectangle(cornerRadius: MedxRadius.card, style: .continuous))
+            .medxCard(cornerRadius: MedxDS.card)
+            .contentShape(MedxDS.shape(MedxDS.card))
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(title) countdown")
             .accessibilityValue("\(remaining.days) days, \(remaining.hours) hours remaining")

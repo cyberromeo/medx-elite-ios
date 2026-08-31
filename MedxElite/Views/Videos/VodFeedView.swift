@@ -182,7 +182,7 @@ public struct VodFeedView: View {
             } label: {
                 Label("Save", systemImage: "arrow.down.circle")
             }
-            .tint(MedxTheme.successGreen)
+            .tint(MedxDS.correct)
         }
     }
 
@@ -303,7 +303,7 @@ public struct VodFeedView: View {
                 }
                 .padding(.horizontal, 12)
                 .frame(height: 38)
-                .medxSurface(Capsule(style: .continuous), MedxSurfaceSpec(fill: MedxInk.field))
+                .medxSurface(Capsule(style: .continuous), MedxSurfaceSpec(fill: MedxDS.sunken))
 
                 Button {
                     HapticManager.selection()
@@ -318,7 +318,7 @@ public struct VodFeedView: View {
                     .foregroundStyle(onlyCC ? MedxCandy.onSoft(MedxCandy.blue) : .secondary)
                     .padding(.horizontal, 12)
                     .frame(height: 38)
-                    .background(onlyCC ? MedxCandy.blueSoft : MedxSurface.fieldFill, in: Capsule())
+                    .background(onlyCC ? MedxCandy.blueSoft : MedxDS.sunken, in: Capsule())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Only recordings with subtitles")
@@ -467,7 +467,7 @@ public struct VodFeedView: View {
 
     private func rowHue(watched: WatchHistoryEntry?, saved: Bool) -> Color {
         if saved { return MedxCandy.mint }
-        if watched?.isCompleted == true { return MedxTheme.successGreen }
+        if watched?.isCompleted == true { return MedxDS.correct }
         return MedxCandy.blue
     }
 
@@ -537,7 +537,7 @@ public struct VodFeedView: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.caption.weight(.bold))
-                .foregroundStyle(MedxTheme.warningOrange)
+                .foregroundStyle(MedxDS.warn)
             Text(message)
                 .font(.caption)
                 .foregroundStyle(.secondary)

@@ -114,7 +114,7 @@ public struct BatchPapersView: View {
                     }
                 }
             }
-            .padding(.horizontal, MedxSurface.gutter)
+            .padding(.horizontal, MedxDS.gutter)
             .padding(.top, 6)
             .padding(.bottom, 28)
         }
@@ -129,13 +129,13 @@ public struct BatchPapersView: View {
                 icon: "checkmark.seal.fill",
                 value: "\(tests.filter(\.gradable).count)",
                 label: "scored",
-                color: MedxTheme.successGreen
+                color: MedxDS.correct
             )
             MedxMetric(
                 icon: "doc.text.fill",
                 value: "\(tests.filter { !$0.gradable }.count)",
                 label: "practice",
-                color: MedxTheme.warningOrange
+                color: MedxDS.warn
             )
             MedxMetric(
                 icon: "flag.pattern.checkered",
@@ -167,7 +167,7 @@ public struct BatchPapersView: View {
                     skeletonCard
                 }
             }
-            .padding(.horizontal, MedxSurface.gutter)
+            .padding(.horizontal, MedxDS.gutter)
             .padding(.top, 8)
         }
         .allowsHitTesting(false)

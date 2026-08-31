@@ -158,7 +158,7 @@ public struct ModuleBuilderSheet: View {
                                 .padding(.vertical, 40)
                         }
                     }
-                    .padding(.horizontal, MedxSurface.gutter)
+                    .padding(.horizontal, MedxDS.gutter)
                     .padding(.top, 12)
                     .padding(.bottom, 20)
                 }
@@ -394,7 +394,7 @@ public struct ModuleBuilderSheet: View {
                     .padding(.horizontal, 8)
                     .frame(minHeight: 30)
                     .background(
-                        Capsule().fill(allHere ? MedxSection.custom.soft : MedxSurface.fieldFill)
+                        Capsule().fill(allHere ? MedxSection.custom.soft : MedxDS.sunken)
                     )
                 }
                 .buttonStyle(.plain)
@@ -518,7 +518,7 @@ public struct ModuleBuilderSheet: View {
             .padding(.vertical, 9)
             .frame(minHeight: 40)
             .medxTile(accentColor: MedxSection.custom.fill, isSelected: isOn)
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.tileRadius, style: .continuous))
+            .contentShape(MedxDS.shape(MedxDS.control))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(module.name)

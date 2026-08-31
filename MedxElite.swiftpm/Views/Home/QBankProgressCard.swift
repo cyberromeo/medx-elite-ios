@@ -108,7 +108,7 @@ public struct QBankProgressCard: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .medxCard(cornerRadius: MedxRadius.card)
+        .medxCard(cornerRadius: MedxDS.card)
     }
 
     private func figure(value: String, label: String) -> some View {

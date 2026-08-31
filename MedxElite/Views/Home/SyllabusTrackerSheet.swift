@@ -44,7 +44,7 @@ public struct SyllabusTrackerSheet: View {
                     if let errorMessage {
                         Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                             .font(.footnote)
-                            .foregroundStyle(MedxTheme.destructiveRed)
+                            .foregroundStyle(MedxDS.wrong)
                             .padding(.horizontal, 2)
                     }
 
@@ -67,7 +67,7 @@ public struct SyllabusTrackerSheet: View {
                         }
                     }
                 }
-                .padding(.horizontal, MedxSurface.gutter)
+                .padding(.horizontal, MedxDS.gutter)
                 .padding(.top, 12)
                 .padding(.bottom, 32)
             }
@@ -180,7 +180,7 @@ private struct SubjectTrackerRow: View {
                 } else if tracked > 0 {
                     Text("\(done)/\(tracked)")
                         .font(.caption.monospacedDigit())
-                        .foregroundStyle(done == tracked ? MedxTheme.successGreen : .secondary)
+                        .foregroundStyle(done == tracked ? MedxDS.correct : .secondary)
                 }
             }
 
@@ -191,7 +191,7 @@ private struct SubjectTrackerRow: View {
             }
         }
         .padding(14)
-        .medxCard(cornerRadius: MedxRadius.tile)
+        .medxCard(cornerRadius: MedxDS.control)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(subjectName)
     }
@@ -217,17 +217,17 @@ private struct SubjectTrackerRow: View {
             .foregroundStyle(isChecked ? Color.white : (isTracked ? Color.primary : Color.secondary.opacity(0.45)))
             .frame(maxWidth: .infinity, minHeight: 42)
             .background(
-                RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
-                    .fill(isChecked ? MedxTheme.accent : (isTracked ? MedxSurface.fieldFill : Color.clear))
+                MedxDS.shape(MedxDS.control)
+                    .fill(isChecked ? MedxTheme.accent : (isTracked ? MedxDS.sunken : Color.clear))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
+                MedxDS.shape(MedxDS.control)
                     .strokeBorder(
-                        isTracked ? Color.clear : MedxSurface.separator.opacity(0.4),
-                        lineWidth: MedxSurface.hairline
+                        isTracked ? Color.clear : MedxDS.line.opacity(0.4),
+                        lineWidth: 0.5
                     )
             )
-            .contentShape(RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
+            .contentShape(MedxDS.shape(MedxDS.control))
         }
         .buttonStyle(.plain)
         .disabled(!isTracked)

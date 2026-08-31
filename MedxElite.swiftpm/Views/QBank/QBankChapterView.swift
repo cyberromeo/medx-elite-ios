@@ -85,7 +85,7 @@ public struct QBankChapterView: View {
                     }
                 }
             }
-            .padding(.horizontal, MedxSurface.gutter)
+            .padding(.horizontal, MedxDS.gutter)
             .padding(.top, 8)
             .padding(.bottom, 32)
         }
@@ -138,7 +138,7 @@ public struct QBankChapterView: View {
                 value: Double(practisedCount),
                 total: Double(max(subject.moduleCount, 1))
             )
-            .tint(MedxTheme.successGreen)
+            .tint(MedxDS.correct)
 
             Text("\(practisedCount) practised")
                 .font(.caption.monospacedDigit())
@@ -185,8 +185,8 @@ public struct QBankChapterView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
-                .medxCard(cornerRadius: MedxRadius.control)
-                .contentShape(RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
+                .medxCard(cornerRadius: MedxDS.control)
+                .contentShape(MedxDS.shape(MedxDS.control))
             }
             .buttonStyle(.plain)
             .disabled(!searchText.isEmpty)
@@ -223,7 +223,7 @@ public struct QBankChapterView: View {
                     if let result {
                         Text("\(module.questionCount) questions · best \(result.best)/\(result.total) · \(result.count) sitting\(result.count == 1 ? "" : "s")")
                             .font(.caption.monospacedDigit())
-                            .foregroundStyle(MedxTheme.successGreen)
+                            .foregroundStyle(MedxDS.correct)
                     } else {
                         Text("\(module.questionCount) questions")
                             .font(.caption)
@@ -235,15 +235,15 @@ public struct QBankChapterView: View {
 
                 Image(systemName: result == nil ? "play.circle.fill" : "checkmark.circle.fill")
                     .font(.title3)
-                    .foregroundStyle(result == nil ? MedxTheme.accent : MedxTheme.successGreen)
+                    .foregroundStyle(result == nil ? MedxTheme.accent : MedxDS.correct)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .frame(minHeight: 60)
             .medxTile()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.tileRadius, style: .continuous))
+            .contentShape(MedxDS.shape(MedxDS.control))
         }
-        .buttonStyle(BouncyButtonStyle())
+        .buttonStyle(MedxPressStyle())
         // Long press to skip the mode sheet — the two modes are the whole decision.
         .contextMenu {
             Button {

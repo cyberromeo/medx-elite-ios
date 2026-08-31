@@ -81,7 +81,7 @@ public struct MedxQuestionSearchView: View {
                     resultsSection
                 }
             }
-            .padding(.horizontal, MedxSurface.gutter)
+            .padding(.horizontal, MedxDS.gutter)
             .padding(.top, 10)
             .padding(.bottom, 30)
         }
@@ -158,7 +158,7 @@ public struct MedxQuestionSearchView: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .medxCard()
-        .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+        .contentShape(MedxDS.shape(MedxDS.card))
         .accessibilityElement(children: .combine)
     }
 
@@ -169,17 +169,17 @@ public struct MedxQuestionSearchView: View {
         if index.isBookmarked(entry, history: history) {
             Image(systemName: "bookmark.fill")
                 .font(.caption2)
-                .foregroundStyle(MedxTheme.warningOrange)
+                .foregroundStyle(MedxDS.warn)
                 .accessibilityLabel("Bookmarked")
         } else if index.isWrong(entry, history: history) {
             Image(systemName: "xmark.circle.fill")
                 .font(.caption2)
-                .foregroundStyle(MedxTheme.destructiveRed)
+                .foregroundStyle(MedxDS.wrong)
                 .accessibilityLabel("Answered wrong before")
         } else if index.isAttempted(entry, history: history) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.caption2)
-                .foregroundStyle(MedxTheme.successGreen)
+                .foregroundStyle(MedxDS.correct)
                 .accessibilityLabel("Attempted")
         }
     }
@@ -297,7 +297,7 @@ public struct MedxQuestionSearchView: View {
         .foregroundStyle(isOn ? Color.white : Color.primary)
         .padding(.horizontal, 11)
         .padding(.vertical, 7)
-        .background(isOn ? MedxTheme.accent : MedxSurface.fieldFill, in: Capsule())
+        .background(isOn ? MedxTheme.accent : MedxDS.sunken, in: Capsule())
         .contentShape(Capsule())
     }
 
@@ -308,7 +308,7 @@ public struct MedxQuestionSearchView: View {
             HStack(spacing: 10) {
                 Image(systemName: index.isBuilding ? "arrow.down.circle" : "exclamationmark.circle")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(MedxTheme.warningOrange)
+                    .foregroundStyle(MedxDS.warn)
                     .symbolEffect(.pulse, isActive: index.isBuilding)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -531,7 +531,7 @@ struct MedxSearchResultDetailView: View {
                     }
                 }
             }
-            .padding(MedxSurface.gutter)
+            .padding(MedxDS.gutter)
         }
         .medxPage(.qbank)
         .navigationTitle(entry.subject)
@@ -594,19 +594,19 @@ struct MedxSearchResultDetailView: View {
                             .font(.footnote.weight(.bold).monospacedDigit())
                             .foregroundStyle(isCorrect ? Color.white : Color.primary)
                             .frame(width: 26, height: 26)
-                            .background(isCorrect ? MedxTheme.successGreen : MedxSurface.fieldFill, in: Circle())
+                            .background(isCorrect ? MedxDS.correct : MedxDS.sunken, in: Circle())
 
                         HTMLRichTextView(html: option.text, fontSize: 15, weight: .regular)
                             .frame(maxWidth: .infinity, alignment: .leading)
 
                         if isCorrect {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(MedxTheme.successGreen)
+                                .foregroundStyle(MedxDS.correct)
                         }
                     }
                     .padding(13)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .medxTile(accentColor: isCorrect ? MedxTheme.successGreen : nil, isSelected: isCorrect)
+                    .medxTile(accentColor: isCorrect ? MedxDS.correct : nil, isSelected: isCorrect)
                 }
             }
 
@@ -614,7 +614,7 @@ struct MedxSearchResultDetailView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Explanation", systemImage: "lightbulb.fill")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(MedxTheme.warningOrange)
+                        .foregroundStyle(MedxDS.warn)
                     HTMLRichTextView(html: explanation, fontSize: 15, weight: .regular, textColor: .secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

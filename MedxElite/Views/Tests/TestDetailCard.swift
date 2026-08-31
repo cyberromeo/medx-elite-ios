@@ -113,7 +113,7 @@ public struct TestDetailCard: View {
             if !testAttempts.isEmpty {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.title3)
-                    .foregroundStyle(MedxTheme.successGreen)
+                    .foregroundStyle(MedxDS.correct)
                     .accessibilityLabel("Already attempted")
             }
         }
@@ -127,7 +127,7 @@ public struct TestDetailCard: View {
             MedxChip(
                 test.gradable ? "Answer key" : "No key",
                 icon: test.gradable ? "checkmark.seal.fill" : "exclamationmark.triangle.fill",
-                tint: test.gradable ? MedxTheme.successGreen : MedxTheme.warningOrange
+                tint: test.gradable ? MedxDS.correct : MedxDS.warn
             )
             if let batch = test.batch, !batch.isEmpty {
                 MedxChip(batch, tint: MedxTheme.indigoAccent)
@@ -155,7 +155,7 @@ public struct TestDetailCard: View {
             systemImage: "chart.bar.fill"
         )
         .font(.caption)
-        .foregroundStyle(MedxTheme.successGreen)
+        .foregroundStyle(MedxDS.correct)
     }
 
     private var startButton: some View {
@@ -169,7 +169,7 @@ public struct TestDetailCard: View {
         }
         .medxFilledButton()
         .buttonBorderShape(.capsule)
-        .tint(test.gradable ? MedxTheme.accent : MedxTheme.warningOrange)
+        .tint(test.gradable ? MedxTheme.accent : MedxDS.warn)
         .padding(.top, 2)
     }
 }

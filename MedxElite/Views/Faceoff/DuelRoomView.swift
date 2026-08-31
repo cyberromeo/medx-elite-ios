@@ -31,7 +31,7 @@ struct MedxVersusBar: View {
                 .clipShape(Capsule())
             }
             .frame(height: 10)
-            .animation(MedxMotion.snap, value: share)
+            .animation(MedxDS.snap, value: share)
 
             HStack {
                 side(points: mine.points, name: myProfile?.displayName ?? "you", hue: myProfile?.duelFill, alignment: .leading)
@@ -190,7 +190,7 @@ public struct DuelRoomView: View {
                 myProfile: room.myProfile,
                 theirProfile: room.theirProfile
             )
-            .padding(.horizontal, MedxSurface.gutter)
+            .padding(.horizontal, MedxDS.gutter)
             .padding(.bottom, 20)
         }
         .frame(maxWidth: .infinity)
@@ -276,7 +276,7 @@ public struct DuelRoomView: View {
                         .padding(.horizontal, 4)
                     }
                 }
-                .padding(.horizontal, MedxSurface.gutter)
+                .padding(.horizontal, MedxDS.gutter)
                 .padding(.top, 10)
                 .padding(.bottom, 20)
             }
@@ -326,7 +326,7 @@ public struct DuelRoomView: View {
 
     private var clockTint: Color {
         if room.phase == .reveal { return .secondary }
-        return room.remaining <= 10 ? MedxTheme.destructiveRed : MedxSection.duel.fill
+        return room.remaining <= 10 ? MedxDS.wrong : MedxSection.duel.fill
     }
 
     private func options(for question: MedxDuelQuestion) -> some View {
@@ -363,7 +363,7 @@ public struct DuelRoomView: View {
                 Text("Waiting for \(room.theirProfile?.displayName ?? "the host") to open the next "
                      + "question — their app has to be awake.")
                     .font(.caption)
-                    .foregroundStyle(MedxTheme.warningOrange)
+                    .foregroundStyle(MedxDS.warn)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -432,7 +432,7 @@ struct DuelLobbyPane: View {
 
                 action
             }
-            .padding(.horizontal, MedxSurface.gutter)
+            .padding(.horizontal, MedxDS.gutter)
             .padding(.top, 20)
             .padding(.bottom, 28)
         }
@@ -505,12 +505,12 @@ struct DuelLobbyPane: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 18)
         .background {
-            let shape = RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous)
+            let shape = MedxDS.shape(MedxDS.card)
             if isHere {
-                shape.fill((profile?.duelSoft) ?? MedxSurface.cardFill)
+                shape.fill((profile?.duelSoft) ?? MedxDS.raised)
             } else {
                 shape.strokeBorder(
-                    MedxSurface.separator,
+                    MedxDS.line,
                     style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])
                 )
             }
@@ -590,11 +590,11 @@ struct DuelRevealPane: View {
 
             Text(sumText(answer: answer, points: points))
                 .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(points > 0 ? MedxTheme.successGreen : .secondary)
+                .foregroundStyle(points > 0 ? MedxDS.correct : .secondary)
         }
         .padding(12)
         .frame(maxWidth: .infinity)
-        .background((profile?.duelSoft) ?? MedxSurface.tileFill, in: RoundedRectangle(cornerRadius: MedxSurface.tileRadius, style: .continuous))
+        .background((profile?.duelSoft) ?? MedxDS.sunken, in: MedxDS.shape(MedxDS.control))
         .accessibilityElement(children: .combine)
     }
 

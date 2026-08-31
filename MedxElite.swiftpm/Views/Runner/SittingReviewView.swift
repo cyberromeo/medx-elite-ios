@@ -56,65 +56,31 @@ public struct SittingReviewView: View {
 
     // MARK: - Section breakdown
 
-    /// Block by block, in the order they were sat. Worth its own card rather than folding into
-    /// the hero: on a 150-question grand paper the interesting thing is almost always *which*
-    /// of the three blocks went wrong, and that is invisible in a single total.
+    /// Block by block, in the order they were sat. Worth its own section rather than folding into the
+    /// hero: on a 150-question grand paper the interesting thing is almost always *which* of the three
+    /// blocks went wrong, and that is invisible in a single total.
     private var sectionBreakdown: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            MedxSectionHeader(
-                "Blocks",
-                subtitle: "Each one was timed on its own and submitted for good"
-            )
-
-            VStack(spacing: 8) {
-                ForEach(sections) { block in
-                    HStack(spacing: 12) {
-                        Text(block.label)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .frame(minWidth: 78, alignment: .leading)
-
-                        VStack(alignment: .leading, spacing: 5) {
-                            ProgressView(
-                                value: Double(gradable ? block.score : block.attempted),
-                                total: Double(max(block.total, 1))
-                            )
-                            .tint(gradable ? blockTint(block) : MedxCandy.tangerine)
-
-                            Text(blockLine(block))
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if gradable {
-                            Text("\(block.score)/\(block.total)")
-                                .font(.subheadline.weight(.semibold).monospacedDigit())
-                                .foregroundStyle(blockTint(block))
-                        }
-                    }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .medxCard()
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel(block.label)
-                    .accessibilityValue(
-                        gradable
-                            ? "\(block.score) of \(block.total) correct, \(blockLine(block))"
-                            : blockLine(block)
+        Section {
+            ForEach(sections) { block in
+                MedxRow(
+                    lead: gradable ? "\(block.score)" : "\(block.attempted)",
+                    title: block.label,
+                    detail: blockLine(block)
+                ) {
+                    MedxAnswerSheet(
+                        fraction: Double(gradable ? block.score : block.attempted) / Double(max(block.total, 1)),
+                        label: gradable
+                            ? "\(block.score) of \(block.total) correct"
+                            : "\(block.attempted) of \(block.total) attempted"
                     )
                 }
+                .medxListRow()
             }
+        } header: {
+            MedxHeader("Blocks", count: sections.count)
+        } footer: {
+            Text("Each one was timed on its own and submitted for good.")
         }
-    }
-
-    /// A block's own accuracy decides its colour, so a weak block is visible without reading
-    /// the numbers. Deliberately the same three thresholds the hero ring uses.
-    private func blockTint(_ block: MedxAttemptSection) -> Color {
-        guard block.attempted > 0 else { return .secondary }
-        let share = Double(block.score) / Double(max(block.total, 1))
-        if share >= 0.7 { return MedxTheme.successGreen }
-        if share >= 0.5 { return MedxTheme.warningOrange }
-        return MedxTheme.destructiveRed
     }
 
     private func blockLine(_ block: MedxAttemptSection) -> String {
@@ -148,31 +114,31 @@ public struct SittingReviewView: View {
 
     public var body: some View {
         NavigationStack {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 16) {
-                    heroCard
+            List {
+                heroSection
 
-                    if !sections.isEmpty {
-                        sectionBreakdown
+                if !sections.isEmpty {
+                    sectionBreakdown
+                }
+
+                Section {
+                    Picker("Filter", selection: $filter) {
+                        Text("All \(totalCount)").tag(ReviewFilter.all)
+                        Text("Wrong \(wrongCount)").tag(ReviewFilter.wrong)
+                        Text("Skipped \(skippedCount)").tag(ReviewFilter.skipped)
                     }
-
-                    MedxSegmented(
-                        section: section,
-                        segments: [
-                            MedxSegment(value: ReviewFilter.all, label: "All", count: totalCount),
-                            MedxSegment(value: ReviewFilter.wrong, label: "Wrong", count: wrongCount),
-                            MedxSegment(value: ReviewFilter.skipped, label: "Skipped", count: skippedCount)
-                        ],
-                        selection: $filter
-                    )
-                    .accessibilityLabel("Filter")
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .medxPlainRow()
 
                     if filteredQuestions.isEmpty, filter != .all {
                         emptyFilterState
-                            .padding(.top, 24)
+                            .medxPlainRow()
                     }
+                }
 
-                    ForEach(Array(filteredQuestions.enumerated()), id: \.element.id) { _, question in
+                ForEach(Array(filteredQuestions.enumerated()), id: \.element.id) { _, question in
+                    Section {
                         QuestionReviewCard(
                             questionNumber: (questions.firstIndex { $0.id == question.id } ?? 0) + 1,
                             question: question,
@@ -181,13 +147,11 @@ public struct SittingReviewView: View {
                             sourceName: name,
                             subject: subject
                         )
+                        .medxListRow()
                     }
                 }
-                .padding(.horizontal, MedxSurface.gutter)
-                .padding(.top, 10)
-                .padding(.bottom, 28)
             }
-            .medxPage(section)
+            .medxList()
             .navigationTitle(name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -196,7 +160,7 @@ public struct SittingReviewView: View {
                         HapticManager.medium()
                         onDone()
                     }
-                    .font(.body.weight(.semibold))
+                    .font(MedxType.title)
                 }
             }
         }
@@ -204,94 +168,82 @@ public struct SittingReviewView: View {
 
     // MARK: - Hero
 
-    private var heroCard: some View {
-        VStack(spacing: 16) {
-            if gradable {
-                let percent = totalCount > 0
-                    ? Int((Double(scoreCount) / Double(totalCount) * 100).rounded())
-                    : 0
-
-                HStack(spacing: 20) {
-                    ProgressRingView(
-                        progress: Double(scoreCount) / Double(max(totalCount, 1)),
-                        strokeWidth: 9,
-                        size: 92,
-                        tint: MedxTheme.successGreen,
-                        centerContent: AnyView(
-                            VStack(spacing: 0) {
-                                Text("\(percent)%")
-                                    .font(.title3.weight(.bold).monospacedDigit())
-                                Text("score")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        )
-                    )
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("\(scoreCount) / \(totalCount)")
-                            .font(.title2.weight(.bold).monospacedDigit())
-                        Text(subject.isEmpty ? "Sitting complete" : subject)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                        if skippedCount > 0 {
-                            Text("\(skippedCount) unattempted")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
+    /// The whole sitting as one grid, and this is the screen the answer sheet was designed for: it is the
+    /// only place in the app with real per-question outcomes to draw, and "which third of the paper went
+    /// wrong" is legible from it in a way no percentage is.
+    private var heroSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(gradable ? "\(scoreCount)" : "\(attemptedCount)")
+                        .font(MedxType.hero)
+                        .contentTransition(.numericText())
+                    Text("/ \(totalCount)")
+                        .font(MedxType.display)
+                        .foregroundStyle(.secondary)
                     Spacer(minLength: 0)
-
-                    MedxSticker(resultSticker(percent: percent), size: 40, tilt: -9)
                 }
-            } else {
-                HStack(alignment: .top, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Practice complete")
-                            .font(.title3.weight(.semibold))
-                        Text("This paper has no official answer key, so it isn't graded. You answered \(attemptedCount) of \(totalCount) questions.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+
+                Text(heroCaption)
+                    .medxTag()
+
+                MedxAnswerSheet(cells: reviewCells, scale: .sheet, label: sheetSummary)
+
+                HStack(alignment: .top, spacing: 10) {
+                    if gradable {
+                        MedxStat("\(scoreCount)", label: "correct", tint: MedxDS.correct)
+                        MedxStat("\(wrongCount)", label: "wrong", tint: wrongCount > 0 ? MedxDS.wrong : nil)
+                    } else {
+                        MedxStat("\(attemptedCount)", label: "attempted")
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if skippedCount > 0 {
+                        MedxStat("\(skippedCount)", label: "skipped")
+                    }
+                    MedxStat(formattedElapsed, label: "time taken")
+                }
 
-                    MedxSticker("memo", size: 36, tilt: -8)
+                if !gradable {
+                    Text("This paper has no official answer key, so nothing here is scored — only what you attempted is recorded.")
+                        .font(MedxType.body)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-
-            MedxMetricsRow {
-                if gradable {
-                    MedxMetric(icon: "checkmark.circle.fill", value: "\(scoreCount)", label: "correct", color: MedxTheme.successGreen)
-                    MedxMetric(icon: "xmark.circle.fill", value: "\(wrongCount)", label: "wrong", color: MedxTheme.destructiveRed)
-                } else {
-                    MedxMetric(icon: "checkmark.circle.fill", value: "\(attemptedCount)", label: "attempted", color: MedxCandy.violet)
-                }
-                MedxMetric(icon: "clock.fill", value: formattedElapsed, label: "time taken", color: MedxCandy.sky)
-            }
+            .medxPlainRow()
         }
-        .padding(18)
-        .medxCard(cornerRadius: MedxRadius.card, raised: true)
     }
 
-    /// A mark for the result, and the one place in this app where a sticker carries meaning
-    /// rather than decoration — it is read before any of the numbers are.
-    private func resultSticker(percent: Int) -> String {
-        if percent >= 85 { return "trophy" }
-        if percent >= 70 { return "medal" }
-        if percent >= 50 { return "bulb" }
-        return "crutch"
+    /// One cell per question, in paper order, from the real response.
+    private var reviewCells: [MedxSheetCell] {
+        questions.map { question in
+            guard let response = responses[question.id] else { return .pending }
+            if response.timedOut == true { return .missed }
+            guard response.chosenId != nil else { return .pending }
+            guard gradable else { return .answered }
+            return response.correct ? .correct : .wrong
+        }
+    }
+
+    private var heroCaption: String {
+        let percent = totalCount > 0
+            ? Int((Double(gradable ? scoreCount : attemptedCount) / Double(totalCount) * 100).rounded())
+            : 0
+        let lead = subject.isEmpty ? "sitting complete" : subject
+        return gradable ? "\(percent)% · \(lead)" : lead
+    }
+
+    private var sheetSummary: String {
+        gradable
+            ? "\(scoreCount) correct, \(wrongCount) wrong, \(skippedCount) not attempted"
+            : "\(attemptedCount) of \(totalCount) attempted"
     }
 
     private var emptyFilterState: some View {
         ContentUnavailableView {
-            Label {
-                Text(filter == .wrong ? "Nothing wrong here" : "Nothing skipped")
-            } icon: {
-                MedxSticker(filter == .wrong ? "party" : "bullseye", size: 42)
-            }
+            Label(
+                filter == .wrong ? "Nothing wrong here" : "Nothing skipped",
+                systemImage: filter == .wrong ? "checkmark.circle" : "target"
+            )
         } description: {
             Text(filter == .wrong
                  ? "You didn't get any question wrong in this sitting."
@@ -343,8 +295,7 @@ private struct QuestionReviewCard: View {
 
             explanationSection
         }
-        .padding(16)
-        .medxCard()
+        .padding(.vertical, 4)
         .contextMenu {
             Button {
                 toggleBookmark()
@@ -364,7 +315,7 @@ private struct QuestionReviewCard: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .medxSurface(Capsule(style: .continuous), MedxSurfaceSpec(fill: MedxInk.field))
+                .background(Capsule(style: .continuous).fill(MedxDS.sunken))
 
             Label(outcome.title, systemImage: outcome.icon)
                 .font(.caption.weight(.semibold))
@@ -372,14 +323,18 @@ private struct QuestionReviewCard: View {
 
             Spacer(minLength: 0)
 
-            MedxCircleButton(
-                icon: isBookmarked ? "bookmark.fill" : "bookmark",
-                tint: isBookmarked ? MedxTheme.warningOrange : nil,
-                accessibilityLabel: isBookmarked ? "Remove bookmark" : "Bookmark question",
-                accessibilityValue: isBookmarked ? "Saved" : "Not saved"
-            ) {
+            Button {
                 toggleBookmark()
+            } label: {
+                Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(isBookmarked ? MedxDS.warn : Color.secondary)
+                    .symbolEffect(.bounce, value: isBookmarked)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Circle())
             }
+            .buttonStyle(MedxPressStyle())
+            .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark question")
         }
     }
 
@@ -402,15 +357,15 @@ private struct QuestionReviewCard: View {
                 let isChosen = response?.chosenId == option.id
                 let isCorrect = option.correct == true || question.correctIds.contains(option.id)
                 let tint: Color? = isCorrect
-                    ? MedxTheme.successGreen
-                    : (isChosen ? MedxTheme.destructiveRed : nil)
+                    ? MedxDS.correct
+                    : (isChosen ? MedxDS.wrong : nil)
 
                 HStack(alignment: .top, spacing: 12) {
                     Text(MedxOptionLetter.of(option, at: pair.offset))
                         .font(.footnote.weight(.bold))
                         .foregroundStyle(tint == nil ? Color.primary : Color.white)
                         .frame(width: 26, height: 26)
-                        .background(Circle().fill(tint ?? MedxSurface.fieldFill))
+                        .background(Circle().fill(tint ?? MedxDS.sunken))
 
                     HTMLRichTextView(
                         html: option.text,
@@ -425,17 +380,17 @@ private struct QuestionReviewCard: View {
                     if isCorrect {
                         Image(systemName: "checkmark")
                             .font(.footnote.weight(.bold))
-                            .foregroundStyle(MedxTheme.successGreen)
+                            .foregroundStyle(MedxDS.correct)
                     } else if isChosen {
                         Image(systemName: "xmark")
                             .font(.footnote.weight(.bold))
-                            .foregroundStyle(MedxTheme.destructiveRed)
+                            .foregroundStyle(MedxDS.wrong)
                     }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-                .medxTile(cornerRadius: MedxRadius.control, accentColor: tint, isSelected: tint != nil)
+                .medxOptionSurface(state: tint, emphasized: tint != nil)
             }
         }
     }
@@ -451,7 +406,7 @@ private struct QuestionReviewCard: View {
                 } label: {
                     HStack {
                         Text("Explanation")
-                            .font(.subheadline.weight(.semibold))
+                            .font(MedxType.title)
                             .foregroundStyle(.primary)
                         Spacer()
                         Image(systemName: isExplanationExpanded ? "chevron.up" : "chevron.down")
@@ -470,13 +425,13 @@ private struct QuestionReviewCard: View {
 
                     if !reference.isEmpty {
                         Label(reference, systemImage: "book.closed")
-                            .font(.caption)
+                            .font(MedxType.body)
                             .foregroundStyle(.tertiary)
                     }
                 }
             }
             .padding(14)
-            .medxTile(cornerRadius: MedxRadius.tile)
+            .background(MedxDS.shape(MedxDS.control).fill(MedxDS.sunken))
         }
     }
 }

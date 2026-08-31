@@ -27,12 +27,12 @@ public struct PasswordPromptView: View {
                         .onSubmit(handleSignIn)
                         .font(.body)
                         .padding(14)
-                        .medxCard(cornerRadius: MedxRadius.tile)
+                        .medxCard(cornerRadius: MedxDS.control)
                         .overlay(
-                            RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
+                            MedxDS.shape(MedxDS.control)
                                 .strokeBorder(
-                                    isFocused ? MedxTheme.accent.opacity(0.55) : MedxSurface.separator.opacity(0.35),
-                                    lineWidth: isFocused ? 1.5 : MedxSurface.hairline
+                                    isFocused ? MedxTheme.accent.opacity(0.55) : MedxDS.line.opacity(0.35),
+                                    lineWidth: isFocused ? 1.5 : 0.5
                                 )
                         )
                         .animation(.easeInOut(duration: 0.18), value: isFocused)
@@ -40,7 +40,7 @@ public struct PasswordPromptView: View {
                     if let error = localError ?? authService.errorMessage {
                         Label(error, systemImage: "exclamationmark.triangle.fill")
                             .font(.footnote)
-                            .foregroundStyle(MedxTheme.destructiveRed)
+                            .foregroundStyle(MedxDS.wrong)
                             .transition(.opacity)
                     }
                 }

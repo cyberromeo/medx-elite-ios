@@ -36,7 +36,7 @@ struct DuelResultView: View {
                     statsGrid
                     review
                 }
-                .padding(.horizontal, MedxSurface.gutter)
+                .padding(.horizontal, MedxDS.gutter)
                 .padding(.top, 12)
                 .padding(.bottom, 24)
             }
@@ -224,13 +224,13 @@ struct DuelResultView: View {
         let tint: Color
         if answer?.correct == true {
             symbol = "checkmark.circle.fill"
-            tint = MedxTheme.successGreen
+            tint = MedxDS.correct
         } else if answer?.timedOut ?? true {
             symbol = "clock.badge.xmark"
             tint = .secondary
         } else {
             symbol = "xmark.circle.fill"
-            tint = MedxTheme.destructiveRed
+            tint = MedxDS.wrong
         }
         return Image(systemName: symbol)
             .font(.caption.weight(.bold))

@@ -126,7 +126,7 @@ public struct VideoPlayerView: View {
         VStack(spacing: 20) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 38))
-                .foregroundStyle(MedxTheme.warningOrange)
+                .foregroundStyle(MedxDS.warn)
                 .accessibilityHidden(true)
 
             VStack(spacing: 8) {

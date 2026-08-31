@@ -237,7 +237,7 @@ public struct FaceoffLobbyView: View {
 
                     footer
                 }
-                .padding(.horizontal, MedxSurface.gutter)
+                .padding(.horizontal, MedxDS.gutter)
                 .padding(.top, 6)
                 .padding(.bottom, 28)
             }
@@ -290,7 +290,7 @@ public struct FaceoffLobbyView: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "icloud.slash")
                 .font(.caption.weight(.bold))
-                .foregroundStyle(MedxTheme.warningOrange)
+                .foregroundStyle(MedxDS.warn)
             Text("Firestore would not take the duel collections, so Faceoff cannot run. Nothing "
                  + "else in the app is affected.")
                 .font(.caption)
@@ -308,7 +308,7 @@ public struct FaceoffLobbyView: View {
         return HStack(spacing: 12) {
             MedxSticker(host?.sticker ?? "bolt", size: 30, tilt: -7)
                 .frame(width: 40, height: 40)
-                .background(hue.opacity(0.2), in: RoundedRectangle(cornerRadius: MedxRadius.tile, style: .continuous))
+                .background(hue.opacity(0.2), in: MedxDS.shape(MedxDS.control))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(host?.displayName ?? "Someone") is waiting")
@@ -348,7 +348,7 @@ public struct FaceoffLobbyView: View {
         HStack(spacing: 12) {
             MedxSticker("hourglass", size: 26, tilt: 6)
                 .frame(width: 38, height: 38)
-                .medxTile(cornerRadius: MedxRadius.control)
+                .medxTile(cornerRadius: MedxDS.control)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Waiting for \(other?.displayName ?? "the other one")")
@@ -480,7 +480,7 @@ public struct FaceoffLobbyView: View {
             }
             .padding(12)
             .medxCard()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+            .contentShape(MedxDS.shape(MedxDS.card))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(game.source?.name ?? "Faceoff")
@@ -584,7 +584,7 @@ struct FaceoffHostSheet: View {
                         searchField
                         list
                     }
-                    .padding(.horizontal, MedxSurface.gutter)
+                    .padding(.horizontal, MedxDS.gutter)
                     .padding(.top, 12)
                     .padding(.bottom, 20)
                 }
@@ -667,7 +667,7 @@ struct FaceoffHostSheet: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 38)
-        .medxSurface(Capsule(style: .continuous), MedxSurfaceSpec(fill: MedxInk.field))
+        .medxSurface(Capsule(style: .continuous), MedxSurfaceSpec(fill: MedxDS.sunken))
     }
 
     // MARK: - The list
@@ -796,8 +796,8 @@ struct FaceoffHostSheet: View {
                 .foregroundStyle(isOn ? MedxSection.duel.onSoft : Color.secondary)
                 .frame(width: 34, height: 34)
                 .background(
-                    isOn ? MedxSection.duel.soft : MedxSurface.fieldFill,
-                    in: RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
+                    isOn ? MedxSection.duel.soft : MedxDS.sunken,
+                    in: MedxDS.shape(MedxDS.control)
                 )
                 .accessibilityHidden(true)
 
@@ -824,7 +824,7 @@ struct FaceoffHostSheet: View {
         .padding(12)
         .frame(minHeight: 54)
         .medxTile(accentColor: MedxSection.duel.fill, isSelected: isOn)
-        .contentShape(RoundedRectangle(cornerRadius: MedxSurface.tileRadius, style: .continuous))
+        .contentShape(MedxDS.shape(MedxDS.control))
         .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
     }
 
@@ -833,7 +833,7 @@ struct FaceoffHostSheet: View {
             if let failure = lobby.failure {
                 Text(failure)
                     .font(.caption)
-                    .foregroundStyle(MedxTheme.warningOrange)
+                    .foregroundStyle(MedxDS.warn)
                     .fixedSize(horizontal: false, vertical: true)
             } else if picked != nil {
                 Text("\(dealt) question\(dealt == 1 ? "" : "s"), shuffled, a minute each — "

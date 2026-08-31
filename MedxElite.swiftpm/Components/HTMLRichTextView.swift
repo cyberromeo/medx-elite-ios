@@ -146,10 +146,10 @@ public struct HTMLRichTextView: View {
         CachedAsyncImage(url: url, contentMode: .fit)
             .frame(maxWidth: .infinity)
             .frame(maxHeight: maxImageHeight)
-            .clipShape(RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
+            .clipShape(MedxDS.shape(MedxDS.control))
             .overlay(
-                RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
-                    .strokeBorder(MedxSurface.separator.opacity(0.35), lineWidth: MedxSurface.hairline)
+                MedxDS.shape(MedxDS.control)
+                    .strokeBorder(MedxDS.line.opacity(0.35), lineWidth: 0.5)
             )
     }
 }

@@ -128,7 +128,7 @@ public struct FlashcardsSubjectListView: View {
                     subjectGrid(layout: layout)
                 }
             }
-            .padding(.horizontal, MedxSurface.gutter)
+            .padding(.horizontal, MedxDS.gutter)
             .padding(.top, 6)
             .padding(.bottom, 28)
         }
@@ -166,7 +166,7 @@ public struct FlashcardsSubjectListView: View {
                         if let preview = previewURL(for: subject, layout: layout) {
                             CachedAsyncImage(url: preview, contentMode: .fill, maxPixelSize: 700)
                         } else {
-                            MedxSurface.tileFill
+                            MedxDS.sunken
                                 .overlay(
                                     MedxSticker(
                                         MedxSubjectArt.sticker(for: subject.name),
@@ -188,10 +188,10 @@ public struct FlashcardsSubjectListView: View {
             }
             .clipShape(
                 UnevenRoundedRectangle(
-                    topLeadingRadius: MedxSurface.cardRadius,
+                    topLeadingRadius: MedxDS.card,
                     bottomLeadingRadius: 0,
                     bottomTrailingRadius: 0,
-                    topTrailingRadius: MedxSurface.cardRadius,
+                    topTrailingRadius: MedxDS.card,
                     style: .continuous
                 )
             )

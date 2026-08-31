@@ -79,7 +79,7 @@ public struct SettingsView: View {
                                         .font(.body)
                                 } icon: {
                                     Image(systemName: "person.crop.circle.badge.xmark")
-                                        .foregroundColor(MedxTheme.destructiveRed)
+                                        .foregroundColor(MedxDS.wrong)
                                 }
                                 .frame(minHeight: 44)
                             }
@@ -102,7 +102,7 @@ public struct SettingsView: View {
                         settingsRow(
                             title: "Offline Downloads",
                             icon: "arrow.down.circle.fill",
-                            color: MedxTheme.successGreen,
+                            color: MedxDS.correct,
                             value: "\(downloads.completedItems.count)"
                         )
                     }
@@ -226,7 +226,7 @@ public struct SettingsView: View {
                             }
                         } icon: {
                             Image(systemName: "arrow.down.circle.fill")
-                                .foregroundColor(MedxTheme.successGreen)
+                                .foregroundColor(MedxDS.correct)
                         }
                         Spacer()
                         Text(downloads.formattedTotalSize)
@@ -243,7 +243,7 @@ public struct SettingsView: View {
                                     .font(.body)
                             } icon: {
                                 Image(systemName: "trash")
-                                    .foregroundColor(MedxTheme.destructiveRed)
+                                    .foregroundColor(MedxDS.wrong)
                             }
                         }
                     }
@@ -295,12 +295,12 @@ public struct SettingsView: View {
                                     .font(.body)
                             } icon: {
                                 Image(systemName: "trash")
-                                    .foregroundColor(MedxTheme.warningOrange)
+                                    .foregroundColor(MedxDS.warn)
                             }
                             Spacer()
                             if cacheCleared {
                                 Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(MedxTheme.successGreen)
+                                    .foregroundColor(MedxDS.correct)
                                     .transition(.scale.combined(with: .opacity))
                             }
                         }
@@ -322,7 +322,7 @@ public struct SettingsView: View {
                                 .font(.body)
                         } icon: {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
-                                .foregroundColor(MedxTheme.destructiveRed)
+                                .foregroundColor(MedxDS.wrong)
                         }
                     }
 
@@ -335,7 +335,7 @@ public struct SettingsView: View {
                                     .font(.body)
                             } icon: {
                                 Image(systemName: "key.slash")
-                                    .foregroundColor(MedxTheme.destructiveRed)
+                                    .foregroundColor(MedxDS.wrong)
                             }
                         }
                     }
@@ -365,7 +365,7 @@ public struct SettingsView: View {
                                 .font(.body)
                         } icon: {
                             Image(systemName: "swift")
-                                .foregroundColor(MedxTheme.warningOrange)
+                                .foregroundColor(MedxDS.warn)
                         }
                         Spacer()
                         Text("Swift Native iOS 17")
@@ -639,7 +639,7 @@ public struct SettingsView: View {
                             .font(.body)
                     } icon: {
                         Image(systemName: "trash")
-                            .foregroundStyle(MedxTheme.destructiveRed)
+                            .foregroundStyle(MedxDS.wrong)
                     }
                     .frame(minHeight: 44)
                 }
@@ -648,7 +648,7 @@ public struct SettingsView: View {
             if let error = index.lastError {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.caption)
-                    .foregroundStyle(MedxTheme.warningOrange)
+                    .foregroundStyle(MedxDS.warn)
             }
         } header: {
             MedxSettingsHeader("Question search", symbol: "magnifyingglass", hue: MedxCandy.lime)
@@ -685,7 +685,7 @@ public struct SettingsView: View {
                         }
                     } icon: {
                         Image(systemName: "bell.badge")
-                            .foregroundStyle(MedxTheme.warningOrange)
+                            .foregroundStyle(MedxDS.warn)
                     }
                     .frame(minHeight: 44)
                 }
@@ -977,7 +977,7 @@ public struct SettingsView: View {
     private func diagnosticRow(title: String, detail: String, ok: Bool) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                .foregroundStyle(ok ? MedxTheme.successGreen : MedxTheme.warningOrange)
+                .foregroundStyle(ok ? MedxDS.correct : MedxDS.warn)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -1115,7 +1115,7 @@ struct BookmarkedQuestionsView: View {
                                                 .padding(.horizontal, 12)
                                                 .padding(.vertical, 6)
                                                 .background(
-                                                    selectedSubject == subj ? MedxTheme.primaryPurple : MedxInk.field,
+                                                    selectedSubject == subj ? MedxTheme.primaryPurple : MedxDS.sunken,
                                                     in: Capsule()
                                                 )
                                         }
@@ -1253,7 +1253,7 @@ private struct BookmarkedQuestionDetailView: View {
                     ForEach(imgs, id: \.self) { imgUrl in
                         CachedAsyncImage(url: URL(string: imgUrl))
                             .frame(maxHeight: 220)
-                            .clipShape(RoundedRectangle(cornerRadius: MedxRadius.tile, style: .continuous))
+                            .clipShape(MedxDS.shape(MedxDS.control))
                     }
                 }
 
@@ -1268,7 +1268,7 @@ private struct BookmarkedQuestionDetailView: View {
                                 .font(.footnote.weight(.bold).monospacedDigit())
                                 .foregroundColor(isCorrect ? .white : .primary)
                                 .frame(width: 28, height: 28)
-                                .background(isCorrect ? MedxTheme.successGreen : Color.primary.opacity(0.08))
+                                .background(isCorrect ? MedxDS.correct : Color.primary.opacity(0.08))
                                 .clipShape(Circle())
 
                             HTMLRichTextView(html: option.text, fontSize: 14, weight: .regular)
@@ -1280,15 +1280,15 @@ private struct BookmarkedQuestionDetailView: View {
                             if isCorrect {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.headline)
-                                    .foregroundColor(MedxTheme.successGreen)
+                                    .foregroundColor(MedxDS.correct)
                             }
                         }
                         .padding(14)
                         .frame(maxWidth: .infinity, minHeight: 52, alignment: .center)
-                        .background(isCorrect ? MedxTheme.successGreen.opacity(0.12) : MedxInk.sunken, in: RoundedRectangle(cornerRadius: MedxRadius.tile, style: .continuous))
+                        .background(isCorrect ? MedxDS.correct.opacity(0.12) : MedxDS.sunken, in: MedxDS.shape(MedxDS.control))
                         .overlay(
-                            RoundedRectangle(cornerRadius: MedxRadius.tile, style: .continuous)
-                                .strokeBorder(isCorrect ? MedxTheme.successGreen.opacity(0.4) : Color.clear, lineWidth: 1)
+                            MedxDS.shape(MedxDS.control)
+                                .strokeBorder(isCorrect ? MedxDS.correct.opacity(0.4) : Color.clear, lineWidth: 1)
                         )
                     }
                 }
@@ -1298,7 +1298,7 @@ private struct BookmarkedQuestionDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Explanation", systemImage: "lightbulb.fill")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(MedxTheme.warningOrange)
+                            .foregroundStyle(MedxDS.warn)
                         HTMLRichTextView(html: explanation, fontSize: 15, weight: .regular, textColor: .secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1316,12 +1316,12 @@ private struct BookmarkedQuestionDetailView: View {
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .medxBorderedButton()
-                .tint(MedxTheme.destructiveRed)
+                .tint(MedxDS.wrong)
                 .padding(.top, 10)
             }
             .padding(20)
         }
-        .background(MedxInk.page)
+        .background(MedxDS.page)
         .navigationTitle("Question Details")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -1388,13 +1388,13 @@ private struct WatchHistoryView: View {
                                     }
 
                                     ProgressView(value: entry.progress)
-                                        .tint(entry.isCompleted ? MedxTheme.successGreen : MedxTheme.primaryBlue)
+                                        .tint(entry.isCompleted ? MedxDS.correct : MedxTheme.primaryBlue)
 
                                     HStack {
                                         if entry.isCompleted {
                                             Label("Completed", systemImage: "checkmark.circle.fill")
                                                 .font(.caption.weight(.bold).monospacedDigit())
-                                                .foregroundColor(MedxTheme.successGreen)
+                                                .foregroundColor(MedxDS.correct)
                                         } else {
                                             Label("Resume at \(entry.formattedResumeTime)", systemImage: "arrow.counterclockwise.circle.fill")
                                                 .font(.caption.weight(.bold).monospacedDigit())

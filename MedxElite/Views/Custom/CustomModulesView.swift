@@ -52,14 +52,14 @@ public struct CustomModulesView: View {
                 }
 
                 if let warning = store.lastDeleteWarning {
-                    noteRow(warning, icon: "icloud.slash", tint: MedxTheme.warningOrange)
+                    noteRow(warning, icon: "icloud.slash", tint: MedxDS.warn)
                 }
 
                 if !store.modules.isEmpty {
                     syncFooter
                 }
             }
-            .padding(.horizontal, MedxSurface.gutter)
+            .padding(.horizontal, MedxDS.gutter)
             .padding(.top, 6)
             .padding(.bottom, 28)
         }
@@ -171,7 +171,7 @@ public struct CustomModulesView: View {
                 ? "Firestore would not take these, so they live on this device only. Everything still works — they just will not appear on the other one."
                 : "Mirrored to medx_custom_modules, so both of you see the same list on every device.",
             icon: store.remoteWorks == false ? "icloud.slash" : "checkmark.icloud",
-            tint: store.remoteWorks == false ? MedxTheme.warningOrange : .secondary
+            tint: store.remoteWorks == false ? MedxDS.warn : .secondary
         )
     }
 
@@ -270,7 +270,7 @@ struct CustomModuleCard: View {
                 if module.synced == false {
                     Image(systemName: "icloud.slash")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(MedxTheme.warningOrange)
+                        .foregroundStyle(MedxDS.warn)
                         .accessibilityLabel("On this device only")
                 }
             }
@@ -417,7 +417,7 @@ struct MedxCustomRunSheet: View {
                         .padding(.horizontal, 4)
                     }
                 }
-                .padding(.horizontal, MedxSurface.gutter)
+                .padding(.horizontal, MedxDS.gutter)
                 .padding(.top, 12)
                 .padding(.bottom, 28)
             }
@@ -448,7 +448,7 @@ struct MedxCustomRunSheet: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(MedxSection.custom.onSoft)
                     .frame(width: 42, height: 42)
-                    .background(MedxSection.custom.soft, in: RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
+                    .background(MedxSection.custom.soft, in: MedxDS.shape(MedxDS.control))
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
@@ -466,9 +466,9 @@ struct MedxCustomRunSheet: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .medxCard()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+            .contentShape(MedxDS.shape(MedxDS.card))
         }
-        .buttonStyle(BouncyButtonStyle())
+        .buttonStyle(MedxPressStyle())
         .disabled(isBuilding)
         .accessibilityLabel(title)
         .accessibilityHint(blurb)

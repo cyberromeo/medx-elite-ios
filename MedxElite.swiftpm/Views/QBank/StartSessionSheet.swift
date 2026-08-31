@@ -61,7 +61,7 @@ public struct StartSessionSheet: View {
                         }
                     }
                 }
-                .padding(.horizontal, MedxSurface.gutter)
+                .padding(.horizontal, MedxDS.gutter)
                 .padding(.bottom, 24)
             }
             .scrollBounceBehavior(.basedOnSize)
@@ -127,9 +127,9 @@ private struct ModeCard: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .medxSheetCard(tint: tint)
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+            .contentShape(MedxDS.shape(MedxDS.card))
         }
-        .buttonStyle(BouncyButtonStyle())
+        .buttonStyle(MedxPressStyle())
         .accessibilityLabel("\(mode.displayName)")
         .accessibilityHint("\(mode.description). \(durationText).")
     }

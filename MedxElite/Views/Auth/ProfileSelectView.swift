@@ -96,7 +96,7 @@ public struct ProfileSelectView: View {
                 } else if authService.hasSavedPassword(for: profile.id) {
                     Image(systemName: "faceid")
                         .font(.title3)
-                        .foregroundStyle(MedxTheme.successGreen)
+                        .foregroundStyle(MedxDS.correct)
                         .accessibilityLabel("Password saved")
                 } else {
                     MedxDisclosure()
@@ -105,9 +105,9 @@ public struct ProfileSelectView: View {
             .padding(16)
             .frame(minHeight: 76)
             .medxCard()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+            .contentShape(MedxDS.shape(MedxDS.card))
         }
-        .buttonStyle(BouncyButtonStyle())
+        .buttonStyle(MedxPressStyle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Sign in as \(profile.displayName)")
     }

@@ -175,7 +175,7 @@ public enum MedxOptionLetter {
     }
 }
 
-private extension View {
+extension View {
     /// An answer row's surface: one fill, and a border **only** when the row means something.
     ///
     /// This is the design rule for the whole app applied to the four rows that matter most. A resting

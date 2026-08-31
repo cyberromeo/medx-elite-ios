@@ -166,7 +166,7 @@ public struct MedxCustomModuleSheet: View {
                     Spacer()
                     Text("\(availableCount.formatted())")
                         .font(.body.monospacedDigit())
-                        .foregroundStyle(availableCount >= length ? MedxTheme.successGreen : MedxTheme.warningOrange)
+                        .foregroundStyle(availableCount >= length ? MedxDS.correct : MedxDS.warn)
                         .contentTransition(.numericText())
                 }
                 .frame(minHeight: 44)

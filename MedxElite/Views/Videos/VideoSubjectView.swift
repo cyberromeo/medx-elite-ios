@@ -91,7 +91,7 @@ public struct VideoSubjectView: View {
             } label: {
                 Label("Save", systemImage: "arrow.down.circle")
             }
-            .tint(MedxTheme.successGreen)
+            .tint(MedxDS.correct)
         }
     }
 
@@ -118,7 +118,7 @@ public struct VideoSubjectView: View {
             } label: {
                 Label("Clear", systemImage: "clock.badge.xmark")
             }
-            .tint(MedxTheme.warningOrange)
+            .tint(MedxDS.warn)
         }
     }
 
@@ -161,7 +161,7 @@ public struct VideoSubjectView: View {
             MedxChip("\(subjectGroup.totalClasses) classes", icon: "play.fill", tint: MedxTheme.primaryBlue)
             MedxChip(subjectGroup.formattedDuration, icon: "clock.fill", tint: MedxTheme.primaryPurple)
             if offlineCount > 0 {
-                MedxChip("\(offlineCount) offline", icon: "arrow.down.circle.fill", tint: MedxTheme.successGreen)
+                MedxChip("\(offlineCount) offline", icon: "arrow.down.circle.fill", tint: MedxDS.correct)
             }
             Spacer(minLength: 0)
         }
@@ -246,7 +246,7 @@ public struct VideoSubjectView: View {
             if downloads.items[video.id]?.state == .completed {
                 Image(systemName: "arrow.down.circle.fill")
                     .font(.caption2)
-                    .foregroundStyle(MedxTheme.successGreen)
+                    .foregroundStyle(MedxDS.correct)
                     .accessibilityLabel("Available offline")
             }
         }
@@ -255,14 +255,14 @@ public struct VideoSubjectView: View {
     private func progressLine(_ history: WatchHistoryEntry) -> some View {
         HStack(spacing: 6) {
             ProgressView(value: history.progress)
-                .tint(history.isCompleted ? MedxTheme.successGreen : MedxTheme.accent)
+                .tint(history.isCompleted ? MedxDS.correct : MedxTheme.accent)
                 .frame(width: 64)
 
             Text(history.isCompleted
                  ? "Watched"
                  : "Resume at \(history.formattedResumeTime) · \(Int(history.progress * 100))%")
                 .font(.caption2)
-                .foregroundStyle(history.isCompleted ? MedxTheme.successGreen : .secondary)
+                .foregroundStyle(history.isCompleted ? MedxDS.correct : .secondary)
                 .lineLimit(1)
         }
     }
@@ -313,9 +313,9 @@ public extension View {
             .listRowInsets(
                 EdgeInsets(
                     top: vertical,
-                    leading: MedxSurface.gutter,
+                    leading: MedxDS.gutter,
                     bottom: vertical,
-                    trailing: MedxSurface.gutter
+                    trailing: MedxDS.gutter
                 )
             )
             .listRowBackground(Color.clear)

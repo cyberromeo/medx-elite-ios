@@ -19,7 +19,7 @@ public struct MedxSplashView: View {
 
     public var body: some View {
         ZStack {
-            MedxInk.page
+            MedxDS.page
                 .ignoresSafeArea()
 
             VStack(spacing: 26) {
