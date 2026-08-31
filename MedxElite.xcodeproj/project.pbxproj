@@ -28,7 +28,6 @@
 		9B0010232A00000100000001 /* GlassModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010242A00000100000001 /* GlassModifier.swift */; };
 		9B0010252A00000100000001 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010262A00000100000001 /* Typography.swift */; };
 		9B0010272A00000100000001 /* HTMLRichTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010282A00000100000001 /* HTMLRichTextView.swift */; };
-		9B0010292A00000100000001 /* ProgressRingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00102A2A00000100000001 /* ProgressRingView.swift */; };
 		9B00102B2A00000100000001 /* CountdownWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00102C2A00000100000001 /* CountdownWidgetView.swift */; };
 		9B0010642A00000100000001 /* AnalyticsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010652A00000100000001 /* AnalyticsCard.swift */; };
 		9B00102D2A00000100000001 /* VideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00102E2A00000100000001 /* VideoPlayerView.swift */; };
@@ -73,7 +72,6 @@
 		9B0020082A00000100000001 /* MedxWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9B0020012A00000100000001 /* MedxWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		9B00111A2A00000100000001 /* MedxSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011192A00000100000001 /* MedxSections.swift */; };
 		9B00111C2A00000100000001 /* MedxSticker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00111B2A00000100000001 /* MedxSticker.swift */; };
-		9B00111E2A00000100000001 /* MedxPageHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00111D2A00000100000001 /* MedxPageHeader.swift */; };
 		9B0011202A00000100000001 /* Series.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00111F2A00000100000001 /* Series.swift */; };
 		9B0011222A00000100000001 /* BatchPapersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011212A00000100000001 /* BatchPapersView.swift */; };
 		9B0011242A00000100000001 /* CustomModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011232A00000100000001 /* CustomModule.swift */; };
@@ -146,7 +144,6 @@
 		9B0010242A00000100000001 /* GlassModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassModifier.swift; sourceTree = "<group>"; };
 		9B0010262A00000100000001 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
 		9B0010282A00000100000001 /* HTMLRichTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLRichTextView.swift; sourceTree = "<group>"; };
-		9B00102A2A00000100000001 /* ProgressRingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressRingView.swift; sourceTree = "<group>"; };
 		9B00102C2A00000100000001 /* CountdownWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownWidgetView.swift; sourceTree = "<group>"; };
 		9B0010652A00000100000001 /* AnalyticsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsCard.swift; sourceTree = "<group>"; };
 		9B00102E2A00000100000001 /* VideoPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPlayerView.swift; sourceTree = "<group>"; };
@@ -194,7 +191,6 @@
 		9B0020052A00000100000001 /* MedxElite.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MedxElite.entitlements; sourceTree = "<group>"; };
 		9B0011192A00000100000001 /* MedxSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxSections.swift; sourceTree = "<group>"; };
 		9B00111B2A00000100000001 /* MedxSticker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxSticker.swift; sourceTree = "<group>"; };
-		9B00111D2A00000100000001 /* MedxPageHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxPageHeader.swift; sourceTree = "<group>"; };
 		9B00111F2A00000100000001 /* Series.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Series.swift; sourceTree = "<group>"; };
 		9B0011212A00000100000001 /* BatchPapersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/BatchPapersView.swift; sourceTree = "<group>"; };
 		9B0011232A00000100000001 /* CustomModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomModule.swift; sourceTree = "<group>"; };
@@ -336,7 +332,6 @@
 			isa = PBXGroup;
 			children = (
 				9B0010282A00000100000001 /* HTMLRichTextView.swift */,
-				9B00102A2A00000100000001 /* ProgressRingView.swift */,
 				9B00102C2A00000100000001 /* CountdownWidgetView.swift */,
 				9B0010652A00000100000001 /* AnalyticsCard.swift */,
 				9B00102E2A00000100000001 /* VideoPlayerView.swift */,
@@ -347,7 +342,6 @@
 				9B0011122A00000100000001 /* MedxLogoMark.swift */,
 				9B0011142A00000100000001 /* MedxOfflineAssetLoader.swift */,
 				9B00111B2A00000100000001 /* MedxSticker.swift */,
-				9B00111D2A00000100000001 /* MedxPageHeader.swift */,
 				9B0011572A00000100000001 /* MedxSheet.swift */,
 				9B0011592A00000100000001 /* MedxList.swift */,
 				9B00115B2A00000100000001 /* MedxMonogram.swift */,
@@ -541,7 +535,6 @@
 				9B0010232A00000100000001 /* GlassModifier.swift in Sources */,
 				9B0010252A00000100000001 /* Typography.swift in Sources */,
 				9B0010272A00000100000001 /* HTMLRichTextView.swift in Sources */,
-				9B0010292A00000100000001 /* ProgressRingView.swift in Sources */,
 				9B00102B2A00000100000001 /* CountdownWidgetView.swift in Sources */,
 				9B0010642A00000100000001 /* AnalyticsCard.swift in Sources */,
 				9B00102D2A00000100000001 /* VideoPlayerView.swift in Sources */,
@@ -582,7 +575,6 @@
 				9B0011172A00000100000001 /* MedxCustomModuleSheet.swift in Sources */,
 				9B00111A2A00000100000001 /* MedxSections.swift in Sources */,
 				9B00111C2A00000100000001 /* MedxSticker.swift in Sources */,
-				9B00111E2A00000100000001 /* MedxPageHeader.swift in Sources */,
 				9B0011202A00000100000001 /* Series.swift in Sources */,
 				9B0011222A00000100000001 /* BatchPapersView.swift in Sources */,
 				9B0011242A00000100000001 /* CustomModule.swift in Sources */,

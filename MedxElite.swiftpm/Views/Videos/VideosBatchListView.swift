@@ -56,7 +56,7 @@ public struct VideosBatchListView: View {
         }
                 .navigationTitle("Classes")
         // Large, and the only "Classes" on the page — there used to be an inline title *and* a
-        // `MedxPageHeader` under it saying the same word.
+        // an in-content header saying the same word.
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

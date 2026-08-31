@@ -65,7 +65,7 @@ public struct FlashcardsSubjectListView: View {
         }
         .navigationTitle("Cards")
         // Large, and the only "Cards" on the screen — there used to be an inline title and a
-        // `MedxPageHeader` repeating it.
+        // an in-content header repeating it.
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

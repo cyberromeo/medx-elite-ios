@@ -224,11 +224,6 @@ public enum MedxSeriesRules {
         return "\(sections.count) sections of \(first.count), \(first.minutes) minutes each. "
             + "No going back once a section is submitted."
     }
-    /// The mark on a paper's row.
-    public static func symbol(for paper: MedxSeriesPaper) -> String {
-        paper.group.symbol ?? MedxSubjectArt.symbol(for: paper.title)
-    }
-
     private static let monthKeyFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")

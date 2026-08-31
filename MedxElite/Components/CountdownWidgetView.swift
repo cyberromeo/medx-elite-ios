@@ -45,14 +45,14 @@ public struct CountdownWidgetView: View {
                 }
                 .animation(.snappy, value: remaining.days)
 
-                ProgressView(value: remaining.elapsedFraction)
-                    .tint(MedxTheme.primaryPink)
-                    .accessibilityHidden(true)
+                MedxAnswerSheet(
+                    fraction: remaining.elapsedFraction,
+                    scale: .sheet,
+                    label: "\(Int(remaining.elapsedFraction * 100)) percent of the run elapsed"
+                )
             }
-            .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .medxCard(cornerRadius: MedxDS.card)
-            .contentShape(MedxDS.shape(MedxDS.card))
+            .contentShape(Rectangle())
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(title) countdown")
             .accessibilityValue("\(remaining.days) days, \(remaining.hours) hours remaining")

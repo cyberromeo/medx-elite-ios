@@ -293,3 +293,32 @@ public extension View {
             .scrollIndicators(.automatic)
     }
 }
+
+// MARK: - Close
+
+/// The ✕ over a full-screen figure, and the only round button left in the app.
+///
+/// `MedxCircleButton` used to be this, plus a bookmark, plus an overflow, plus a download control —
+/// four different jobs behind one API, each of them a fill and a hairline and a gradient rim. The other
+/// three are now bare glyphs in their own rows, so what is left is one button with one job: get me out
+/// of this image.
+public struct MedxCloseButton: View {
+    private let action: () -> Void
+
+    public init(action: @escaping () -> Void) {
+        self.action = action
+    }
+
+    public var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.footnote.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(Color.black.opacity(0.45)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(MedxPressStyle())
+        .accessibilityLabel("Close figure")
+    }
+}

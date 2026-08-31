@@ -58,7 +58,7 @@ public struct BatchPapersView: View {
         }
                 .navigationTitle("Batch papers")
         // Large, and the only place the words appear — there used to be an inline title and a
-        // `MedxPageHeader` repeating them.
+        // an in-content header repeating them.
         .navigationBarTitleDisplayMode(.large)
         .searchable(
             text: $searchText,

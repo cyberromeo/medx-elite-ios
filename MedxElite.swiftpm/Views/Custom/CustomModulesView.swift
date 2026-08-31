@@ -27,7 +27,7 @@ public struct CustomModulesView: View {
     public var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                MedxPageCaption("Modules from either bank, shuffled together · shared between you")
+                MedxCaption("Modules from either bank, shuffled together · shared between you")
 
                 newButton
 
@@ -66,7 +66,7 @@ public struct CustomModulesView: View {
         .medxPage()
         .navigationTitle("Custom modules")
         // Large, and the only place the words appear — there used to be an inline title and a
-        // `MedxPageHeader` repeating them.
+        // an in-content header repeating them.
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await store.reload(uid: uid) }
         .task { await store.loadIfNeeded(uid: uid) }
@@ -253,8 +253,7 @@ struct CustomModuleCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                MedxSymbolMark(MedxSection.custom.symbol, hue: MedxTheme.accent, size: 36)
-
+                
                 VStack(alignment: .leading, spacing: 2) {
                     Text(module.name)
                         .font(.subheadline.weight(.semibold))
@@ -307,13 +306,13 @@ struct CustomModuleCard: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 if let author = module.author {
-                    MedxPill(author.displayName, hue: author.duelFill, weight: .solid, icon: "person.fill")
+                    MedxBadge(author.displayName)
                 }
                 ForEach(module.sources.prefix(Self.previewChips)) { source in
-                    MedxPill(source.name, hue: source.bank == .marrow ? MedxCandy.butter : MedxCandy.lime)
+                    MedxBadge(source.name)
                 }
                 if module.sources.count > Self.previewChips {
-                    MedxPill("+\(module.sources.count - Self.previewChips)", weight: .outline)
+                    MedxBadge("+\(module.sources.count - Self.previewChips)")
                 }
             }
         }
@@ -386,7 +385,7 @@ struct MedxCustomRunSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    MedxPageCaption(
+                    MedxCaption(
                         "\(module.effectiveCount.formatted()) questions · "
                             + (module.sources.count == 1
                                ? module.sources[0].subject

@@ -147,7 +147,7 @@ public struct VodFeedView: View {
         .medxPage()
         .navigationTitle("VOD feed")
         // Large, and the only place the words appear — there used to be an inline title and a
-        // `MedxPageHeader` repeating them.
+        // an in-content header repeating them.
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await reload() }
         .task {

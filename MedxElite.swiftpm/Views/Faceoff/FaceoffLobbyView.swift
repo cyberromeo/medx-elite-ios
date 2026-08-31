@@ -244,7 +244,7 @@ public struct FaceoffLobbyView: View {
             .medxPage()
             .navigationTitle("Faceoff")
             // Large, and the only "Faceoff" on the screen. There used to be an inline title here
-            // and a `MedxPageHeader` repeating the word below it.
+            // and an in-content header repeating the word below it.
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -280,7 +280,7 @@ public struct FaceoffLobbyView: View {
     // MARK: - Pieces
 
     private var header: some View {
-        MedxPageCaption(
+        MedxCaption(
             "One question, one minute, two of you · "
                 + "\(MedxDuelRules.basePoints)–\(MedxDuelRules.maxPoints) points a round"
         )
@@ -348,7 +348,7 @@ public struct FaceoffLobbyView: View {
         HStack(spacing: 12) {
             MedxSticker("hourglass", size: 26, tilt: 6)
                 .frame(width: 38, height: 38)
-                .medxTile(cornerRadius: MedxDS.control)
+                .background(MedxDS.shape(MedxDS.control).fill(MedxDS.row))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Waiting for \(other?.displayName ?? "the other one")")
@@ -407,7 +407,7 @@ public struct FaceoffLobbyView: View {
         let record = lobby.record
 
         return VStack(alignment: .leading, spacing: 10) {
-            MedxSectionHeader("The record", subtitle: "\(record.total) played")
+            MedxHeader("The record", count: record.total)
 
             VStack(spacing: 10) {
                 HStack(spacing: 0) {
@@ -440,7 +440,7 @@ public struct FaceoffLobbyView: View {
 
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            MedxSectionHeader("Recent")
+            MedxHeader("Recent")
 
             ForEach(lobby.played.prefix(8)) { game in
                 historyRow(game)
@@ -471,12 +471,12 @@ public struct FaceoffLobbyView: View {
                 Spacer(minLength: 0)
 
                 if let winner {
-                    MedxPill(winner.displayName, hue: winner.duelFill, weight: .solid)
+                    MedxBadge(winner.displayName, tint: MedxDS.correct)
                 } else {
-                    MedxPill("dead heat", weight: .outline)
+                    MedxBadge("dead heat")
                 }
 
-                MedxDisclosure()
+                MedxChevron()
             }
             .padding(12)
             .medxCard()
@@ -573,11 +573,13 @@ struct FaceoffHostSheet: View {
             VStack(spacing: 0) {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 14) {
-                        MedxSegmented(
-                            section: .duel,
-                            segments: MedxFaceoffTab.all.map { MedxSegment(value: $0, label: $0.label) },
-                            selection: $tab
-                        )
+                        Picker("Source", selection: $tab) {
+                            ForEach(MedxFaceoffTab.all, id: \.self) { option in
+                                Text(option.label).tag(option)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
                         .onChange(of: tab) { _, _ in query = "" }
 
                         lengthRow
@@ -633,13 +635,13 @@ struct FaceoffHostSheet: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            MedxSegmented(
-                section: .duel,
-                segments: MedxDuelRules.lengths.map {
-                    MedxSegment(value: $0, label: $0 == 0 ? "All" : "\($0)")
-                },
-                selection: $length
-            )
+            Picker("Length", selection: $length) {
+                ForEach(MedxDuelRules.lengths, id: \.self) { option in
+                    Text(option == 0 ? "All" : "\(option)").tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
             .onChange(of: length) { _, next in
                 UserDefaults.standard.set(next, forKey: Self.lengthKey)
             }
@@ -688,7 +690,7 @@ struct FaceoffHostSheet: View {
                 draft = MedxCustomModule.blank(uid: uid)
             } label: {
                 sourceRow(
-                    symbol: "plus.rectangle.on.rectangle",
+                    lead: "+",
                     title: "Build a new one",
                     detail: "Pick chapters out of either bank, then deal it straight into the game",
                     isOn: false
@@ -714,7 +716,7 @@ struct FaceoffHostSheet: View {
                     picked = .custom(module)
                 } label: {
                     sourceRow(
-                        symbol: "slider.horizontal.3",
+                        lead: "\(module.effectiveCount)",
                         title: module.name,
                         detail: "\(module.effectiveCount) q · \(module.sources.count) module"
                             + (module.sources.count == 1 ? "" : "s")
@@ -748,7 +750,7 @@ struct FaceoffHostSheet: View {
                     picked = .series(paper)
                 } label: {
                     sourceRow(
-                        symbol: MedxSeriesRules.symbol(for: paper),
+                        lead: "\(paper.questions)",
                         title: paper.title,
                         detail: paper.line,
                         isOn: picked == .series(paper)
@@ -784,15 +786,17 @@ struct FaceoffHostSheet: View {
 
     // MARK: - Row and bar
 
+    /// A source you can deal a game from. Leads with its own figure — how many questions it holds —
+    /// rather than an icon, which is the rule everywhere else in the app.
     private func sourceRow(
-        symbol: String,
+        lead: String,
         title: String,
         detail: String,
         isOn: Bool
     ) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 15, weight: .semibold))
+            Text(lead)
+                .font(MedxType.lead)
                 .foregroundStyle(isOn ? MedxTheme.accent : Color.secondary)
                 .frame(width: 34, height: 34)
                 .background(
@@ -823,7 +827,7 @@ struct FaceoffHostSheet: View {
         }
         .padding(12)
         .frame(minHeight: 54)
-        .medxTile(accentColor: MedxTheme.accent, isSelected: isOn)
+        .medxOptionSurface(state: isOn ? MedxTheme.accent : nil, emphasized: isOn)
         .contentShape(MedxDS.shape(MedxDS.control))
         .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
     }

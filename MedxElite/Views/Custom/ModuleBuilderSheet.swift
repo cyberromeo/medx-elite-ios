@@ -207,16 +207,16 @@ public struct ModuleBuilderSheet: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
 
-                MedxSegmented(
-                    section: .custom,
-                    segments: Self.caps.map {
-                        MedxSegment(value: $0, label: $0 == 0 ? "All" : "\($0)")
-                    },
-                    selection: Binding(
-                        get: { draft.limit ?? 0 },
-                        set: { draft.limit = $0 > 0 ? $0 : nil }
-                    )
-                )
+                Picker("Length", selection: Binding(
+                    get: { draft.limit ?? 0 },
+                    set: { draft.limit = $0 > 0 ? $0 : nil }
+                )) {
+                    ForEach(Self.caps, id: \.self) { cap in
+                        Text(cap == 0 ? "All" : "\(cap)").tag(cap)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
             }
         }
         .padding(14)
@@ -421,15 +421,14 @@ public struct ModuleBuilderSheet: View {
         isOpen: Bool
     ) -> some View {
         HStack(spacing: 10) {
-            MedxSymbolMark(MedxSubjectArt.symbol(for: subject.name), hue: MedxTheme.accent, size: 32)
-
+            
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 5) {
                     Text(subject.name)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
-                    MedxPill(subject.bank.label, hue: subject.bank == .marrow ? MedxCandy.butter : MedxCandy.lime)
+                    MedxBadge(subject.bank.label)
                 }
                 // Under a search the row only holds the matches, so it says so — otherwise the
                 // "all" pill beside a subject listing 2 of 38 modules reads as all 38.
@@ -517,7 +516,7 @@ public struct ModuleBuilderSheet: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
             .frame(minHeight: 40)
-            .medxTile(accentColor: MedxTheme.accent, isSelected: isOn)
+            .medxOptionSurface(state: isOn ? MedxTheme.accent : nil, emphasized: isOn)
             .contentShape(MedxDS.shape(MedxDS.control))
         }
         .buttonStyle(.plain)

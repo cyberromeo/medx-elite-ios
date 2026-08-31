@@ -90,7 +90,7 @@ public struct MedxQuestionSearchView: View {
 
     private var resultsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            MedxSectionHeader(
+            MedxHeader(
                 results.count == 1 ? "1 match" : "\(results.count) matches",
                 subtitle: results.count >= 300 ? "Showing the first 300" : nil
             )
@@ -134,9 +134,9 @@ public struct MedxQuestionSearchView: View {
             HStack(spacing: 6) {
                 // Both banks have an Anatomy, a Pathology and a Medicine, so the subject name
                 // alone does not say where a hit came from.
-                MedxChip(entry.bank.label, tint: entry.bank == .marrow ? MedxCandy.violet : MedxCandy.lime)
+                MedxBadge(entry.bank.label)
 
-                MedxChip(entry.subject, tint: MedxTheme.accent)
+                MedxBadge(entry.subject)
 
                 Text(entry.moduleName)
                     .font(.caption)
@@ -555,10 +555,10 @@ struct MedxSearchResultDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                MedxChip(entry.bank.label, tint: entry.bank == .marrow ? MedxCandy.violet : MedxCandy.lime)
-                MedxChip(entry.subject, tint: MedxTheme.accent)
+                MedxBadge(entry.bank.label)
+                MedxBadge(entry.subject)
                 if !entry.chapter.isEmpty {
-                    MedxChip(entry.chapter, tint: .secondary)
+                    MedxBadge(entry.chapter)
                 }
                 Spacer(minLength: 0)
             }
@@ -606,7 +606,7 @@ struct MedxSearchResultDetailView: View {
                     }
                     .padding(13)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .medxTile(accentColor: isCorrect ? MedxDS.correct : nil, isSelected: isCorrect)
+                    .medxOptionSurface(state: isCorrect ? MedxDS.correct : nil, emphasized: isCorrect)
                 }
             }
 

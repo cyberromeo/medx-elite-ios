@@ -156,15 +156,19 @@ public struct VideoSubjectView: View {
         .accessibilityLabel("Download all classes")
     }
 
+    /// Three hue-coded chips became one figure and one tag line. Nothing here is status, so nothing
+    /// here is coloured.
     private var summaryRow: some View {
-        HStack(spacing: 8) {
-            MedxChip("\(subjectGroup.totalClasses) classes", icon: "play.fill", tint: MedxTheme.primaryBlue)
-            MedxChip(subjectGroup.formattedDuration, icon: "clock.fill", tint: MedxTheme.primaryPurple)
-            if offlineCount > 0 {
-                MedxChip("\(offlineCount) offline", icon: "arrow.down.circle.fill", tint: MedxDS.correct)
-            }
-            Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 6) {
+            Text("\(subjectGroup.totalClasses)")
+                .font(MedxType.display)
+                .contentTransition(.numericText())
+            Text(offlineCount > 0
+                 ? "classes · \(subjectGroup.formattedDuration) · \(offlineCount) offline"
+                 : "classes · \(subjectGroup.formattedDuration)")
+                .medxTag()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Row
@@ -190,9 +194,6 @@ public struct VideoSubjectView: View {
                 VideoDownloadButton(video: video)
             }
         }
-        .padding(12)
-        .frame(minHeight: 64)
-        .medxCard()
         .contextMenu {
             rowContextMenu(video, history: history)
         }

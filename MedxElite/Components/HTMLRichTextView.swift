@@ -188,7 +188,7 @@ struct MedxImageViewer: View {
                 .accessibilityHint("Pinch or double-tap to zoom. Swipe down to close.")
         }
         .overlay(alignment: .topTrailing) {
-            MedxCircleButton(icon: "xmark", accessibilityLabel: "Close figure") {
+            MedxCloseButton {
                 HapticManager.light()
                 dismiss()
             }

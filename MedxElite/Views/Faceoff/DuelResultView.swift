@@ -100,7 +100,7 @@ struct DuelResultView: View {
 
     private var statsGrid: some View {
         VStack(alignment: .leading, spacing: 10) {
-            MedxSectionHeader("Side by side")
+            MedxHeader("Side by side")
 
             VStack(spacing: 8) {
                 statRow(
@@ -146,7 +146,7 @@ struct DuelResultView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .medxTile()
+        .background(MedxDS.shape(MedxDS.control).fill(MedxDS.row))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(label)
         .accessibilityValue("\(room.myProfile?.displayName ?? "you") \(mine), "
@@ -157,7 +157,7 @@ struct DuelResultView: View {
 
     private var review: some View {
         VStack(alignment: .leading, spacing: 10) {
-            MedxSectionHeader("Round by round")
+            MedxHeader("Round by round")
 
             VStack(spacing: 6) {
                 ForEach(log, id: \.qIndex) { row in
@@ -211,7 +211,7 @@ struct DuelResultView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .medxTile()
+        .background(MedxDS.shape(MedxDS.control).fill(MedxDS.row))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Question \(row.qIndex + 1)")
         .accessibilityValue("you \(mine?.points ?? 0), them \(theirs?.points ?? 0)")

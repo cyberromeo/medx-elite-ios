@@ -1540,7 +1540,10 @@ struct ActivityLogView: View {
                     Section {
                         ForEach(filteredItems) { item in
                             HStack(spacing: 14) {
-                                MedxSymbolMark(item.symbol, hue: item.color, size: 34)
+                                Image(systemName: item.symbol)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(item.color)
+                                    .frame(width: 34, height: 34)
 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(item.title)

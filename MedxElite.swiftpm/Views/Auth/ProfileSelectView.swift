@@ -99,7 +99,7 @@ public struct ProfileSelectView: View {
                         .foregroundStyle(MedxDS.correct)
                         .accessibilityLabel("Password saved")
                 } else {
-                    MedxDisclosure()
+                    MedxChevron()
                 }
             }
             .padding(16)

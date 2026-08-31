@@ -1234,7 +1234,7 @@ struct MedxSectionHandoverSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     // This is the one screen in the app with no navigation bar and no way back, so it has
-                    // to introduce itself. `MedxPageHeader` was that introduction and was kept alive for
+                    // to introduce itself. An in-content header was that introduction and was kept alive for
                     // this single caller; the three voices say the same thing in less furniture.
                     Text("\(summary.closedLabel) submitted")
                         .medxTag()
