@@ -92,12 +92,13 @@ public struct VideoPlayerView: View {
             .padding(.vertical, 6)
             // `.clear` glass rather than `.regular`: this floats over video, which is bright and
             // already carries the detail, so the badge wants to be a lens on it rather than a
-            // frosted card in front of it.
+            // frosted card in front of it. One of the three places glass is still allowed — it
+            // floats over content, and video is the most refractable content there is.
             .medxSurface(
                 Capsule(style: .continuous),
                 MedxSurfaceSpec(
-                    clear: true,
-                    fallbackFill: Color.black.opacity(0.35),
+                    material: .glass(clear: true),
+                    fill: Color.black.opacity(0.35),
                     strokeHue: .white,
                     strokeOpacity: 0.22
                 )

@@ -31,7 +31,7 @@ struct MedxVersusBar: View {
                 .clipShape(Capsule())
             }
             .frame(height: 10)
-            .animation(.snappy(duration: 0.35), value: share)
+            .animation(MedxMotion.snap, value: share)
 
             HStack {
                 side(points: mine.points, name: myProfile?.displayName ?? "you", hue: myProfile?.duelFill, alignment: .leading)
@@ -317,10 +317,9 @@ public struct DuelRoomView: View {
                 theirProfile: room.theirProfile
             )
         }
-        .padding(.horizontal, MedxSurface.gutter)
-        .padding(.top, 4)
-        .padding(.bottom, 10)
-        .medxBar()
+        // The duel's own HUD, and the same argument as the runner's: it floats over the question
+        // inside a full-screen cover, so there is real content under it to refract.
+        .medxFloatingBar()
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(room.remaining) seconds left")
     }
@@ -378,9 +377,7 @@ public struct DuelRoomView: View {
             .medxFilled(MedxSection.duel.fill)
             .disabled(room.phase != .reveal || room.iVoted)
         }
-        .padding(.horizontal, MedxSurface.gutter)
-        .padding(.vertical, 10)
-        .medxBar(topDivider: true)
+        .medxFloatingBar()
     }
 
     private var nextLabel: String {

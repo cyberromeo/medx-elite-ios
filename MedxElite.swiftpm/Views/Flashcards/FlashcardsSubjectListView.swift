@@ -64,7 +64,9 @@ public struct FlashcardsSubjectListView: View {
             .medxPage(.cards)
         }
         .navigationTitle("Cards")
-        .navigationBarTitleDisplayMode(.inline)
+        // Large, and the only "Cards" on the screen — there used to be an inline title and a
+        // `MedxPageHeader` repeating it.
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 FlashcardArtworkMenu {
@@ -93,12 +95,7 @@ public struct FlashcardsSubjectListView: View {
     private func content(layout: FlashcardLayout) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                MedxPageHeader(
-                    section: .cards,
-                    title: "Cards",
-                    lead: "Image decks, tapped through one at a time. Nothing here is scored — "
-                        + "these are the pictures you either recognise or you do not."
-                )
+                MedxPageCaption("Image decks, tapped through one at a time · nothing is scored")
 
                 MedxMetricsRow {
                     MedxMetric(

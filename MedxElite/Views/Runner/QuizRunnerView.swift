@@ -96,7 +96,7 @@ public struct QuizRunnerView: View {
         content
             // The page's own wash, turned down: a question stem is the densest text in the app
             // and wants the calmest thing behind it that still gives the glass something to bend.
-            .medxPage(payload.section, intensity: 0.55)
+            .medxPage(payload.section, intensity: 0)
             .navigationTitle(payload.name)
             .navigationBarTitleDisplayMode(.inline)
             // `RunnerHUD` *is* the chrome now. Two bands of furniture across the top of a phone
@@ -373,6 +373,11 @@ public struct QuizRunnerView: View {
 
                     if isRevealed {
                         RunnerExplanationCard(question: question, response: response)
+                            // Arrives from under the options rather than fading in on top of
+                            // them, so the eye follows the answer down into the reason for it.
+                            .transition(
+                                .move(edge: .top).combined(with: .opacity)
+                            )
                     }
                 }
                 .padding(.horizontal, MedxSurface.gutter)
@@ -394,7 +399,7 @@ public struct QuizRunnerView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             runnerActionBar(question: question, isRevealed: isRevealed)
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: isRevealed)
+        .animation(reduceMotion ? nil : MedxMotion.settle, value: isRevealed)
     }
 
     // MARK: - Answers
@@ -441,7 +446,6 @@ public struct QuizRunnerView: View {
         return RunnerActionBar(
             advanceLabel: advanceLabel,
             isLastQuestion: isLastQuestion,
-            hint: canGo ? nil : "Answer to reveal the explanation",
             canGoBack: currentIndex > activeSection.start,
             canAdvance: canGo,
             showSkip: showSkip,
@@ -892,9 +896,9 @@ struct RunnerFigure: View {
                 CachedAsyncImage(url: url, contentMode: .fit)
                     .frame(maxWidth: .infinity)
                     .frame(maxHeight: 280)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
                             .strokeBorder(MedxSurface.separator.opacity(0.35), lineWidth: MedxSurface.hairline)
                     )
             }
@@ -1159,18 +1163,21 @@ struct QuestionNavigatorSheet: View {
                 .font(.subheadline.weight(.bold).monospacedDigit())
                 .foregroundStyle(isCurrent ? MedxTheme.accent : status.chipForeground)
                 .frame(minWidth: 46, minHeight: 46)
+                // Glass, because the navigator is a sheet floating over the sitting — one of the
+                // three places in the app allowed it.
                 .medxSurface(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous),
+                    RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous),
                     MedxSurfaceSpec(
+                        material: .glass(clear: false),
+                        fill: status.chipFill,
                         tint: hue,
-                        fallbackFill: status.chipFill,
                         strokeHue: hue,
-                        strokeOpacity: isCurrent ? 0.9 : (hue == nil ? 0.16 : 0.45),
+                        strokeOpacity: isCurrent ? 0.9 : 0.45,
                         strokeWidth: isCurrent ? 1.8 : 0.5
                     )
                 )
                 .opacity(isLocked ? 0.35 : 1)
-                .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
         }
         .buttonStyle(BouncyButtonStyle())
         .disabled(isLocked)

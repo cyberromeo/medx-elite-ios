@@ -1,12 +1,17 @@
 import SwiftUI
 
-/// The Library tab — everything that is not a daily habit in its own right.
+/// The Library tab — every destination that is not one of the four browsables.
 ///
-/// Four of the five tabs are things you open without a reason: the dashboard, the bank, the
-/// papers, the classes. Everything else is a place you go *to*, and a grid says that better than
-/// a list does — a list implies an order to work through, a grid is a set of doors. Flashcards
-/// leads it, because it was a tab yesterday and burying it would be the cost of this
-/// rearrangement rather than its point.
+/// Four tabs are things you open without a reason: the dashboard, the bank, the papers, the
+/// classes. Everything else is a place you go *to*, and a grid says that better than a list does —
+/// a list implies an order to work through, a grid is a set of doors.
+///
+/// It is also, now, the *only* way to those doors. Home used to offer Faceoff, Quick sitting and
+/// Custom modules as launcher tiles as well, which meant three of the eleven below were the second
+/// copy of something. Home is a dashboard and this is the launcher; nothing appears in both.
+///
+/// Eleven doors is a lot to scan as one wall, so they come in three groups — what you play, what
+/// you study, and what is yours.
 public struct LibraryView: View {
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var activityStore = ActivityStore.shared
@@ -33,17 +38,27 @@ public struct LibraryView: View {
 
     public var body: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(tiles) { tile in
-                    LibraryTile(tile: tile)
+            VStack(alignment: .leading, spacing: 20) {
+                ForEach(LibraryGroup.allCases) { group in
+                    VStack(alignment: .leading, spacing: 10) {
+                        MedxSectionHeader(group.title)
+
+                        LazyVGrid(columns: columns, spacing: 12) {
+                            ForEach(Array(tiles(in: group).enumerated()), id: \.element.id) { pair in
+                                LibraryTile(tile: pair.element)
+                                    .medxAppear(index: pair.offset)
+                            }
+                        }
+                    }
                 }
             }
             .padding(.horizontal, MedxSurface.gutter)
-            .padding(.top, 8)
+            .padding(.top, 4)
             .padding(.bottom, 28)
         }
         .medxPage(.library)
         .navigationTitle("Library")
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 ProfileSettingsButton()
@@ -65,10 +80,25 @@ public struct LibraryView: View {
 
     // MARK: - The grid
 
+    private func tiles(in group: LibraryGroup) -> [LibraryTileModel] {
+        tiles.filter { $0.group == group }
+    }
+
     private var tiles: [LibraryTileModel] {
         [
             LibraryTileModel(
+                id: "faceoff",
+                group: .play,
+                title: "Faceoff",
+                detail: "One question, one minute, two of you",
+                symbol: "bolt.fill",
+                hue: MedxCandy.pink,
+                badge: waitingLobbies == 0 ? nil : "\(waitingLobbies) waiting"
+            ) { appState.open(route: .faceoff) },
+
+            LibraryTileModel(
                 id: "cards",
+                group: .study,
                 title: "Flashcards",
                 detail: "Tap to flip, swipe for the next",
                 symbol: "rectangle.stack.fill",
@@ -78,6 +108,7 @@ public struct LibraryView: View {
 
             LibraryTileModel(
                 id: "vod",
+                group: .study,
                 title: "VOD feed",
                 detail: "The raw bucket, newest first",
                 symbol: "antenna.radiowaves.left.and.right",
@@ -86,16 +117,8 @@ public struct LibraryView: View {
             ) { appState.open(route: .vodFeed) },
 
             LibraryTileModel(
-                id: "faceoff",
-                title: "Faceoff",
-                detail: "One question, one minute, two of you",
-                symbol: "bolt.fill",
-                hue: MedxCandy.pink,
-                badge: waitingLobbies == 0 ? nil : "\(waitingLobbies) waiting"
-            ) { appState.open(route: .faceoff) },
-
-            LibraryTileModel(
                 id: "batch",
+                group: .study,
                 title: "Batch papers",
                 detail: "The batch's own four",
                 symbol: "flag.pattern.checkered",
@@ -105,6 +128,7 @@ public struct LibraryView: View {
 
             LibraryTileModel(
                 id: "custom",
+                group: .study,
                 title: "Custom modules",
                 detail: "Papers either of you saved",
                 symbol: "slider.horizontal.3",
@@ -114,6 +138,7 @@ public struct LibraryView: View {
 
             LibraryTileModel(
                 id: "quick",
+                group: .study,
                 title: "Quick sitting",
                 detail: "Scope, length, mode, go",
                 symbol: "wand.and.stars",
@@ -123,6 +148,7 @@ public struct LibraryView: View {
 
             LibraryTileModel(
                 id: "search",
+                group: .study,
                 title: "Search",
                 detail: "Full text across both banks",
                 symbol: "magnifyingglass",
@@ -132,6 +158,7 @@ public struct LibraryView: View {
 
             LibraryTileModel(
                 id: "bookmarks",
+                group: .yours,
                 title: "Bookmarks",
                 detail: "Questions you kept",
                 symbol: "bookmark.fill",
@@ -141,6 +168,7 @@ public struct LibraryView: View {
 
             LibraryTileModel(
                 id: "downloads",
+                group: .yours,
                 title: "Downloads",
                 detail: "Saved for no signal",
                 symbol: "arrow.down.circle.fill",
@@ -150,6 +178,7 @@ public struct LibraryView: View {
 
             LibraryTileModel(
                 id: "log",
+                group: .yours,
                 title: "Activity log",
                 detail: "Every sitting and class",
                 symbol: "list.bullet.rectangle.portrait",
@@ -159,6 +188,7 @@ public struct LibraryView: View {
 
             LibraryTileModel(
                 id: "settings",
+                group: .yours,
                 title: "Settings",
                 detail: "Accent, reminders, the index",
                 symbol: "gearshape.fill",
@@ -188,10 +218,26 @@ public struct LibraryView: View {
 
 // MARK: - One tile
 
+/// Which third of the page a door belongs to.
+enum LibraryGroup: String, CaseIterable, Identifiable {
+    case play, study, yours
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .play: return "Play"
+        case .study: return "Study"
+        case .yours: return "Yours"
+        }
+    }
+}
+
 /// A tile's content, kept as a value so the grid is one `ForEach` over data rather than eleven
 /// hand-placed cells — which is what let the old list drift into four near-identical row helpers.
 struct LibraryTileModel: Identifiable {
     let id: String
+    let group: LibraryGroup
     let title: String
     let detail: String
     /// SF Symbol. Library is a grid of doors, and a symbol in the door's hue is what iOS

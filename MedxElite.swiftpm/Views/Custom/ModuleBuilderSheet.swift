@@ -354,9 +354,7 @@ public struct ModuleBuilderSheet: View {
         }
         .medxFilled(MedxSection.custom.fill)
         .disabled(draft.sources.isEmpty)
-        .padding(.horizontal, MedxSurface.gutter)
-        .padding(.vertical, 10)
-        .medxBar(topDivider: true)
+        .medxFloatingBar()
     }
 
     // MARK: - Subject block

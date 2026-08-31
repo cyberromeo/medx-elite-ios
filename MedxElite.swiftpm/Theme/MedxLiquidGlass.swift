@@ -2,37 +2,47 @@ import SwiftUI
 
 // MARK: - Liquid Glass
 //
-// The app tried glass once before and took it back out, and the note at the top of
-// `GlassModifier.swift` says why: every rectangle was wrapped in `.ultraThinMaterial` over a
-// flat grey page, which is haze rather than glass — there was nothing behind it to refract.
+// Glass has been in and out of this app twice, and both failures were the same mistake made
+// from opposite ends. The first pass wrapped every rectangle in `.ultraThinMaterial` over a
+// flat grey page: nothing behind it to refract, so it came out as haze. The second pass built
+// a proper section-hued backdrop and then put glass on *everything* — cards, tiles, pills,
+// chips, badges, segments — so a single screen was thirty translucent panes sampling each
+// other. Also haze, and a blur pass per pane.
 //
-// This is the second attempt, built the way iOS 26 actually wants it:
+// The third answer is a rule about *place* rather than about technique:
 //
-//   1. **Something to refract.** `MedxAurora` puts a section-hued wash behind every screen.
-//      Glass over a controlled gradient is legible and looks like glass; glass over
-//      `systemGroupedBackground` looks like a smudge. The backdrop comes first, always.
-//   2. **One material vocabulary.** Every surface in the app goes through `medxSurface`, so
-//      there is exactly one place that decides what a rectangle is made of — and exactly one
-//      place that has to answer for Reduce Transparency and the iOS 17 fallback.
-//   3. **Never `.interactive()` inside a `Button` label.** The effect takes the touch and the
-//      button stops firing; that is what broke the flashcard close button. Interactive glass
-//      comes from `.buttonStyle(.glass)` / `.glassProminent`, which the system wires up
-//      itself — see `medxBorderedButton()` and `medxFilledButton()`.
-//   4. **Glass cannot sample glass.** Anything sitting near other glass shares a
-//      `MedxGlassGroup`, which is `GlassEffectContainer` where there is one.
+//   **Content is ink. Chrome is glass. Glass floats.**
 //
-// Every iOS 26 API below sits behind `#available`; the deployment target is still 17.0 and
-// the fallback is the flat surface the app shipped with, not a stub.
+// Ink lives in `Theme/MedxInk.swift` — opaque, no blur, identical on iOS 17 and 26. Glass is
+// allowed in exactly three places, and a `glassEffect` anywhere else is a bug:
+//
+//   1. `RunnerHUD` — the panel over the question.
+//   2. `RunnerActionBar` — Back · Skip · Next, three panes over the question.
+//   3. Anything *presented*: the rev/exam mode cards, the question navigator, the section
+//      handover, and a `medxFloatingBar()` at the bottom of a sheet.
+//
+// What all three have in common is that they float over content that is *already there* — so
+// there is something real to refract, which is the only condition under which glass reads as
+// glass. A card in a scroll view has the page behind it and nothing else.
+//
+// Two rules survive from the previous pass unchanged, because both were learned the hard way:
+//
+//   * **Never `.interactive()` glass inside a `Button` label.** The effect takes the touch and
+//     the button stops firing; that is what broke the flashcard close button. Interactive glass
+//     comes from `.buttonStyle(.glass)` / `.glassProminent`, which the system wires up itself.
+//   * **Glass cannot sample glass.** Neighbours share a `MedxGlassGroup`, and a chip of glass
+//     never goes on a panel of glass — which is why the HUD's clock and ✕ are bare glyphs.
+//
+// Every iOS 26 API below sits behind `#available`; the deployment target is still 17.0.
 
 public enum MedxGlass {
-    /// Corner radii. Rounder than the old flat set — iOS 26's own geometry is, and a tight
-    /// radius makes a glass edge read as a sticker instead of a lens.
-    public static let cardRadius: CGFloat = 22
-    public static let tileRadius: CGFloat = 16
-    public static let hudRadius: CGFloat = 24
+    /// Radii forward to `MedxRadius`, so "no sharp ends" is one file's decision.
+    public static let cardRadius: CGFloat = MedxRadius.card
+    public static let tileRadius: CGFloat = MedxRadius.tile
+    public static let hudRadius: CGFloat = MedxRadius.hud
 
     /// How close two glass shapes have to be before they should flow into each other.
-    /// `GlassEffectContainer`'s spacing, and the gap the HUD and the action bar are built on.
+    /// `GlassEffectContainer`'s spacing, and the gap the runner's action bar is built on.
     public static let groupSpacing: CGFloat = 20
 
     /// Inset of a floating bar from the screen edge. A bar that touches the edge is chrome;
@@ -42,45 +52,61 @@ public enum MedxGlass {
 
 // MARK: - Surface spec
 
+/// What a rectangle is made of.
+///
+/// Two materials and nothing else. `ink` is the app; `glass` is the three floating places named at
+/// the top of this file. Both paint `MedxSurfaceSpec.fill` — `ink` as the surface itself, `glass` as
+/// what it becomes on iOS 17 and under Reduce Transparency — so there is one colour per spec rather
+/// than one for each material to drift apart.
+public enum MedxMaterial {
+    /// An opaque fill. Identical on every OS version, no blur pass, and what every card, tile,
+    /// pill and badge in the app is.
+    case ink
+    /// `glassEffect` on iOS 26, falling back to `ink` below it. `clear` is for chrome floating over
+    /// artwork rather than over a page.
+    case glass(clear: Bool)
+}
+
 /// What one rectangle in the app is made of.
 ///
 /// Deliberately a value rather than a pile of modifier arguments: `medxCard`, `medxTile`,
 /// every pill, chip, HUD and action bar builds one of these, so "what does a selected answer
 /// look like" is answered in a single place and cannot drift between screens.
 public struct MedxSurfaceSpec {
-    /// Tints the glass, and the fallback's fill, with meaning — a chosen option, a correct
-    /// answer, a section's own hue.
+    public var material: MedxMaterial
+    /// The opaque fill. What `ink` paints, and what `glass` falls back to on iOS 17 and under
+    /// Reduce Transparency.
+    public var fill: Color
+    /// Tints glass with meaning — a low clock, a chosen option. Ignored by `ink`, which carries
+    /// meaning in `fill` and in its border instead.
     public var tint: Color?
-    /// `.clear` glass, for chrome floating over artwork rather than over a page.
-    public var clear: Bool
-    /// What the surface becomes on iOS 17, and under Reduce Transparency.
-    public var fallbackFill: Color
-    /// Hairline border. `nil` takes the system separator.
+    /// Hairline border. `nil` takes `MedxInk.hairline` at full strength.
     public var strokeHue: Color?
     public var strokeOpacity: Double
     public var strokeWidth: CGFloat
-    /// The top-lit hairline that makes an edge read as a bevel rather than as a cut. This is
-    /// what carries the glass look down to iOS 17, where there is no real glass to be had.
+    /// The top-lit hairline that makes an edge read as a bevel rather than as a cut. On a black
+    /// page this is the *only* thing that can say "nearer the eye" — a drop shadow on `#000`
+    /// is invisible.
     public var showsRim: Bool
     public var shadowOpacity: Double
     public var shadowRadius: CGFloat
     public var shadowY: CGFloat
 
     public init(
+        material: MedxMaterial = .ink,
+        fill: Color = MedxInk.raised,
         tint: Color? = nil,
-        clear: Bool = false,
-        fallbackFill: Color = MedxSurface.cardFill,
         strokeHue: Color? = nil,
-        strokeOpacity: Double = 0.20,
+        strokeOpacity: Double = 1,
         strokeWidth: CGFloat = 0.5,
         showsRim: Bool = true,
         shadowOpacity: Double = 0,
         shadowRadius: CGFloat = 0,
         shadowY: CGFloat = 0
     ) {
+        self.material = material
+        self.fill = fill
         self.tint = tint
-        self.clear = clear
-        self.fallbackFill = fallbackFill
         self.strokeHue = strokeHue
         self.strokeOpacity = strokeOpacity
         self.strokeWidth = strokeWidth
@@ -92,15 +118,20 @@ public struct MedxSurfaceSpec {
 }
 
 public extension MedxSurfaceSpec {
-    /// A content card. `raised` lifts it off the page with a soft shadow — used for the one
-    /// card on a screen that is the screen's subject.
+    /// A content card. Ink, always — a card is content and content does not refract.
+    ///
+    /// `raised` used to mean a deeper shadow. On a black page a shadow is invisible, so it now
+    /// means a brighter rim: the card catches more light at its top edge, which is what reads
+    /// as nearer the eye.
     static func card(raised: Bool = false, tint: Color? = nil) -> MedxSurfaceSpec {
         MedxSurfaceSpec(
-            tint: tint,
-            fallbackFill: MedxSurface.cardFill,
+            fill: MedxInk.raised,
             strokeHue: tint,
-            strokeOpacity: tint == nil ? 0.20 : 0.45,
+            strokeOpacity: 0.45,
+            strokeWidth: tint == nil ? 0.5 : 1,
             showsRim: true,
+            // Kept for the light appearance, where a page *is* lighter than its cards and a
+            // shadow still does something. Zero on black by virtue of being unseeable there.
             shadowOpacity: raised ? 0.10 : 0.04,
             shadowRadius: raised ? 14 : 6,
             shadowY: raised ? 6 : 2
@@ -108,26 +139,28 @@ public extension MedxSurfaceSpec {
     }
 
     /// A secondary surface *inside* a card — answer options, matrix cells, stat tiles.
+    ///
+    /// Selection is carried by a real border and a hue wash rather than by tinted glass: a
+    /// chosen answer has to be unmistakable at a glance, and a translucent pane cannot be
+    /// relied on to out-shout the four rows around it.
     static func tile(accent: Color? = nil, selected: Bool = false) -> MedxSurfaceSpec {
-        let hue = selected ? (accent ?? MedxTheme.accent) : nil
+        let hue = accent ?? MedxTheme.accent
         return MedxSurfaceSpec(
-            tint: hue,
-            fallbackFill: selected
-                ? (accent ?? MedxTheme.accent).opacity(0.12)
-                : MedxSurface.tileFill,
-            strokeHue: hue,
-            strokeOpacity: selected ? 0.70 : 0.16,
-            strokeWidth: selected ? 1.4 : 0.5,
-            showsRim: true
+            fill: selected ? hue.opacity(0.14) : MedxInk.sunken,
+            strokeHue: selected ? hue : nil,
+            strokeOpacity: 0.75,
+            strokeWidth: selected ? 1.5 : 0.5,
+            showsRim: !selected
         )
     }
 
     /// Chrome that floats over scrolling content: the runner's HUD, a bottom action bar, a
-    /// media overlay. Lifted, because the shadow is what says it is above the page.
+    /// media overlay. **Glass** — there is real content underneath it to refract.
     static var hud: MedxSurfaceSpec {
         MedxSurfaceSpec(
-            fallbackFill: Color(uiColor: .secondarySystemBackground),
-            strokeOpacity: 0.16,
+            material: .glass(clear: false),
+            fill: MedxInk.raised,
+            strokeOpacity: 0.45,
             showsRim: true,
             shadowOpacity: 0.16,
             shadowRadius: 18,
@@ -135,13 +168,32 @@ public extension MedxSurfaceSpec {
         )
     }
 
-    /// A capsule carrying a hue: a bank tag, a section length, a timer.
+    /// A card inside a *presented* surface — the rev/exam mode picker, the question navigator.
+    ///
+    /// The one place a content-shaped rectangle is allowed to be glass, and it earns it: a
+    /// sheet floats over the screen it was raised from, so there is a real page behind these
+    /// to bend rather than the flat backdrop a scroll view would offer.
+    static func sheetCard(tint: Color? = nil) -> MedxSurfaceSpec {
+        MedxSurfaceSpec(
+            material: .glass(clear: false),
+            fill: MedxInk.raised,
+            tint: tint,
+            strokeHue: tint,
+            strokeOpacity: 0.45,
+            strokeWidth: tint == nil ? 0.5 : 1,
+            showsRim: true,
+            shadowOpacity: 0.14,
+            shadowRadius: 16,
+            shadowY: 7
+        )
+    }
+
+    /// A capsule carrying a hue: a bank tag, a section length, a count.
     static func pill(_ hue: Color, solid: Bool = false) -> MedxSurfaceSpec {
         MedxSurfaceSpec(
-            tint: solid ? nil : hue,
-            fallbackFill: solid ? hue : hue.opacity(0.16),
-            strokeHue: hue,
-            strokeOpacity: solid ? 0 : 0.35,
+            fill: solid ? hue : hue.opacity(0.18),
+            strokeHue: solid ? nil : hue,
+            strokeOpacity: 0.32,
             showsRim: !solid
         )
     }
@@ -174,34 +226,48 @@ public struct MedxSurfaceModifier<S: InsettableShape>: ViewModifier {
 
     @ViewBuilder
     public func body(content: Content) -> some View {
-        // Reduce Transparency is the accessible escape hatch, and it lands on exactly the
-        // same flat surface iOS 17 gets — so there is one fallback to maintain, not two.
-        if #available(iOS 26.0, *), !reduceTransparency {
-            content
-                .glassEffect(glassStyle, in: shape)
-                .overlay { edge }
-                .shadow(
-                    color: Color.black.opacity(spec.shadowOpacity),
-                    radius: spec.shadowRadius,
-                    y: spec.shadowY
-                )
-        } else {
-            content
-                .background(shape.fill(spec.fallbackFill))
-                .overlay { edge }
-                .shadow(
-                    color: Color.black.opacity(spec.shadowOpacity),
-                    radius: spec.shadowRadius,
-                    y: spec.shadowY
-                )
+        switch spec.material {
+        case .ink:
+            inked(content)
+
+        case .glass(let clear):
+            // Reduce Transparency is the accessible escape hatch, and it lands on exactly the
+            // same opaque surface iOS 17 gets — so there is one fallback to maintain, not two.
+            //
+            // The `glassEffect` call is inline rather than in an `@available` helper on purpose:
+            // `.agents/availability_audit.py` stands in for the compiler on this machine, and it
+            // only recognises an `if #available` block as a guard.
+            if #available(iOS 26.0, *), !reduceTransparency {
+                content
+                    .glassEffect(glassStyle(clear: clear), in: shape)
+                    .overlay { edge }
+                    .shadow(
+                        color: Color.black.opacity(spec.shadowOpacity),
+                        radius: spec.shadowRadius,
+                        y: spec.shadowY
+                    )
+            } else {
+                inked(content)
+            }
         }
+    }
+
+    private func inked(_ content: Content) -> some View {
+        content
+            .background(shape.fill(spec.fill))
+            .overlay { edge }
+            .shadow(
+                color: Color.black.opacity(spec.shadowOpacity),
+                radius: spec.shadowRadius,
+                y: spec.shadowY
+            )
     }
 
     /// Built inside its own availability island: `Glass` does not exist on iOS 17, so it
     /// cannot be a stored property or a parameter — only a value made here and used there.
     @available(iOS 26.0, *)
-    private var glassStyle: Glass {
-        var value: Glass = spec.clear ? .clear : .regular
+    private func glassStyle(clear: Bool) -> Glass {
+        var value: Glass = clear ? .clear : .regular
         if let tint = spec.tint {
             value = value.tint(tint.opacity(0.42))
         }
@@ -209,12 +275,17 @@ public struct MedxSurfaceModifier<S: InsettableShape>: ViewModifier {
     }
 
     /// Hairline plus specular rim, in one overlay that never takes a touch.
+    ///
+    /// `strokeOpacity` applies to `strokeHue`. With no hue the edge is `MedxInk.hairline` at
+    /// full strength — that token carries its own alpha, tuned for a black page, and dimming
+    /// it further would erase the only line separating a card from the void behind it.
     private var edge: some View {
         ZStack {
-            shape.strokeBorder(
-                (spec.strokeHue ?? MedxSurface.separator).opacity(spec.strokeOpacity),
-                lineWidth: spec.strokeWidth
-            )
+            if let hue = spec.strokeHue {
+                shape.strokeBorder(hue.opacity(spec.strokeOpacity), lineWidth: spec.strokeWidth)
+            } else {
+                shape.strokeBorder(MedxInk.hairline, lineWidth: spec.strokeWidth)
+            }
 
             if spec.showsRim {
                 shape.strokeBorder(rim, lineWidth: 0.9)
@@ -223,12 +294,11 @@ public struct MedxSurfaceModifier<S: InsettableShape>: ViewModifier {
         .allowsHitTesting(false)
     }
 
-    /// Light comes from the top of the screen, so the bevel is bright at the top edge and
-    /// gone by the bottom. Weaker in Dark Mode, where a white rim at full strength reads as
-    /// a drawn outline instead of a highlight.
+    /// Light comes from the top of the screen, so the bevel is bright at the top edge and gone
+    /// by the bottom. On black this is doing the whole job a shadow would do on grey.
     private var rim: LinearGradient {
-        let top = scheme == .dark ? 0.26 : 0.62
-        let middle = scheme == .dark ? 0.05 : 0.14
+        let top = scheme == .dark ? 0.16 : 0.75
+        let middle = scheme == .dark ? 0.04 : 0.18
         return LinearGradient(
             colors: [
                 Color.white.opacity(top),
@@ -273,7 +343,10 @@ public struct MedxGlassGroup<Content: View>: View {
 
 public extension View {
     /// Names a shape inside a `MedxGlassGroup` so it morphs into its neighbours instead of
-    /// cross-fading — the Next button becoming Finish, the timer growing as it runs out.
+    /// cross-fading — the Next button becoming Finish, Skip flowing out of it.
+    ///
+    /// `RunnerActionBar` is the only caller, which is the point: it is the only place in the app
+    /// with two panes of glass side by side.
     @ViewBuilder
     func medxGlassID(_ id: String, in namespace: Namespace.ID) -> some View {
         if #available(iOS 26.0, *) {
@@ -282,27 +355,24 @@ public extension View {
             self
         }
     }
-
-    /// Extends and blurs artwork out under the bars instead of letting it stop at a hard
-    /// line. Used on the few screens that have a hero image worth bleeding.
-    @ViewBuilder
-    func medxBackgroundExtension() -> some View {
-        if #available(iOS 26.0, *) {
-            self.backgroundExtensionEffect()
-        } else {
-            self
-        }
-    }
 }
+
+// A `medxBackgroundExtension()` wrapping `backgroundExtensionEffect()` used to live here, for
+// bleeding a hero image out under the bars. Nothing ever called it, and on a pitch-black page
+// there is no artwork to bleed — the pages are `#000` and the one image-led screen (the video
+// player) is already full-bleed by itself.
 
 // MARK: - Floating bar
 
 public extension View {
     /// A bar that floats: inset from the screen edges, fully rounded, its own glass, its own
-    /// shadow. This replaces the old edge-to-edge `.bar` for the runner and every other
-    /// bottom action bar, because a capsule of glass over the page is what iOS 26 does and an
-    /// opaque stripe pinned to the bottom is what iOS 13 did.
-    func medxFloatingBar(cornerRadius: CGFloat = 26) -> some View {
+    /// shadow.
+    ///
+    /// This is the *only* bottom bar in the app now. The edge-to-edge `medxBar` it replaced was
+    /// an opaque stripe with a hairline across the top — three bands of furniture on a phone
+    /// screen — and every one of its call sites was inside a sheet or a cover, which is exactly
+    /// where a pane of glass has real content behind it to refract.
+    func medxFloatingBar(cornerRadius: CGFloat = MedxRadius.hud) -> some View {
         self
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -313,38 +383,62 @@ public extension View {
             .padding(.horizontal, MedxGlass.floatInset)
             .padding(.bottom, 6)
     }
+}
 
-    /// A round glass button surface — close, bookmark, overflow. Not a `ButtonStyle`: the
-    /// caller owns the `Button`, and the glass has to sit on the *label* so the tap lands on
-    /// the button rather than on the effect.
-    func medxGlassCircle(diameter: CGFloat = 38, tint: Color? = nil) -> some View {
+// MARK: - Small surfaces
+//
+// An ink pair and a glass one, deliberately named apart. Reaching for `medxGlassCircle`
+// outside the runner is the mistake this redesign exists to undo, and a name that says which
+// material it is makes that mistake visible in the diff.
+
+public extension View {
+    /// A round *ink* button surface — close, bookmark, overflow, a download control in a row.
+    /// The app-wide one. Not a `ButtonStyle`: the caller owns the `Button`, and the surface has
+    /// to sit on the label.
+    func medxInkCircle(diameter: CGFloat = 38, tint: Color? = nil) -> some View {
         self
             .frame(width: diameter, height: diameter)
             .medxSurface(
                 Circle(),
                 MedxSurfaceSpec(
-                    tint: tint,
-                    fallbackFill: tint?.opacity(0.18) ?? MedxSurface.fieldFill,
+                    fill: tint ?? MedxInk.field,
                     strokeHue: tint,
-                    strokeOpacity: tint == nil ? 0.18 : 0.45
+                    strokeOpacity: 0.45
                 )
             )
             .contentShape(Circle())
     }
 
-    /// A glass capsule around a label — the timer, a counter, a status pill in chrome.
-    func medxGlassCapsule(tint: Color? = nil, horizontal: CGFloat = 12, vertical: CGFloat = 7) -> some View {
+    /// An ink capsule around a small label — a chip, a count, an inline tag.
+    func medxInkCapsule(tint: Color? = nil, horizontal: CGFloat = 12, vertical: CGFloat = 7) -> some View {
         self
             .padding(.horizontal, horizontal)
             .padding(.vertical, vertical)
             .medxSurface(
                 Capsule(style: .continuous),
                 MedxSurfaceSpec(
-                    tint: tint,
-                    fallbackFill: tint?.opacity(0.16) ?? MedxSurface.fieldFill,
+                    fill: tint?.opacity(0.16) ?? MedxInk.field,
                     strokeHue: tint,
-                    strokeOpacity: tint == nil ? 0.16 : 0.40
+                    strokeOpacity: 0.34
                 )
             )
+    }
+
+    /// A round *glass* button surface. Runner chrome only — see the list at the top of this
+    /// file. The glass sits on the label rather than on the `Button` so the tap still lands.
+    func medxGlassCircle(diameter: CGFloat = 38, tint: Color? = nil) -> some View {
+        self
+            .frame(width: diameter, height: diameter)
+            .medxSurface(
+                Circle(),
+                MedxSurfaceSpec(
+                    material: .glass(clear: false),
+                    fill: tint?.opacity(0.18) ?? MedxInk.field,
+                    tint: tint,
+                    strokeHue: tint,
+                    strokeOpacity: 0.45
+                )
+            )
+            .contentShape(Circle())
     }
 }

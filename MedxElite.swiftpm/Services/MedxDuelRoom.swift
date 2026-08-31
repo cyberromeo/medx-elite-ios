@@ -26,7 +26,6 @@ public final class MedxDuelRoom: ObservableObject {
     @Published public private(set) var armingIn = 0
     @Published public private(set) var phase: MedxDuelPhase = .loading
 
-    private let transport: MedxDuelTransport
     private var roomSubscription: MedxDuelSubscription?
     private var ticker: Timer?
     private var gameId: String?
@@ -38,13 +37,33 @@ public final class MedxDuelRoom: ObservableObject {
     private var advancedFor = -1
     private var savedFor: String?
 
+    /// A stub handed in by a test, which always wins.
+    private let injected: MedxDuelTransport?
+    /// The transport this room is actually using, resolved on first use rather than at `init`.
+    private var live: MedxDuelTransport?
+
+    /// **Resolved when a stream opens, not when this object is made.**
+    ///
+    /// This was a `let` assigned in `init`, and that was the Faceoff transport bug: `init` runs
+    /// while the SDK sign-in is still an unawaited `Task` (see `AuthService.restoreSDKSession` and
+    /// `MedxEliteApp.bootstrap`), so `MedxFirebaseBridge.isReady` was reliably `false` and the
+    /// poller was chosen — and then kept for the life of the object no matter what happened next.
+    /// A room is opened from a `.task`, long after auth has settled, so asking here asks at the
+    /// only moment the answer can be right.
+    private var transport: MedxDuelTransport {
+        if let injected { return injected }
+        if let live { return live }
+        let made = MedxDuelTransportFactory.make()
+        live = made
+        return made
+    }
+
     /// `nil` rather than `MedxDuelTransportFactory.make()` as the default, because a default
     /// argument expression is evaluated at the *call site* in a nonisolated context — and `make()`
-    /// is `@MainActor`, since choosing the transport reads `MedxFirebaseBridge`. Resolving it in the
-    /// body instead puts it back inside this type's own isolation. The parameter stays, so a test
-    /// can still hand in a stub.
+    /// is `@MainActor`, since choosing the transport reads `MedxFirebaseBridge`. The parameter stays
+    /// so a test can hand in a stub.
     public init(transport: MedxDuelTransport? = nil) {
-        self.transport = transport ?? MedxDuelTransportFactory.make()
+        self.injected = transport
     }
 
     deinit {
@@ -173,6 +192,9 @@ public final class MedxDuelRoom: ObservableObject {
         deckLoadedFor = nil
         timedOutFor = -1
         advancedFor = -1
+        // Dropped so the next `open` re-asks which transport to use. The SDK may have signed in
+        // between the two, and a closed room has nothing left that a stale choice would help.
+        live = nil
         UIApplication.shared.isIdleTimerDisabled = false
         MedxLiveActivityController.shared.endDuel()
     }
@@ -446,13 +468,17 @@ public final class MedxDuelRoom: ObservableObject {
 
 /// The one subscription to every open lobby.
 ///
-/// Home shows a Join card and the Library row shows a badge, and both want the same answer — so
+/// Home shows a Join card and the Library tile shows a badge, and both want the same answer — so
 /// this is a singleton with a single stream rather than two screens each starting their own. On the
 /// polling transport that halves the request rate for the whole time the app is open; on the SDK it
 /// is one listener instead of two.
 ///
-/// This is also the one thing that pulls the duel transport into the launch path, deliberately: a
-/// dealt game nobody can see is a dealt game nobody plays.
+/// This is also the one thing that pulls the duel transport into the launch path, and that is what
+/// made the transport latch bug *this* type's problem more than the room's: `shared` is a `static
+/// let`, so it used to call `MedxDuelTransportFactory.make()` the first time any screen touched it —
+/// during launch, while the SDK sign-in was still in flight — and hold the answer forever. Two
+/// things fix it: the transport is resolved when `start()` opens the stream, and a readiness flip
+/// from `MedxFirebaseBridge` tears the stream down and reopens it on the better transport.
 @MainActor
 public final class MedxLobbyWatcher: ObservableObject {
     public static let shared = MedxLobbyWatcher()
@@ -460,11 +486,43 @@ public final class MedxLobbyWatcher: ObservableObject {
     @Published public private(set) var lobbies: [MedxDuelGame] = []
     @Published public private(set) var hasLoaded = false
 
-    private let transport: MedxDuelTransport
+    private let injected: MedxDuelTransport?
+    private var live: MedxDuelTransport?
     private var subscription: MedxDuelSubscription?
+    private var readiness: AnyCancellable?
+
+    /// What Settings ▸ Diagnostics reports. `nil` while nothing is subscribed, which is an honest
+    /// answer rather than a guess — before a stream is open there is no transport in use to name.
+    ///
+    /// Deliberately does **not** go through `transport`: reading a diagnostics row must not be the
+    /// thing that decides which transport the app uses for the rest of the session.
+    public var activeTransportName: String? {
+        guard subscription != nil else { return nil }
+        return (injected ?? live)?.transportName
+    }
+
+    private var transport: MedxDuelTransport {
+        if let injected { return injected }
+        if let live { return live }
+        let made = MedxDuelTransportFactory.make()
+        live = made
+        return made
+    }
 
     private init(transport: MedxDuelTransport? = nil) {
-        self.transport = transport ?? MedxDuelTransportFactory.make()
+        self.injected = transport
+        // Deliberately the only work `init` does. Subscribing to readiness is cheap and touches
+        // nothing; resolving a transport here is what the bug was.
+        //
+        // The hop through `Task { @MainActor in }` is the same one `MedxDuelRoom.startTicker` makes
+        // for the same reason: a Combine `sink` closure is not actor-isolated, and everything it
+        // touches here is.
+        readiness = MedxFirebaseBridge.shared.$isReady
+            .removeDuplicates()
+            .sink { ready in
+                guard ready else { return }
+                Task { @MainActor in MedxLobbyWatcher.shared.upgradeToListeners() }
+            }
     }
 
     /// Lobbies the *other* one dealt and nobody has joined. Stale ones go cold rather than sitting
@@ -489,7 +547,33 @@ public final class MedxLobbyWatcher: ObservableObject {
         subscription?.cancel()
         subscription = nil
     }
+
+    /// The SDK signed in after this stream was already polling. Swap under it.
+    ///
+    /// Only ever an *upgrade*. Readiness going false means the SDK became unusable, and a listener
+    /// stream that has stopped delivering is not something this could detect or repair from here —
+    /// the poller it would want is chosen on the next `start()` anyway.
+    ///
+    /// `internal` rather than `private` because the readiness subscription reaches it through
+    /// `shared`: the `sink` closure has to hop to the main actor, and hopping with a captured `self`
+    /// is what would make it a retain cycle.
+    func upgradeToListeners() {
+        guard injected == nil, subscription != nil else { return }
+        if let live, live is MedxFirestoreDuelTransportMarker { return }
+        stop()
+        live = nil
+        start()
+    }
 }
+
+/// What "already on the better transport" means, without `#if canImport` leaking into
+/// `MedxLobbyWatcher`.
+///
+/// `MedxFirestoreDuelTransport` only exists in a build that has the Firebase package, so naming it
+/// in a type check would need an availability fence around the check itself. Conformance instead:
+/// the SDK transport declares it, the poller does not, and the Playgrounds target — which has no SDK
+/// transport at all — sees a protocol nothing conforms to, which is exactly right.
+public protocol MedxFirestoreDuelTransportMarker {}
 
 // MARK: - Which transport
 

@@ -2,10 +2,10 @@ import SwiftUI
 
 // MARK: - Runner chrome
 //
-// A sitting is the one screen in the app that is nothing but chrome and one dense block of
-// text. So it is the screen glass is actually *for*: the question is content and stays on a
-// card you can read, and everything around it — the clock, the counter, the progress, the
-// navigation — floats above it as glass over the page's own wash.
+// A sitting is one dense block of text with controls floating over it, and it is the screen
+// Liquid Glass is actually *for*. It is also, now, one of only two places in the app allowed to
+// use it — the other being anything presented. Everything else is ink; see
+// `Theme/MedxLiquidGlass.swift`.
 //
 // Two panels, and only two:
 //
@@ -18,7 +18,8 @@ import SwiftUI
 //
 // The old chrome was the system navigation bar plus a hairline progress strip plus an
 // edge-to-edge `.bar`: three bands of furniture across a phone screen. This is two floating
-// panels and the question in between.
+// panels and the question in between — over pure black, with the question card opaque on top of
+// it, so the glass has real text to refract and the text has nothing behind it to fight.
 
 // MARK: - HUD
 
@@ -87,7 +88,7 @@ struct RunnerHUD: View {
         )
         .padding(.horizontal, MedxGlass.floatInset)
         .padding(.bottom, 10)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: isLow)
+        .animation(reduceMotion ? nil : MedxMotion.snap, value: isLow)
     }
 
     /// The panel takes a red cast in the last ten seconds. It is the one moment in a sitting
@@ -199,7 +200,7 @@ struct RunnerTimerBadge: View {
         HStack(spacing: 6) {
             ZStack {
                 Circle()
-                    .stroke(Color(uiColor: .quaternaryLabel), lineWidth: 2.5)
+                    .stroke(MedxInk.hairline, lineWidth: 2.5)
 
                 Circle()
                     .trim(from: 0, to: CGFloat(isPaused ? 1 : fraction))
@@ -223,7 +224,7 @@ struct RunnerTimerBadge: View {
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
-        .background(tint.opacity(isLow ? 0.20 : 0.13), in: Capsule(style: .continuous))
+        .background(tint.opacity(isLow ? 0.22 : 0.15), in: Capsule(style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(isPaused ? "Answer revealed, timer paused" : "Time remaining \(clock)")
     }
@@ -263,7 +264,7 @@ struct RunnerProgressTrack: View {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule(style: .continuous)
-                            .fill(Color(uiColor: .quaternaryLabel))
+                            .fill(MedxInk.field)
 
                         Capsule(style: .continuous)
                             .fill(
@@ -279,7 +280,7 @@ struct RunnerProgressTrack: View {
                 .frame(height: 4)
             }
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: currentIndex)
+        .animation(reduceMotion ? nil : MedxMotion.snap, value: currentIndex)
         .accessibilityHidden(true)
     }
 }
@@ -296,12 +297,14 @@ struct RunnerProgressTrack: View {
 /// Nothing here uses `.interactive()` glass. Inside a `Button` label the effect takes the touch
 /// and the button stops firing — that is what broke the flashcard close button — so press
 /// feedback comes from `BouncyButtonStyle` and the glass is inert.
+///
+/// There used to be a `hint` above the row: "Answer to reveal the explanation", shown on every
+/// unanswered question of every revision sitting. A Next button that is visibly disabled has
+/// already said it, and saying it again forty times a paper is what made the bar feel like a
+/// tutorial. Gone, along with the fourth pane of glass it needed.
 struct RunnerActionBar: View {
     let advanceLabel: String
     let isLastQuestion: Bool
-    /// Shown only while the primary action is blocked, which in revision mode means "you have
-    /// to answer before you can move on".
-    let hint: String?
     let canGoBack: Bool
     let canAdvance: Bool
     let showSkip: Bool
@@ -320,31 +323,19 @@ struct RunnerActionBar: View {
 
     var body: some View {
         MedxGlassGroup(spacing: 18) {
-            VStack(spacing: 8) {
-                if let hint, !hint.isEmpty {
-                    Text(hint)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .medxGlassCapsule(horizontal: 11, vertical: 5)
-                        .medxGlassID("runner.hint", in: glass)
-                        .transition(.opacity)
+            HStack(spacing: 10) {
+                backButton
+                if showSkip {
+                    skipButton
                 }
-
-                HStack(spacing: 10) {
-                    backButton
-                    if showSkip {
-                        skipButton
-                    }
-                    advanceButton
-                }
+                advanceButton
             }
         }
         .padding(.horizontal, MedxGlass.floatInset)
         .padding(.top, 4)
         .padding(.bottom, 6)
-        .animation(reduceMotion ? nil : .snappy(duration: 0.26), value: showSkip)
-        .animation(reduceMotion ? nil : .snappy(duration: 0.26), value: isLastQuestion)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: hint)
+        .animation(reduceMotion ? nil : MedxMotion.snap, value: showSkip)
+        .animation(reduceMotion ? nil : MedxMotion.snap, value: isLastQuestion)
     }
 
     // MARK: Pieces
@@ -376,8 +367,8 @@ struct RunnerActionBar: View {
                 .medxSurface(
                     Capsule(style: .continuous),
                     MedxSurfaceSpec(
-                        fallbackFill: MedxSurface.fieldFill,
-                        strokeOpacity: 0.16
+                        material: .glass(clear: false),
+                        fill: MedxInk.field
                     )
                 )
                 .contentShape(Capsule(style: .continuous))
@@ -403,10 +394,11 @@ struct RunnerActionBar: View {
             .medxSurface(
                 Capsule(style: .continuous),
                 MedxSurfaceSpec(
+                    material: .glass(clear: false),
+                    fill: canAdvance ? advanceHue.opacity(0.24) : MedxInk.field,
                     tint: canAdvance ? advanceHue : nil,
-                    fallbackFill: canAdvance ? advanceHue.opacity(0.24) : MedxSurface.fieldFill,
                     strokeHue: canAdvance ? advanceHue : nil,
-                    strokeOpacity: canAdvance ? 0.55 : 0.16,
+                    strokeOpacity: 0.55,
                     strokeWidth: canAdvance ? 1.2 : 0.5,
                     shadowOpacity: canAdvance ? 0.14 : 0,
                     shadowRadius: 12,

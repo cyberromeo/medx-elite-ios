@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 #if canImport(FirebaseCore)
 import FirebaseCore
@@ -28,16 +29,21 @@ import FirebaseAuth
 ///   firebase-ios-sdk, so every SDK symbol in the project sits behind `canImport`, this type
 ///   compiles to an `isReady == false` stub there, and `MedxDuelTransportFactory` falls back to the
 ///   REST poller. Both copies of the file stay byte-identical, which is what the mirror requires.
+///
+/// `isReady` is `@Published` for one specific reason: it flips *late*. The SDK sign-in is
+/// fire-and-forget from `AuthService`, so anything that asked "are we ready" during launch got
+/// `false` and, when it cached that answer, was stuck with the poller for the life of the process.
+/// `MedxLobbyWatcher` now subscribes to this instead and swaps its stream when the answer changes.
 @MainActor
-public final class MedxFirebaseBridge {
+public final class MedxFirebaseBridge: ObservableObject {
     public static let shared = MedxFirebaseBridge()
 
     /// Whether the duel may use snapshot listeners. False in a build without the package, false
     /// while `FirebaseConfig.iosAppId` is unset, and false on a device where the SDK sign-in failed.
-    public private(set) var isReady = false
+    @Published public private(set) var isReady = false
 
     /// One line for Settings ▸ Diagnostics, so "why is the duel slow" is answerable on a device.
-    public private(set) var status = "Not configured"
+    @Published public private(set) var status = "Not configured"
 
     private var isConfigured = false
 

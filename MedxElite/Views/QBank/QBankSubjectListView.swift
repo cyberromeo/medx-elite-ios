@@ -49,10 +49,6 @@ public struct QBankSubjectListView: View {
         }
     }
 
-    private var allQuestions: Int {
-        subjects.reduce(0) { $0 + $1.questionCount }
-    }
-
     public var body: some View {
         Group {
             switch loadState {
@@ -76,7 +72,9 @@ public struct QBankSubjectListView: View {
         }
         .medxPage(.qbank)
         .navigationTitle("Question Bank")
-        .navigationBarTitleDisplayMode(.inline)
+        // Large, and the *only* place the words appear. There used to be an inline title here and
+        // a `MedxPageHeader` reading "Question Bank" forty points below it.
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
@@ -120,14 +118,10 @@ public struct QBankSubjectListView: View {
     private var content: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
-                MedxPageHeader(
-                    section: .qbank,
-                    eyebrow: bank.eyebrow,
-                    title: "Question Bank",
-                    lead: "\(allQuestions.formatted()) questions across two banks. "
-                        + "Marrow's ids are prefixed, so a module runs the same either way.",
-                    symbol: bank.symbol
-                )
+                // The bank's identity, not its size. The metrics row two views down already
+                // carries subjects / modules / questions for whichever bank is selected, and the
+                // header used to print the combined question count on top of that.
+                MedxPageCaption(bank.eyebrow)
 
                 MedxSegmented(
                     section: .qbank,
@@ -273,7 +267,7 @@ public struct QBankSubjectListView: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(MedxTheme.primaryPurple)
                     .frame(width: 34, height: 34)
-                    .background(MedxTheme.primaryPurple.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .background(MedxTheme.primaryPurple.opacity(0.14), in: RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
 
                 Text("Bookmarked questions")
                     .font(.subheadline.weight(.semibold))

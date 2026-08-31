@@ -50,6 +50,14 @@ public protocol MedxDuelTransport: AnyObject {
     /// Whether the last read or write was accepted. `nil` before anything has been tried.
     var remoteWorks: Bool? { get }
 
+    /// What to call this in Settings ▸ Diagnostics.
+    ///
+    /// Diagnostics used to derive the line from `MedxFirebaseBridge.isReady`, which is not the same
+    /// claim: readiness says the SDK *could* be used, and this says what the open stream actually
+    /// is. Those two disagreed for the whole of the transport-latch bug — the bridge could report
+    /// "Live listeners" while every duel in the process was polling.
+    var transportName: String { get }
+
     func watchRoom(
         gameId: String,
         onChange: @escaping (MedxDuelRoomSnapshot) -> Void

@@ -19,6 +19,8 @@ import Foundation
 public final class MedxDuelRestTransport: MedxDuelTransport {
     public private(set) var remoteWorks: Bool?
 
+    public let transportName = "Polling"
+
     private var urgency: MedxDuelPhase = .loading
     private var pokeRequested = false
 

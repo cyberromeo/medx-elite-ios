@@ -207,7 +207,7 @@ public struct VideoSubjectView: View {
             Text("\(index + 1)")
                 .font(.subheadline.weight(.bold).monospacedDigit())
                 .foregroundStyle(MedxTheme.accent)
-                .medxGlassCircle(diameter: 40, tint: MedxTheme.accent)
+                .medxInkCircle(diameter: 40, tint: MedxTheme.accent.opacity(0.18))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(video.title)

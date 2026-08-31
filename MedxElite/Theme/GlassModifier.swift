@@ -2,40 +2,37 @@ import SwiftUI
 
 // MARK: - Surface System
 //
-// The app's first pass at Liquid Glass wrapped every rectangle in `.ultraThinMaterial` over a
-// flat grey page and got frosted soup: nothing behind the panels to refract, a blur pass per
-// card, and text sitting on haze. It was taken back out and the app went flat.
+// The app's shared primitives — cards, tiles, metrics, chips, circle buttons — all of which now
+// draw **ink**. See `Theme/MedxInk.swift` for the palette and `Theme/MedxLiquidGlass.swift` for
+// the one rule that governs both files: content is ink, chrome is glass, and glass floats.
 //
-// It is glass again now, but built the other way round — see `Theme/MedxLiquidGlass.swift`
-// for the four rules, of which the first is the one that was missing: **the backdrop comes
-// first**. `MedxAurora` washes each page in the hue that destination already owns, so a glass
-// card has something to bend, and the same card looks lime-lit on the QBank and warm on Tests
-// without a line of per-screen styling.
+// This file used to open with an apology for the app's first glass attempt. The apology now
+// covers two: the first wrapped everything in `.ultraThinMaterial` over flat grey, the second
+// built a proper backdrop and then glassed all 75 call sites below. Both came out as haze. What
+// survived both is the discipline, and it is what makes a third rewrite a small diff:
 //
-// What survives from the flat era, unchanged, is the discipline:
-//
-//   * One place decides what a rectangle is made of — `medxSurface`, which also owns the
+//   * One place decides what a rectangle is made of — `medxSurface` — and it also owns the
 //     iOS 17 fallback and the Reduce Transparency escape hatch.
 //   * Never put an `interactive()` glass effect inside a `Button` label. The effect takes the
 //     touch and the button stops firing; that is what broke the flashcard close button.
-//     Interactive glass comes from `.buttonStyle(.glass)`, which the system wires up itself.
 //   * Glass near glass shares a `MedxGlassGroup`, because glass cannot sample glass.
 //
-// Every call site of `medxCard` / `medxTile` / `medxBar` in the app — 75 of them — is
-// unchanged and simply renders the new material.
+// Every `medxCard` / `medxTile` call site in the app is untouched by this rewrite and simply
+// renders opaque now.
 
 public enum MedxSurface {
-    /// Corner radii. Rounder than the flat set they replace: iOS 26's own geometry is, and a
-    /// tight radius makes a glass edge read as a sticker rather than as a lens.
-    public static let cardRadius: CGFloat = MedxGlass.cardRadius
-    public static let tileRadius: CGFloat = MedxGlass.tileRadius
+    /// Geometry and colour both forward to the token files, so there is one place to change a
+    /// radius and one place to change a fill. Kept as `MedxSurface.*` because 60-odd call sites
+    /// spell them that way and renaming them would be churn rather than work.
+    public static let cardRadius: CGFloat = MedxRadius.card
+    public static let tileRadius: CGFloat = MedxRadius.tile
     public static let hairline: CGFloat = 0.5
 
-    public static var cardFill: Color { Color(uiColor: .secondarySystemGroupedBackground) }
-    public static var tileFill: Color { Color(uiColor: .tertiarySystemGroupedBackground) }
-    public static var fieldFill: Color { Color(uiColor: .tertiarySystemFill) }
-    public static var groupedBackground: Color { Color(uiColor: .systemGroupedBackground) }
-    public static var separator: Color { Color(uiColor: .separator) }
+    public static var cardFill: Color { MedxInk.raised }
+    public static var tileFill: Color { MedxInk.sunken }
+    public static var fieldFill: Color { MedxInk.field }
+    public static var groupedBackground: Color { MedxInk.page }
+    public static var separator: Color { MedxInk.hairline }
 
     /// Standard content inset for full-width cards on iPhone.
     public static let gutter: CGFloat = 16
@@ -43,7 +40,8 @@ public enum MedxSurface {
 
 // MARK: - Cards
 
-/// A content card. Glass on iOS 26 over the page's own wash, the flat grouped fill below it.
+/// A content card. Opaque near-black over the pitch-black page, with a hairline for its edge
+/// and a top-lit rim for its elevation.
 public struct MedxCardModifier: ViewModifier {
     public var cornerRadius: CGFloat
     /// A raised card is the one card on a screen that *is* the screen's subject — a score
@@ -92,7 +90,7 @@ public extension View {
         modifier(MedxCardModifier(cornerRadius: cornerRadius, raised: raised))
     }
 
-    /// A card that carries a hue through its glass — used where the card's colour *is* the
+    /// A card that carries a hue on its border — used where the card's colour *is* the
     /// information, as in a duel row or a live invite.
     func medxCard(tint: Color, cornerRadius: CGFloat = MedxSurface.cardRadius, raised: Bool = false) -> some View {
         modifier(MedxCardModifier(cornerRadius: cornerRadius, raised: raised, tint: tint))
@@ -103,35 +101,23 @@ public extension View {
         modifier(MedxTileModifier(cornerRadius: cornerRadius, accentColor: accentColor, isSelected: isSelected))
     }
 
-    /// Bar-style chrome pinned to an edge: bottom action bars on the screens that want a
-    /// full-width one rather than the floating capsule (`medxFloatingBar`).
-    ///
-    /// `.bar` is what a real `UIToolbar` uses and, as a `ShapeStyle` background, it extends
-    /// into the safe area on its own — so the bar reaches the bottom edge instead of leaving a
-    /// stripe of page above the home indicator. On iOS 26 the system renders that material as
-    /// glass already; what is added here is the specular top rim, so the bar has an edge
-    /// instead of a seam.
-    func medxBar(topDivider: Bool = false) -> some View {
-        self
-            .background(.bar)
-            .overlay(alignment: .top) {
-                if topDivider {
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.22), Color.clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 1)
-                    .overlay(alignment: .top) {
-                        Rectangle()
-                            .fill(MedxSurface.separator.opacity(0.45))
-                            .frame(height: MedxSurface.hairline)
-                    }
-                    .allowsHitTesting(false)
-                }
-            }
+    /// A card inside a *presented* surface — the rev/exam mode picker, the question navigator.
+    /// The one content-shaped glass in the app; see `MedxSurfaceSpec.sheetCard`.
+    func medxSheetCard(cornerRadius: CGFloat = MedxSurface.cardRadius, tint: Color? = nil) -> some View {
+        medxSurface(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
+            .sheetCard(tint: tint)
+        )
     }
 }
+
+// MARK: - Bars
+//
+// `medxBar(topDivider:)` is gone. It backed a bar with `.bar` and drew a hairline across the
+// top of the screen, and all six of its call sites were inside a sheet or a full-screen cover.
+// They all use `medxFloatingBar()` now: same job, one inset capsule of glass instead of an
+// opaque stripe plus a rule. The removal is most of what "declump" meant — a screen used to
+// end in three stacked bands of furniture.
 
 // MARK: - Scroll
 //
@@ -147,9 +133,11 @@ public extension View {
 // is never a stub: it is what the screen should look like on iOS 17, which is the version
 // three of the four target devices were on when this was written.
 //
-// The rule from the top of this file still holds — glass goes on chrome that floats over
-// content, never on content — so what is adopted here is the tab bar's own behaviour, the
-// scroll edges, and button styles. Cards stay flat.
+// What is adopted here is chrome the *platform* owns — the tab bar's minimise behaviour, the
+// scroll edges — plus one button style. `.glassProminent` is kept for the primary action
+// because that is the control iOS 26 itself draws in glass and there is one per screen.
+// `.glass` is **not** kept for secondary buttons: a screen with four glass pills on it was the
+// "too much glass" this rewrite is undoing, and `.bordered` on black is a clean ink capsule.
 
 public extension View {
     /// Lets the tab bar shrink out of the way as you scroll down a long list, which on iOS 26
@@ -175,19 +163,16 @@ public extension View {
         }
     }
 
-    /// A secondary action. Deliberately does **not** set a border shape: the call sites that
-    /// want a capsule already say so, and imposing one here would re-shape a dozen buttons
-    /// that are meant to be the system's default rounded rectangle.
-    @ViewBuilder
+    /// A secondary action. Flat on every OS version — see the note above. Deliberately does
+    /// **not** set a border shape: the call sites that want a capsule already say so, and
+    /// imposing one here would re-shape a dozen buttons that are meant to be the system's
+    /// default rounded rectangle.
     func medxBorderedButton() -> some View {
-        if #available(iOS 26.0, *) {
-            self.buttonStyle(.glass)
-        } else {
-            self.buttonStyle(.bordered)
-        }
+        buttonStyle(.bordered)
     }
 
-    /// The primary action on a screen — Start, Submit, Deal.
+    /// The primary action on a screen — Start, Submit, Deal. One per screen, and the one
+    /// control that keeps its glass.
     @ViewBuilder
     func medxFilledButton() -> some View {
         if #available(iOS 26.0, *) {
@@ -200,7 +185,12 @@ public extension View {
 
 // MARK: - Section header
 
-/// `Text` in the system's grouped-list header voice, for use above cards in a ScrollView.
+/// A heading for a group of cards inside a scroll view.
+///
+/// `.headline`, not `.title3`: every screen that uses one now also has the platform's *large*
+/// navigation title above it, and two competing bold headings on one screen is the clutter this
+/// rewrite is removing. One step down puts it clearly under the page title, which is what
+/// Fitness and Health do with theirs.
 public struct MedxSectionHeader<Trailing: View>: View {
     private let title: String
     private let subtitle: String?
@@ -216,7 +206,7 @@ public struct MedxSectionHeader<Trailing: View>: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.title3.weight(.semibold))
+                    .font(.headline)
                     .foregroundStyle(.primary)
 
                 if let subtitle, !subtitle.isEmpty {
@@ -269,6 +259,7 @@ public struct MedxMetric: View {
                         .foregroundStyle(color)
                     Text(value)
                         .font(.body.monospacedDigit().weight(.semibold))
+                        .contentTransition(.numericText())
                     Text(label.capitalized)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -284,6 +275,9 @@ public struct MedxMetric: View {
                         .font(.title3.monospacedDigit().weight(.semibold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.65)
+                        // Rolls rather than cuts when a refresh lands a new figure. Monospaced
+                        // digits are what make it a roll instead of a reflow.
+                        .contentTransition(.numericText())
 
                     Text(label.capitalized)
                         .font(.caption)
@@ -298,6 +292,7 @@ public struct MedxMetric: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .medxTile()
+        .animation(.easeOut(duration: 0.28), value: value)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
         .accessibilityValue(value)
@@ -356,7 +351,10 @@ public struct MedxCircleButton: View {
             Image(systemName: icon)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(filled ? MedxCandy.onSolid : (tint ?? Color.primary))
-                .medxGlassCircle(diameter: 34, tint: filled ? (tint ?? MedxTheme.accent) : tint)
+                // Ink, not glass. This button appears on twenty screens; glass belongs to the
+                // runner and to presented surfaces, and a translucent 34pt circle on a card
+                // was one of the panes that made the last pass read as haze.
+                .medxInkCircle(diameter: 34, tint: filled ? (tint ?? MedxTheme.accent) : nil)
                 .frame(width: 44, height: 44)
                 .contentShape(Circle())
         }
@@ -388,7 +386,7 @@ public struct MedxChip: View {
                 .font(.caption2.weight(.semibold))
         }
         .foregroundStyle(tint)
-        .medxGlassCapsule(tint: tint, horizontal: 9, vertical: 4)
+        .medxInkCapsule(tint: tint, horizontal: 9, vertical: 4)
         .accessibilityElement(children: .combine)
     }
 }

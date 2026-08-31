@@ -13,8 +13,10 @@ import FirebaseFirestore
 /// The three write rules are unchanged and are not negotiable: nobody writes anybody else's
 /// document, every query is a single equality filter, and nothing is read before auth resolves.
 @MainActor
-public final class MedxFirestoreDuelTransport: MedxDuelTransport {
+public final class MedxFirestoreDuelTransport: MedxDuelTransport, MedxFirestoreDuelTransportMarker {
     public private(set) var remoteWorks: Bool?
+
+    public let transportName = "Live listeners"
 
     private let db = Firestore.firestore()
 

@@ -191,7 +191,7 @@ private struct SubjectTrackerRow: View {
             }
         }
         .padding(14)
-        .medxCard(cornerRadius: 14)
+        .medxCard(cornerRadius: MedxRadius.tile)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(subjectName)
     }
@@ -217,17 +217,17 @@ private struct SubjectTrackerRow: View {
             .foregroundStyle(isChecked ? Color.white : (isTracked ? Color.primary : Color.secondary.opacity(0.45)))
             .frame(maxWidth: .infinity, minHeight: 42)
             .background(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
                     .fill(isChecked ? MedxTheme.accent : (isTracked ? MedxSurface.fieldFill : Color.clear))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
                     .strokeBorder(
                         isTracked ? Color.clear : MedxSurface.separator.opacity(0.4),
                         lineWidth: MedxSurface.hairline
                     )
             )
-            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(!isTracked)

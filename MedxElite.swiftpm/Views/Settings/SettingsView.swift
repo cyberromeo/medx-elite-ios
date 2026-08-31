@@ -375,6 +375,11 @@ public struct SettingsView: View {
                     creditFooter
                 }
             }
+            // A `List` paints its own `systemGroupedBackground`, which in dark is #1C1C1E — grey,
+            // not black. Hiding it and putting the app's page underneath is what makes every
+            // `List` in the app agree with every `ScrollView` in it.
+            .scrollContentBackground(.hidden)
+            .medxPage(.library)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -855,9 +860,7 @@ public struct SettingsView: View {
             // only place the difference is visible.
             diagnosticRow(
                 title: "Faceoff transport",
-                detail: MedxFirebaseBridge.shared.isReady
-                    ? "Live listeners — \(MedxFirebaseBridge.shared.status)"
-                    : "Polling — \(MedxFirebaseBridge.shared.status)",
+                detail: faceoffTransportDetail,
                 ok: MedxFirebaseBridge.shared.isReady
             )
 
@@ -900,11 +903,24 @@ public struct SettingsView: View {
         }
     }
 
+    /// What the duel is *actually* using, not what it could use.
+    ///
+    /// This row used to name the transport from `MedxFirebaseBridge.isReady`, and those are two
+    /// different claims — readiness says the SDK is usable, and the open stream says what is being
+    /// used. They disagreed for the whole of the transport-latch bug: every duel in the process was
+    /// polling while this row was free to say "Live listeners". So the name comes from the live
+    /// stream where there is one, and falls back to the bridge's own reason where there is not.
+    private var faceoffTransportDetail: String {
+        guard let name = MedxLobbyWatcher.shared.activeTransportName else {
+            return "No stream open — \(MedxFirebaseBridge.shared.status)"
+        }
+        return "\(name) — \(MedxFirebaseBridge.shared.status)"
+    }
+
     /// One line for the drop watcher: when it last looked, and what it found there. `count` in
     /// `medx_vod/_meta` is documents added by the sync installation rather than a collection total,
     /// so it is not shown here — the useful facts are the timestamp and whether anything is unseen.
-    private var vodDiagnostic: String {
-        guard let checked = vod.lastCheckedAt else {
+    private var vodDiagnostic: String {        guard let checked = vod.lastCheckedAt else {
             return "Not checked yet this launch"
         }
         let when = checked.formatted(date: .omitted, time: .shortened)
@@ -1059,7 +1075,7 @@ struct BookmarkedQuestionsView: View {
                                                 .padding(.horizontal, 12)
                                                 .padding(.vertical, 6)
                                                 .background(
-                                                    selectedSubject == subj ? MedxTheme.primaryPurple : Color(uiColor: .tertiarySystemFill),
+                                                    selectedSubject == subj ? MedxTheme.primaryPurple : MedxInk.field,
                                                     in: Capsule()
                                                 )
                                         }
@@ -1119,9 +1135,11 @@ struct BookmarkedQuestionsView: View {
                             .font(.caption)
                     }
                 }
+                .scrollContentBackground(.hidden)
                 .searchable(text: $searchText, prompt: "Search bookmarks…")
             }
         }
+        .medxPage(.qbank)
         .navigationTitle("Bookmarks")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -1195,7 +1213,7 @@ private struct BookmarkedQuestionDetailView: View {
                     ForEach(imgs, id: \.self) { imgUrl in
                         CachedAsyncImage(url: URL(string: imgUrl))
                             .frame(maxHeight: 220)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: MedxRadius.tile, style: .continuous))
                     }
                 }
 
@@ -1227,9 +1245,9 @@ private struct BookmarkedQuestionDetailView: View {
                         }
                         .padding(14)
                         .frame(maxWidth: .infinity, minHeight: 52, alignment: .center)
-                        .background(isCorrect ? MedxTheme.successGreen.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(isCorrect ? MedxTheme.successGreen.opacity(0.12) : MedxInk.sunken, in: RoundedRectangle(cornerRadius: MedxRadius.tile, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            RoundedRectangle(cornerRadius: MedxRadius.tile, style: .continuous)
                                 .strokeBorder(isCorrect ? MedxTheme.successGreen.opacity(0.4) : Color.clear, lineWidth: 1)
                         )
                     }
@@ -1263,7 +1281,7 @@ private struct BookmarkedQuestionDetailView: View {
             }
             .padding(20)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+        .background(MedxInk.page)
         .navigationTitle("Question Details")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -1362,8 +1380,10 @@ private struct WatchHistoryView: View {
                         }
                     }
                 }
+                .scrollContentBackground(.hidden)
             }
         }
+        .medxPage(.videos)
         .navigationTitle("Watch History")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -1522,9 +1542,11 @@ struct ActivityLogView: View {
                             .font(.caption)
                     }
                 }
+                .scrollContentBackground(.hidden)
                 .searchable(text: $searchText, prompt: "Search activity log…")
             }
         }
+        .medxPage(.library)
         .navigationTitle("Activity Log")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

@@ -146,7 +146,9 @@ public struct VodFeedView: View {
         .scrollContentBackground(.hidden)
         .medxPage(.vod)
         .navigationTitle("VOD feed")
-        .navigationBarTitleDisplayMode(.inline)
+        // Large, and the only place the words appear — there used to be an inline title and a
+        // `MedxPageHeader` repeating them.
+        .navigationBarTitleDisplayMode(.large)
         .refreshable { await reload() }
         .task {
             if seenAtAppear == nil { seenAtAppear = watcher.seenWatermark }
@@ -200,12 +202,7 @@ public struct VodFeedView: View {
     // MARK: - Header and meta
 
     private var header: some View {
-        MedxPageHeader(
-            section: .vod,
-            title: "VOD feed",
-            lead: "Every recording in the ARISE bucket, newest upload first. Scroll down to go "
-                + "back in time."
-        )
+        MedxPageCaption("Every recording in the ARISE bucket, newest upload first")
     }
 
     private var metaCard: some View {
@@ -306,7 +303,7 @@ public struct VodFeedView: View {
                 }
                 .padding(.horizontal, 12)
                 .frame(height: 38)
-                .medxSurface(Capsule(style: .continuous), MedxSurfaceSpec(fallbackFill: MedxSurface.fieldFill, strokeOpacity: 0.16))
+                .medxSurface(Capsule(style: .continuous), MedxSurfaceSpec(fill: MedxInk.field))
 
                 Button {
                     HapticManager.selection()

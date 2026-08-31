@@ -56,7 +56,9 @@ public struct TestsListView: View {
         }
         .medxPage(.tests)
         .navigationTitle("Tests")
-        .navigationBarTitleDisplayMode(.inline)
+        // Large, and the only "Tests" on the page — there used to be an inline title *and* a
+        // `MedxPageHeader` under it saying the same word.
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 ProfileSettingsButton()
@@ -123,14 +125,10 @@ public struct TestsListView: View {
     }
 
     private var header: some View {
-        MedxPageHeader(
-            section: .tests,
-            title: "Tests",
-            lead: index.map {
-                "\($0.totalPapers.formatted()) papers, \($0.totalQuestions.formatted()) questions. "
-                    + "Every one of them is keyed, so every one can be scored."
-            } ?? "The Marrow FMGE test series — grand, mini and subject papers.",
-            symbol: "trophy.fill"
+        MedxPageCaption(
+            index.map {
+                "\($0.totalPapers.formatted()) keyed papers · \($0.totalQuestions.formatted()) questions"
+            } ?? "Marrow FMGE — grand, mini and subject papers"
         )
     }
 
@@ -254,11 +252,11 @@ public struct TestsListView: View {
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(0..<6, id: \.self) { _ in
                     VStack(alignment: .leading, spacing: 8) {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        Capsule(style: .continuous)
                             .fill(Color.primary.opacity(0.08))
                             .frame(height: 15)
                             .frame(maxWidth: 240)
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        Capsule(style: .continuous)
                             .fill(Color.primary.opacity(0.05))
                             .frame(height: 11)
                             .frame(maxWidth: 120)
@@ -417,15 +415,9 @@ struct MedxPaperModeSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    MedxPageHeader(
-                        section: .tests,
-                        eyebrow: [paper.year, "\(paper.group.rawValue) test"]
-                            .compactMap { $0 }
-                            .joined(separator: " · "),
-                        title: paper.title,
-                        lead: paper.line,
-                        symbol: MedxSeriesRules.symbol(for: paper)
-                    )
+                    // The nav bar is already showing `paper.title`; this used to print it again
+                    // forty points below. Only the shape of the paper is left.
+                    MedxPageCaption(paperShape)
 
                     modeButton(
                         mode: .exam,
@@ -464,6 +456,16 @@ struct MedxPaperModeSheet: View {
         .presentationDragIndicator(.visible)
     }
 
+    /// Year · group · shape, in that order. Built stepwise rather than as one expression because
+    /// `paper.year` is the only optional in it and mixing that into an array literal alongside
+    /// non-optionals is how you get an inference error for no gain in clarity.
+    private var paperShape: String {
+        var parts = [paper.year].compactMap { $0 }
+        parts.append("\(paper.group.rawValue) test")
+        parts.append(paper.line)
+        return parts.joined(separator: " · ")
+    }
+
     private func modeButton(
         mode: SittingMode,
         icon: String,
@@ -476,11 +478,7 @@ struct MedxPaperModeSheet: View {
             onPick(mode)
         } label: {
             HStack(alignment: .top, spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(MedxCandy.onSoft(hue))
-                    .frame(width: 42, height: 42)
-                    .background(hue.opacity(0.2), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                MedxSymbolMark(icon, hue: hue, size: 42)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
@@ -497,7 +495,9 @@ struct MedxPaperModeSheet: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .medxCard()
+            // Glass: this is a sheet, so there is a real page behind it to refract. Same
+            // argument as `StartSessionSheet`'s two cards.
+            .medxSheetCard(tint: hue)
             .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
         }
         .buttonStyle(BouncyButtonStyle())

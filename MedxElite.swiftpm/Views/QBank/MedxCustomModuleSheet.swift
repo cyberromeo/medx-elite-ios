@@ -70,6 +70,8 @@ public struct MedxCustomModuleSheet: View {
                 shapeSection
                 availabilitySection
             }
+            .scrollContentBackground(.hidden)
+            .medxPage(.qbank)
             .navigationTitle("Custom module")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -203,9 +205,7 @@ public struct MedxCustomModuleSheet: View {
         .buttonBorderShape(.capsule)
         .tint(MedxTheme.accent)
         .disabled(isLoading || isBuilding)
-        .padding(.horizontal, MedxSurface.gutter)
-        .padding(.vertical, 10)
-        .medxBar(topDivider: true)
+        .medxFloatingBar()
     }
 
     // MARK: - Building
@@ -408,6 +408,8 @@ struct MedxSubjectMultiPicker: View {
             }
         }
         .animation(.snappy(duration: 0.18), value: selection)
+        .scrollContentBackground(.hidden)
+        .medxPage(.qbank)
         .navigationTitle("Subjects")
         .navigationBarTitleDisplayMode(.inline)
     }

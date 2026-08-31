@@ -27,13 +27,7 @@ public struct CustomModulesView: View {
     public var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                MedxPageHeader(
-                    section: .custom,
-                    title: "Custom modules",
-                    lead: "Pick any modules from either bank, shuffle them together, cap the "
-                        + "length. It runs exactly like a QBank sitting — and whatever either of "
-                        + "you saves shows up here for both."
-                )
+                MedxPageCaption("Modules from either bank, shuffled together · shared between you")
 
                 newButton
 
@@ -71,7 +65,9 @@ public struct CustomModulesView: View {
         }
         .medxPage(.custom)
         .navigationTitle("Custom modules")
-        .navigationBarTitleDisplayMode(.inline)
+        // Large, and the only place the words appear — there used to be an inline title and a
+        // `MedxPageHeader` repeating them.
+        .navigationBarTitleDisplayMode(.large)
         .refreshable { await store.reload(uid: uid) }
         .task { await store.loadIfNeeded(uid: uid) }
         .sheet(item: $draft) { editing in
@@ -390,14 +386,12 @@ struct MedxCustomRunSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    MedxPageHeader(
-                        section: .custom,
-                        eyebrow: "\(module.effectiveCount.formatted()) questions",
-                        title: module.name,
-                        lead: module.sources.count == 1
-                            ? module.sources[0].subject
-                            : "\(module.sources.count) modules across "
-                                + "\(Set(module.sources.map(\.subject)).count) subjects"
+                    MedxPageCaption(
+                        "\(module.effectiveCount.formatted()) questions · "
+                            + (module.sources.count == 1
+                               ? module.sources[0].subject
+                               : "\(module.sources.count) modules across "
+                                   + "\(Set(module.sources.map(\.subject)).count) subjects")
                     )
 
                     mode(
@@ -454,7 +448,7 @@ struct MedxCustomRunSheet: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(MedxSection.custom.onSoft)
                     .frame(width: 42, height: 42)
-                    .background(MedxSection.custom.soft, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(MedxSection.custom.soft, in: RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)

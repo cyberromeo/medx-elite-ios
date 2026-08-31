@@ -146,9 +146,9 @@ public struct HTMLRichTextView: View {
         CachedAsyncImage(url: url, contentMode: .fit)
             .frame(maxWidth: .infinity)
             .frame(maxHeight: maxImageHeight)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
                     .strokeBorder(MedxSurface.separator.opacity(0.35), lineWidth: MedxSurface.hairline)
             )
     }

@@ -50,16 +50,36 @@ public struct ModernButton: View {
     }
 }
 
-/// Press feedback for custom card-shaped buttons. Restrained on purpose: a subtle dim and
-/// a hair of scale, matching how system cells respond.
+/// Press feedback for custom card-shaped buttons.
+///
+/// Used to be a 1.5% scale and an `easeOut` — so restrained it was hard to be sure it was there.
+/// It is a real spring now: `MedxMotion.pop` is stiff enough that the card feels like it is being
+/// pushed rather than animated, which is the whole point of a press state. 4% is the most a
+/// full-width card can take before its neighbours look like they moved too.
 public struct BouncyButtonStyle: ButtonStyle {
     public init() {}
 
     public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .opacity(configuration.isPressed ? 0.7 : 1)
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+        Pressable(configuration: configuration)
+    }
+
+    /// A nested `View` rather than styling `configuration.label` directly: `@Environment` read
+    /// inside `makeBody` is not re-evaluated when the environment changes, and Reduce Motion has
+    /// to be able to turn the scale off.
+    private struct Pressable: View {
+        let configuration: ButtonStyleConfiguration
+
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        var body: some View {
+            configuration.label
+                .opacity(configuration.isPressed ? 0.82 : 1)
+                .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+                .animation(
+                    reduceMotion ? .easeOut(duration: 0.12) : MedxMotion.pop,
+                    value: configuration.isPressed
+                )
+        }
     }
 }
 
@@ -98,11 +118,14 @@ public struct MedxFilledButtonStyle: ButtonStyle {
         var body: some View {
             configuration.label
                 .foregroundStyle(isEnabled ? MedxCandy.onSolid : Color.secondary)
-                .background(Capsule().fill(isEnabled ? hue : MedxSurface.fieldFill))
+                .background(Capsule().fill(isEnabled ? hue : MedxInk.field))
                 .contentShape(Capsule())
                 .opacity(configuration.isPressed ? 0.86 : 1)
-                .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
-                .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+                .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+                .animation(
+                    reduceMotion ? .easeOut(duration: 0.12) : MedxMotion.pop,
+                    value: configuration.isPressed
+                )
         }
     }
 }

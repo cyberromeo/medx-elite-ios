@@ -41,7 +41,7 @@ public struct CachedAsyncImage: View {
             placeholder(icon: "photo.badge.exclamationmark")
         } else if isLoading {
             ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
                     .fill(MedxSurface.tileFill)
                 ProgressView()
                     .controlSize(.small)
@@ -53,7 +53,7 @@ public struct CachedAsyncImage: View {
     }
 
     private func placeholder(icon: String) -> some View {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
+        RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
             .fill(MedxSurface.tileFill)
             .overlay(
                 Image(systemName: icon)

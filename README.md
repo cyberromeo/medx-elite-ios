@@ -2,40 +2,48 @@
 
 A native iOS application built in **pure Swift and SwiftUI**, targeting **iOS 17+**, connected directly to the **Medx-elite Firebase backend** (`medx-e9acd`) and Arise CDNs. It is the same backend the `Medx elite pwa` sibling runs on, and it now carries the same feature set: two question banks, the Marrow FMGE test series, the two-player Faceoff, shared custom modules and the raw VOD bucket.
 
-Designed to Apple's Human Interface Guidelines — native navigation and toolbars, Dynamic Type throughout, full VoiceOver labelling — with the PWA's visual identity layered on top: a per-destination candy accent, the eyebrow / title / lead page header, and pill chips. **Icons are SF Symbols**; the 62 Fluent Emoji stickers are kept for the places where the picture is the content rather than the label — a profile mark, an empty state, the trophy at the end of a duel. The whole app is now **Liquid Glass**, and the thing that makes it work is that the *backdrop came first*: `MedxAurora` washes every page in the hue that destination already owns, so a glass card has something to bend. Every surface in the app — card, tile, pill, chip, HUD, bar — goes through one modifier, `medxSurface`, which owns the glass, the iOS 17 fallback and the Reduce Transparency escape hatch in a single place. Where the running OS is iOS 26 the app takes the platform's own chrome too — a minimising tab bar, soft scroll edges, glass button styles — each behind an `#available` check, because the deployment target is iOS 17.
+Designed to Apple's Human Interface Guidelines — native navigation and toolbars, Dynamic Type throughout, full VoiceOver labelling — with the PWA's visual identity layered on top: a per-destination candy accent and pill chips. **Icons are SF Symbols**; the 62 Fluent Emoji stickers are kept for the places where the picture is the content rather than the label — a profile mark, an empty state, the trophy at the end of a duel. The app is **pitch black**: `MedxInk.page` is `#000`, cards are opaque near-black with a hairline edge and a top-lit rim, and Liquid Glass is confined to the three places it floats over real content — the runner's HUD, the runner's action bar, and anything presented. Every surface goes through one modifier, `medxSurface`, which owns both materials, the iOS 17 fallback and the Reduce Transparency escape hatch. Where the running OS is iOS 26 the app takes the platform's own chrome too — a minimising tab bar, soft scroll edges, a glass-prominent primary button — each behind an `#available` check, because the deployment target is iOS 17.
 
-Five top-level destinations: **Home · QBank · Tests · Classes · Library**. Cards live in Library, which is a grid of eleven doors rather than a list. Two targets ship from this project: the app, and a `MedxWidgets` extension carrying two Home Screen widgets, three Lock Screen accessories and **three** Live Activities.
+Five top-level destinations: **Home · QBank · Tests · Classes · Library**. Home is a dashboard with no launcher tiles; Library is the launcher, a grid of eleven doors in three groups. Nothing appears in both. Two targets ship from this project: the app, and a `MedxWidgets` extension carrying two Home Screen widgets, three Lock Screen accessories and **three** Live Activities.
 
 ---
 
 ## Design language
 
-The app tried glass once before and took it back out: every rectangle was wrapped in
-`.ultraThinMaterial` over a flat grey page, which is haze rather than glass — there was nothing
-behind it to refract, and it cost a blur pass per card. This is the second attempt, built the
-way iOS 26 actually wants it, and the four rules below are why it holds together.
+Glass has been in and out of this app twice, and both failures were the same mistake made from
+opposite ends. The first pass wrapped every rectangle in `.ultraThinMaterial` over flat grey:
+nothing behind it to refract, so it came out as haze. The second pass built a proper section-hued
+backdrop and then put glass on *everything* — cards, tiles, pills, chips, badges, segments — so one
+screen was thirty translucent panes sampling each other. Also haze, and a blur pass per pane.
+
+The third answer is a rule about **place** rather than about technique, and the four below are why
+it holds together.
 
 | Rule | Where it lives |
 |---|---|
-| **The backdrop comes first.** Glass over `systemGroupedBackground` is a smudge; glass over a controlled, section-hued gradient is glass | `MedxAurora`, `medxPage(_:intensity:)` — every destination, one line |
+| **Content is ink, chrome is glass, and glass floats.** Nothing that scrolls is translucent | `MedxMaterial.ink` / `.glass`, one `switch` in `MedxSurfaceModifier` |
+| **Glass lives in three places and nowhere else** — the runner's HUD, the runner's action bar, and anything *presented* (the rev/exam mode cards, the question navigator, a sheet's floating bar, the download badge over video) | `MedxSurfaceSpec.hud` / `.sheetCard`, `medxFloatingBar()`, `medxGlassCircle()`; a `glassEffect` anywhere else is a bug |
+| **Nothing is said twice.** One heading per screen, one route per destination, no restated instructions | the four tab roots use the platform's *large* title and `MedxPageCaption`; `MedxPageHeader` survives only on pushed screens that have no large title of their own |
+| **No sharp ends.** Every rectangle `.continuous`, every control a `Capsule`, nothing tighter than 12pt | `MedxRadius` — 35 literal radii were tokenised and every skeleton bar became a `Capsule` |
 | **One material vocabulary.** Exactly one place decides what a rectangle is made of, and therefore exactly one place answers for the iOS 17 fallback and Reduce Transparency | `medxSurface(_:_:)` + `MedxSurfaceSpec` in `Theme/MedxLiquidGlass.swift` |
-| **Never put an `interactive()` glass effect inside a button label** | it swallows the tap on iOS 26; this is what broke the flashcard close button. Interactive glass comes from `.buttonStyle(.glass)`, which the system wires up itself |
-| **Glass cannot sample glass.** Anything sitting near other glass shares a container, and a chip of glass never goes on a panel of glass | `MedxGlassGroup` (`GlassEffectContainer`), `medxGlassID(_:in:)` |
-| Content still reads as content: one card, one tile, no stacking of translucent layers | `medxCard()`, `medxTile()` — 75 call sites, unchanged, all rendering the new material |
-| A solid candy fill stays solid — it is the one thing on a row that must be read first, and a tinted pane of glass cannot be relied on to out-shout its neighbours | `MedxPill.Weight.solid`, `MedxFilledButtonStyle` |
+| **Never put an `interactive()` glass effect inside a button label** | it swallows the tap on iOS 26; this is what broke the flashcard close button. The one interactive glass in the app is `.glassProminent` on the single primary action per screen |
+| **Glass cannot sample glass.** Neighbours share a container, and a chip of glass never goes on a panel of glass | `MedxGlassGroup` (`GlassEffectContainer`) + `medxGlassID(_:in:)`, whose only caller is `RunnerActionBar`; the HUD's clock and ✕ are bare glyphs for the same reason |
+| Elevation on `#000` is a **rim**, not a shadow — a drop shadow on black is invisible | `MedxSurfaceModifier.rim`, a top-lit white gradient; the shadow values survive only for the light appearance |
+| Pitch black is the *dark* palette, not the only one. The Appearance picker still works | every `MedxInk` token is a dynamic `UIColor`; a `List` that would paint its own grey gets `.scrollContentBackground(.hidden)` plus `medxPage` |
+| The backdrop is one 5% bloom at the top edge, and it does not move | `MedxAurora` — static, no `TimelineView`; the runner passes `intensity: 0` so a question stem sits on true black |
+| One motion vocabulary, three entries, every use gated on Reduce Motion | `MedxMotion.snap` / `.settle` / `.pop` |
+| A card arrives **once**, on first appearance, and stays arrived | `medxAppear(index:)` — latching `onAppear`, deliberately not a `scrollTransition`; the one that dimmed cards mid-scroll was removed and stays removed |
+| A figure that changes rolls rather than cuts | `.contentTransition(.numericText())` on `MedxMetric`, the goal ring, the streak, the duel score, the runner's clock |
 | Fonts are native text styles at the point of use | `.headline`, `.subheadline.weight(.semibold)`, `.caption.monospacedDigit()` |
-| **Semantic** colour names *meaning*, never brand | `MedxTheme` — all system colours, so Dark Mode and Increase Contrast work for free |
+| **Semantic** colour names *meaning*, never brand | `MedxTheme` — all system colours, so both appearances and Increase Contrast work for free |
 | **Wayfinding** colour is assigned per destination, never decorative | `MedxCandy` + `MedxSection` — eight dynamic hue pairs from the PWA's `tokens.css`, each with a soft companion |
 | A glyph on a candy soft wash is mixed 52% toward the label colour | `MedxCandy.onSoft` — measured, not guessed: butter-on-butter was 1.25:1 |
 | A label on a **solid** candy fill is a fixed near-black, never `.systemBackground` | `MedxCandy.onSolid`, `MedxFilledButtonStyle` — every hue is light in *both* appearances |
 | One accent for interactive chrome, chosen in Settings | `MedxTheme.accent` — **not** `Color.accentColor`, which reads the asset catalogue and does not follow `.tint()` |
-| The backdrop does not move. A drifting gradient behind text you are trying to read is what gets an app called tiring | `MedxAurora` is static — no `TimelineView`, no animation |
-| **A row action is a swipe, not a button.** Where the platform has a gesture for something, the permanent control comes off the row | `.swipeActions` on Classes, the VOD feed and Downloads; `medxPlainRow()` is what lets a `List` keep the app's card geometry and the aurora behind it |
-| Nothing is said twice on one screen. If the HUD is counting the questions, the card does not also head itself "QUESTION 12" | the runner's card is the stem and its figures, full stop |
-| Scrolling is plain scrolling — no per-card entry transition | there is no `scrollTransition` anywhere; the reveal that used to fade and lift each card was removed because it read as content popping in |
-| An icon is an SF Symbol in the section's hue, on its own pane of glass | `MedxSymbolMark` — Settings, Shortcuts and Mail all draw a list this way |
+| **A row action is a swipe, not a button.** Where the platform has a gesture for something, the permanent control comes off the row | `.swipeActions` on Classes, the VOD feed and Downloads; `medxPlainRow()` is what lets a `List` keep the app's card geometry and the page behind it |
+| An icon is an SF Symbol in the section's hue, in a squircle whose radius is 30% of its size | `MedxSymbolMark` — Settings, Shortcuts and Mail all draw a list this way |
 | A sticker is an illustration, never an icon, and is always hidden from VoiceOver | `MedxSticker` — `NSDataAsset`-backed WebP, `.accessibilityHidden(true)`, no tilt under Reduce Motion |
-| iOS 26 chrome degrades to the iOS 17 equivalent, never to a stub | `medxTabBarMinimize()`, `medxScrollEdge()`, `medxBorderedButton()`, `medxFilledButton()` in `Theme/GlassModifier.swift` |
+| iOS 26 chrome degrades to the iOS 17 equivalent, never to a stub | `medxTabBarMinimize()`, `medxScrollEdge()`, `medxFilledButton()` in `Theme/GlassModifier.swift` |
 
 ---
 
@@ -44,7 +52,7 @@ way iOS 26 actually wants it, and the four rules below are why it holds together
 | Feature | Description |
 |---|---|
 | **Profiles & Authentication** | Graveyard (Mathu) and QuantumGuy (Sri) profile switching with iOS Keychain saved-password fast unlock. A second, fire-and-forget sign-in to the Firebase iOS SDK backs Faceoff's snapshot listeners; failing it costs the duel its listeners and nothing else. |
-| **Home Dashboard** | A live Faceoff invite card above everything else when the other one has dealt a game, exam countdown (editable by long press), today's goal ring and streak, six quick actions, Continue-watching resume, a 7-day roll-up, QBank coverage ring, accuracy chart, and the syllabus checklist. |
+| **Home Dashboard** | Today, and only today — no launcher tiles. A live Faceoff invite card above everything else when the other one has dealt a game, exam countdown (editable by long press), today's goal ring and streak, a "modules are due" card wired to the spaced schedule, Continue-watching resume, a 7-day roll-up, QBank coverage ring, accuracy chart, and the syllabus checklist. The greeting *is* the large title. |
 | **Syllabus Tracker Matrix** | Live 23-subject checklist (Videos, R1, R2, PYQs, Rev, QBank) with optimistic updates and rollback if the Firestore write fails. |
 | **Two question banks** | An Arise / Marrow segmented control, as in the PWA. **Arise**: 17,890 questions across 23 subjects and 1,211 modules. **Marrow FMGE**: 14,577 questions across 20 subjects and 960 modules. Searchable subjects with sticker marks and a bank tag, collapsing chapters, per-module best-score badges, long-press to start a module in either mode. |
 | **Marrow FMGE test series** | The Tests tab: 352 keyed papers in three groups (GTs / Mini tests / Subject tests) with counts, month sections newest-first, a per-paper best-score bar, and a mode picker that says what it is about to do. A grand paper over 50 questions is sat in **timed blocks of 50** with a between-blocks summary and no way back. |
@@ -98,8 +106,19 @@ That is wired to be optional rather than load-bearing:
   because player document ids are deterministic — `gameId__uid`.
 - `MedxDuelTransportFactory.make()` picks the SDK when `MedxFirebaseBridge.isReady`, and the poller
   otherwise. A failed `FirebaseApp.configure` or SDK sign-in therefore degrades to a working
-  Faceoff rather than to no Faceoff. **Settings ▸ Diagnostics ▸ Faceoff transport** says which one
-  is live.
+  Faceoff rather than to no Faceoff.
+- **The choice is made when a stream opens, never at `init`.** It used to be a `let` assigned in the
+  initialiser of both `MedxDuelRoom` and `MedxLobbyWatcher` — and the watcher is a `static let`
+  touched during launch, while `AuthService`'s SDK sign-in is still an unawaited `Task`. So
+  `isReady` was reliably `false`, the poller was chosen, and it was kept for the life of the
+  process: filling in a valid `iosAppId` would have changed nothing. Now `MedxDuelRoom.transport`
+  and `MedxLobbyWatcher.transport` resolve lazily on first use, `close()` / a readiness flip drops
+  the cached choice, and `MedxLobbyWatcher` watches `MedxFirebaseBridge.$isReady` so a lobby that
+  opened on the poller tears its stream down and reopens it on listeners the moment the SDK signs
+  in.
+- **Settings ▸ Diagnostics ▸ Faceoff transport** names the transport actually in use —
+  `MedxDuelTransport.transportName` off the live stream — not what `isReady` says could be used.
+  Those two are different claims and they disagreed for the whole of the bug above.
 
 #### The one thing that has to be filled in: `FirebaseConfig.iosAppId`
 
@@ -246,13 +265,15 @@ medx-elite-ios/
 │   │   ├── MedxAppIntents.swift     # Siri shortcuts (app target only)
 │   │   └── MedxQuestionIndexStore.swift  # The opt-in full-text index
 │   ├── Theme/
+│   │   ├── MedxInk.swift            # The pitch-black surface stack, `MedxRadius`, `MedxMotion`,
+│   │   │                            #   and `medxAppear(index:)`
 │   │   ├── MedxLiquidGlass.swift    # `medxSurface` + `MedxSurfaceSpec` — the one material
-│   │   │                            #   decision; `MedxGlassGroup`, floating bar, glass circle
-│   │   ├── MedxAurora.swift         # The section-hued page wash + `medxPage(_:intensity:)`
+│   │   │                            #   decision; `MedxGlassGroup`, floating bar, ink/glass circles
+│   │   ├── MedxAurora.swift         # Pure black + one 5% top bloom; `medxPage(_:intensity:)`
 │   │   ├── ColorSystem.swift        # Semantic system-colour tokens + rich-text colour map
 │   │   ├── MedxSections.swift       # `MedxCandy`, `MedxSection`, duel colours, kind hues
 │   │   ├── AccentTheme.swift        # `MedxAccent`, appearance override, `MedxTheme.accent`
-│   │   ├── GlassModifier.swift      # MedxSurface, medxCard/medxTile/medxBar, shared controls
+│   │   ├── GlassModifier.swift      # MedxSurface tokens, medxCard/medxTile, shared controls
 │   │   └── Typography.swift         # The two named font shapes worth keeping
 │   ├── Components/
 │   │   ├── MedxSticker.swift        # WebP sticker loader + the 23 subject-art rules
@@ -280,7 +301,8 @@ medx-elite-ios/
 │   │   │                            # TestDetailCard
 │   │   ├── Faceoff/                 # FaceoffLobbyView, DuelRoomView, DuelResultView
 │   │   ├── Custom/                  # CustomModulesView, ModuleBuilderSheet
-│   │   ├── Library/LibraryView.swift# The hub: an eleven-tile grid, two up / four on iPad
+│   │   ├── Library/LibraryView.swift# The launcher: eleven doors in Play / Study / Yours,
+│   │   │                            #   two up on a phone, four on an iPad
 │   │   ├── Flashcards/              # FlashcardsSubjectListView, FlashcardStudyView
 │   │   ├── Videos/                  # VideosBatchListView, VideoSubjectView, VodFeedView
 │   │   └── Settings/SettingsView.swift
@@ -458,10 +480,13 @@ render empty. For the same reason, models decode leniently (`try?` per field,
 Nothing above is a compiler and nothing above talks to the live backend, so the order below matters
 — each step depends on the one before it.
 
-1. **Sign in as each profile.** Check **Settings ▸ Diagnostics ▸ Faceoff transport**. With
-   `FirebaseConfig.iosAppId` still empty it reads *No iOS app ID in FirebaseConfig — Faceoff polls
-   instead*, and everything except the duel's latency should be identical; that is the same state a
-   failed SDK sign-in leaves. Once the id is filled in it should read *Signed in as …*.
+1. **Sign in as each profile.** Check **Settings ▸ Diagnostics ▸ Faceoff transport**. It reads
+   *Polling — No iOS app ID in FirebaseConfig — Faceoff polls instead* while
+   `FirebaseConfig.iosAppId` is empty, and everything except the duel's latency should be identical;
+   that is the same state a failed SDK sign-in leaves. Once the id is filled in, open Home to start
+   the lobby stream and the row should read *Live listeners — Signed in as …*. The left half of that
+   line is the transport actually running, so it is the half that proves the fix: it says *Polling*
+   until a stream is open and *No stream open* before that.
 2. **QBank.** The Marrow tab lists 20 subjects; open an `mw_` module and run a sitting in both modes.
 3. **The question index.** Settings ▸ Question search says 2,171 modules, not 1,211. Build it — an
    index from before the two-bank layout is deleted on launch, so this starts from empty — then

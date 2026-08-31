@@ -58,7 +58,9 @@ public struct BatchPapersView: View {
         }
         .medxPage(.tests)
         .navigationTitle("Batch papers")
-        .navigationBarTitleDisplayMode(.inline)
+        // Large, and the only place the words appear — there used to be an inline title and a
+        // `MedxPageHeader` repeating them.
+        .navigationBarTitleDisplayMode(.large)
         .searchable(
             text: $searchText,
             placement: .navigationBarDrawer(displayMode: .automatic),
@@ -80,14 +82,7 @@ public struct BatchPapersView: View {
     private var content: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
-                MedxPageHeader(
-                    section: .tests,
-                    eyebrow: "ARISE · batch",
-                    title: "Batch papers",
-                    lead: "The batch's own four papers. Most exported without an answer key, so "
-                        + "they are answerable but not all of them can be scored.",
-                    symbol: "flag.pattern.checkered"
-                )
+                MedxPageCaption("ARISE · the batch's own four · most exported without a key")
 
                 summaryRow
 
@@ -181,11 +176,11 @@ public struct BatchPapersView: View {
 
     private var skeletonCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            Capsule(style: .continuous)
                 .fill(Color.primary.opacity(0.08))
                 .frame(height: 16)
                 .frame(maxWidth: 220)
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            Capsule(style: .continuous)
                 .fill(Color.primary.opacity(0.05))
                 .frame(height: 11)
                 .frame(maxWidth: 150)

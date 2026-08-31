@@ -50,9 +50,7 @@ struct DuelResultView: View {
                     .frame(maxWidth: .infinity, minHeight: 50)
             }
             .medxFilled(MedxSection.duel.fill)
-            .padding(.horizontal, MedxSurface.gutter)
-            .padding(.vertical, 10)
-            .medxBar(topDivider: true)
+            .medxFloatingBar()
         }
         .onAppear {
             if winner == nil { HapticManager.selection() } else if iWon { HapticManager.success() }

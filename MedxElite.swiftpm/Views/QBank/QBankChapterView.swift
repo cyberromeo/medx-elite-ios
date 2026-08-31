@@ -185,8 +185,8 @@ public struct QBankChapterView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
-                .medxCard(cornerRadius: 12)
-                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .medxCard(cornerRadius: MedxRadius.control)
+                .contentShape(RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(!searchText.isEmpty)

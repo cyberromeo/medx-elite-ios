@@ -2,20 +2,26 @@ import SwiftUI
 
 // MARK: - Backdrop
 //
-// The reason the app's first pass at glass failed. Liquid Glass is a lens: it bends whatever
-// is behind it, picks up its colour and throws a specular edge. Put it over
-// `systemGroupedBackground` — one flat grey — and there is nothing to bend, so every panel
-// comes out the same dull haze and the only thing glass has bought is a blur pass per card.
+// Pitch black, and one faint glow.
 //
-// So the backdrop comes first. Each destination washes its own page in the hue it already
-// owns (`MedxSection.fill`), as two soft radial blooms plus a cool one from the chosen accent.
-// Deliberately quiet: at these opacities it reads as depth rather than as colour, and the
-// grouped background is still what you would call the page. It is what makes a glass card on
-// the QBank look lime-lit and the same card on Tests look warm, with no per-screen styling.
+// The version of this file before it was a wash: three radial blooms of the section's hue plus a
+// cool one from the accent, sitting behind every screen so that glass had something to refract.
+// That was the right answer to the wrong question. The app does not put glass on content any
+// more — see `Theme/MedxLiquidGlass.swift` — so the two places glass still appears (the runner's
+// chrome, and anything presented) refract *real content* underneath them, which is a far better
+// thing to bend than a gradient.
 //
-// Static on purpose — no animation, no `TimelineView`. A drifting gradient behind text you
-// are trying to read is exactly the kind of thing that gets an app called tiring, and this
-// sits behind every screen in the app.
+// What is left is a page. `MedxInk.page` is `#000` in dark, and on an OLED phone that is not a
+// colour at all — the pixels are off. Everything above it is opaque, so the black is what gives
+// the app its contrast rather than a grey that has to be lit.
+//
+// One bloom survives, at the top edge only and at 5%: enough that the QBank reads faintly lime
+// and Tests faintly warm as you switch tabs, and not enough to stop the page being black. It is
+// wayfinding at the threshold of visibility, which is the most a pitch-black app can spend on it.
+//
+// Static, as before — no `TimelineView`, no animation. A drifting gradient behind text you are
+// trying to read is exactly the kind of thing that gets an app called tiring, and this sits
+// behind every screen.
 
 public struct MedxAurora: View {
     private let section: MedxSection
@@ -24,8 +30,8 @@ public struct MedxAurora: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
-    /// `intensity` scales the whole wash. The runner turns it down, because a question stem is
-    /// the densest text in the app and wants the calmest page behind it.
+    /// `intensity` scales the bloom. The runner passes `0`: a question stem is the densest text
+    /// in the app and wants nothing behind it at all.
     public init(section: MedxSection, intensity: Double = 1) {
         self.section = section
         self.intensity = max(intensity, 0)
@@ -33,35 +39,32 @@ public struct MedxAurora: View {
 
     public var body: some View {
         ZStack {
-            MedxSurface.groupedBackground
+            MedxInk.page
 
-            // Under Reduce Transparency the surfaces above go flat and opaque, so a wash they
-            // would have refracted is just stray colour behind solid cards.
+            // Under Reduce Transparency the surfaces above are opaque anyway, so a wash they
+            // cannot refract is just stray colour behind solid cards.
             if !reduceTransparency, intensity > 0 {
-                bloom(section.fill, x: 0.88, y: 0.02, radius: 520, alpha: dark ? 0.30 : 0.22)
-                bloom(section.fill, x: 0.06, y: 0.78, radius: 460, alpha: dark ? 0.17 : 0.13)
-                bloom(MedxTheme.accent, x: 0.30, y: 0.30, radius: 420, alpha: dark ? 0.11 : 0.07)
+                RadialGradient(
+                    colors: [section.fill.opacity(alpha), .clear],
+                    center: UnitPoint(x: 0.5, y: -0.06),
+                    startRadius: 0,
+                    endRadius: 440
+                )
             }
         }
         .ignoresSafeArea()
         .accessibilityHidden(true)
     }
 
-    private var dark: Bool { scheme == .dark }
-
-    private func bloom(_ hue: Color, x: Double, y: Double, radius: CGFloat, alpha: Double) -> some View {
-        RadialGradient(
-            colors: [hue.opacity(alpha * intensity), .clear],
-            center: UnitPoint(x: x, y: y),
-            startRadius: 0,
-            endRadius: radius
-        )
+    /// A touch stronger in light, where the page is white and 5% of a candy hue disappears.
+    private var alpha: Double {
+        (scheme == .dark ? 0.05 : 0.08) * intensity
     }
 }
 
 public extension View {
-    /// The page treatment every destination wears: the section's wash behind, and the
-    /// platform's soft scroll edges above it so content dissolves under the bars.
+    /// The page treatment every destination wears: black, the section's own glow at the top
+    /// edge, and the platform's soft scroll edges so content dissolves under the bars.
     func medxPage(_ section: MedxSection, intensity: Double = 1) -> some View {
         self
             .background(MedxAurora(section: section, intensity: intensity))

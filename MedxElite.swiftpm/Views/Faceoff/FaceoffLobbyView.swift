@@ -243,7 +243,9 @@ public struct FaceoffLobbyView: View {
             }
             .medxPage(.duel)
             .navigationTitle("Faceoff")
-            .navigationBarTitleDisplayMode(.inline)
+            // Large, and the only "Faceoff" on the screen. There used to be an inline title here
+            // and a `MedxPageHeader` repeating the word below it.
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Close") { dismiss() }
@@ -278,12 +280,9 @@ public struct FaceoffLobbyView: View {
     // MARK: - Pieces
 
     private var header: some View {
-        MedxPageHeader(
-            section: .duel,
-            title: "Faceoff",
-            lead: "One question, one minute, two of you. A right answer is 40 points plus whatever "
-                + "is still on the clock — \(MedxDuelRules.maxPoints) if you are instant, "
-                + "\(MedxDuelRules.basePoints) if you scrape it, nothing if you are wrong."
+        MedxPageCaption(
+            "One question, one minute, two of you · "
+                + "\(MedxDuelRules.basePoints)–\(MedxDuelRules.maxPoints) points a round"
         )
     }
 
@@ -309,7 +308,7 @@ public struct FaceoffLobbyView: View {
         return HStack(spacing: 12) {
             MedxSticker(host?.sticker ?? "bolt", size: 30, tilt: -7)
                 .frame(width: 40, height: 40)
-                .background(hue.opacity(0.2), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .background(hue.opacity(0.2), in: RoundedRectangle(cornerRadius: MedxRadius.tile, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(host?.displayName ?? "Someone") is waiting")
@@ -349,7 +348,7 @@ public struct FaceoffLobbyView: View {
         HStack(spacing: 12) {
             MedxSticker("hourglass", size: 26, tilt: 6)
                 .frame(width: 38, height: 38)
-                .medxTile(cornerRadius: 12)
+                .medxTile(cornerRadius: MedxRadius.control)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Waiting for \(other?.displayName ?? "the other one")")
@@ -668,7 +667,7 @@ struct FaceoffHostSheet: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 38)
-        .medxSurface(Capsule(style: .continuous), MedxSurfaceSpec(fallbackFill: MedxSurface.fieldFill, strokeOpacity: 0.16))
+        .medxSurface(Capsule(style: .continuous), MedxSurfaceSpec(fill: MedxInk.field))
     }
 
     // MARK: - The list
@@ -798,7 +797,7 @@ struct FaceoffHostSheet: View {
                 .frame(width: 34, height: 34)
                 .background(
                     isOn ? MedxSection.duel.soft : MedxSurface.fieldFill,
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    in: RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
                 )
                 .accessibilityHidden(true)
 
@@ -860,9 +859,7 @@ struct FaceoffHostSheet: View {
             .medxFilled(MedxSection.duel.fill)
             .disabled(picked == nil || lobby.busy == "deal")
         }
-        .padding(.horizontal, MedxSurface.gutter)
-        .padding(.vertical, 10)
-        .medxBar(topDivider: true)
+        .medxFloatingBar()
     }
 
     private var dealLabel: String {

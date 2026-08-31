@@ -27,9 +27,9 @@ public struct PasswordPromptView: View {
                         .onSubmit(handleSignIn)
                         .font(.body)
                         .padding(14)
-                        .medxCard(cornerRadius: 14)
+                        .medxCard(cornerRadius: MedxRadius.tile)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
                                 .strokeBorder(
                                     isFocused ? MedxTheme.accent.opacity(0.55) : MedxSurface.separator.opacity(0.35),
                                     lineWidth: isFocused ? 1.5 : MedxSurface.hairline

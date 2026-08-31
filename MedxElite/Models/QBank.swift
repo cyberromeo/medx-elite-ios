@@ -454,16 +454,6 @@ public enum MedxBank: String, CaseIterable, Identifiable, Codable, Sendable {
         case .marrow: return "Marrow · FMGE"
         }
     }
-
-    /// The SF Symbol on a bank's chip and header. Both banks are question banks, so the
-    /// difference has to be legible at chip size: ARISE is the live course, Marrow is the
-    /// archive.
-    public var symbol: String {
-        switch self {
-        case .arise: return "graduationcap.fill"
-        case .marrow: return "archivebox.fill"
-        }
-    }
 }
 
 // MARK: - Bank-agnostic tree

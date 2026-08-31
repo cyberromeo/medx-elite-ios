@@ -1,6 +1,12 @@
 import SwiftUI
 
 /// Mode picker shown before a sitting starts. Two choices, described plainly.
+///
+/// One of the two places in the app where a *content-shaped* rectangle is glass. A sheet floats
+/// over the screen it was raised from, so there is a real page behind these two cards to bend —
+/// which is the only condition under which glass reads as glass rather than as haze. On a
+/// scrolling page the same card would have nothing but the backdrop behind it, and that is why
+/// every other card in the app is now opaque.
 public struct StartSessionSheet: View {
     public let title: String
     public let subtitle: String
@@ -120,7 +126,7 @@ private struct ModeCard: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .medxCard()
+            .medxSheetCard(tint: tint)
             .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
         }
         .buttonStyle(BouncyButtonStyle())

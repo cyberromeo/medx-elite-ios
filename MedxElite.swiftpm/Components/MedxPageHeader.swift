@@ -2,15 +2,24 @@ import SwiftUI
 
 // MARK: - Page header
 //
-// The PWA's page shape — eyebrow, title, lead — rendered as a scroll header rather than as
-// chrome. `navigationTitle` is still set by every screen that uses this and the display mode
-// is `.inline`, so the accessibility title, the back-button label and the collapse behaviour
-// all remain the platform's; this is content that happens to introduce the page.
+// **Only for a screen that has no navigation bar of its own.**
 //
-// The mark is an SF Symbol in the section's hue, not a sticker. It is still the thing that
-// makes a screen recognisable at a glance, but as a symbol it takes the section colour,
-// tracks Dynamic Type and sits in the same rounded square the system uses in Settings and
-// Shortcuts — which is what a header mark should look like on iOS.
+// This used to be on the tab roots as well, and that is how the app ended up saying everything
+// twice: `QBankSubjectListView` set `.navigationTitle("Question Bank")` *and* drew
+// `MedxPageHeader(title: "Question Bank")`, so the words appeared in the bar and again forty
+// points below it. Tests, Classes, Cards, Faceoff, Custom modules, Batch papers and the VOD feed
+// all did the same, and so did the two detail sheets whose nav title was already the paper's or
+// the module's name. Every one of them now uses the platform's *large* title with
+// `MedxPageCaption` for the one figure the lead sentence was actually carrying.
+//
+// What is left is exactly one caller: `MedxSectionHandoverSheet`, a full-screen cover between two
+// blocks of a grand paper with no bar and no way back, where the page really does have to introduce
+// itself. If a second caller ever appears, check first that it is not about to print its own
+// navigation title twice.
+//
+// The mark is an SF Symbol in the section's hue, not a sticker: as a symbol it takes the section
+// colour, tracks Dynamic Type and sits in the same rounded square the system uses in Settings
+// and Shortcuts.
 
 public struct MedxPageHeader<Trailing: View>: View {
     private let section: MedxSection
@@ -100,6 +109,35 @@ public extension MedxPageHeader where Trailing == EmptyView {
     }
 }
 
+// MARK: - Page caption
+
+/// One quiet line under a platform large title.
+///
+/// This is what is left of `MedxPageHeader` on the nine screens that now use
+/// `.navigationBarTitleDisplayMode(.large)`. Their leads were two sentences each, and only the
+/// first half of the first one ever said anything a student did not already know — "32,467
+/// questions across two banks" is a figure, "Marrow's ids are prefixed, so a module runs the
+/// same either way" is release notes.
+///
+/// So: the figure stays, as a caption; the prose goes. `.footnote` and secondary, which is the
+/// weight iOS puts under a large title in Settings and in Health.
+public struct MedxPageCaption: View {
+    private let text: String
+
+    public init(_ text: String) {
+        self.text = text
+    }
+
+    public var body: some View {
+        Text(text)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 // MARK: - Segmented control
 
 /// One option in a `MedxSegmented`.
@@ -134,9 +172,6 @@ public struct MedxSegmented<Value: Hashable>: View {
     private let segments: [MedxSegment<Value>]
     @Binding private var selection: Value
 
-    @Namespace private var glass
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     public init(
         section: MedxSection,
         segments: [MedxSegment<Value>],
@@ -147,29 +182,45 @@ public struct MedxSegmented<Value: Hashable>: View {
         self._selection = selection
     }
 
+    /// The row is a real `View` type rather than a computed property for one specific reason:
+    /// `ViewThatFits` builds *both* candidates in order to measure them, and the row carries a
+    /// `matchedGeometryEffect`. Two rows sharing one `@Namespace` would put two sources in the same
+    /// geometry group. A separate type gives each candidate its own namespace, which is the only
+    /// way the slide stays a slide.
     public var body: some View {
         ViewThatFits(in: .horizontal) {
-            row
-            ScrollView(.horizontal, showsIndicators: false) { row }
-        }
-    }
+            MedxSegmentedRow(section: section, segments: segments, selection: $selection)
 
-    /// One lens sliding along a track, rather than four pills each lighting up in turn.
-    ///
-    /// Only the *selected* segment is glass, and every selected segment shares one
-    /// `medxGlassID` inside a `MedxGlassGroup` — so on iOS 26 the selection flows from one
-    /// label to the next instead of fading out here and in over there. The unselected ones are
-    /// a quiet flat fill on purpose: four panes of glass in a row would all be sampling the
-    /// same patch of page and would read as a smear.
-    private var row: some View {
-        MedxGlassGroup(spacing: 12) {
-            HStack(spacing: 6) {
-                ForEach(segments) { segment in
-                    segmentButton(segment)
-                }
+            ScrollView(.horizontal, showsIndicators: false) {
+                MedxSegmentedRow(section: section, segments: segments, selection: $selection)
             }
         }
-        .animation(reduceMotion ? nil : .snappy(duration: 0.26), value: selection)
+    }
+}
+
+/// One pill sliding along a track, rather than four each lighting up in turn.
+///
+/// The slide is a `matchedGeometryEffect`: exactly one segment draws the pill at a time, and because
+/// every segment names the same geometry id, SwiftUI interpolates the pill's frame from the old
+/// label to the new one. This replaced a `glassEffectID` morph that only existed on iOS 26 — a real
+/// slide, on every OS version, and four fewer panes of glass.
+private struct MedxSegmentedRow<Value: Hashable>: View {
+    let section: MedxSection
+    let segments: [MedxSegment<Value>]
+    @Binding var selection: Value
+
+    @Namespace private var slider
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(segments) { segment in
+                segmentButton(segment)
+            }
+        }
+        .padding(3)
+        .background(Capsule(style: .continuous).fill(MedxInk.sunken))
+        .animation(reduceMotion ? nil : MedxMotion.snap, value: selection)
     }
 
     private func segmentButton(_ segment: MedxSegment<Value>) -> some View {
@@ -189,38 +240,20 @@ public struct MedxSegmented<Value: Hashable>: View {
                         .opacity(isOn ? 0.75 : 0.55)
                 }
             }
-            .foregroundStyle(isOn ? section.onSoft : Color.secondary)
+            .foregroundStyle(isOn ? MedxCandy.onSolid : Color.secondary)
             .padding(.horizontal, 14)
-            .frame(minHeight: 36)
-            .medxSegmentSurface(isOn: isOn, hue: section.fill, glass: glass)
+            .frame(minHeight: 34)
+            .background {
+                if isOn {
+                    Capsule(style: .continuous)
+                        .fill(section.fill)
+                        .matchedGeometryEffect(id: "medx.segmented.selection", in: slider)
+                }
+            }
             .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(BouncyButtonStyle())
         .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func medxSegmentSurface(isOn: Bool, hue: Color, glass: Namespace.ID) -> some View {
-        if isOn {
-            self
-                .medxSurface(
-                    Capsule(style: .continuous),
-                    MedxSurfaceSpec(
-                        tint: hue,
-                        fallbackFill: hue.opacity(0.20),
-                        strokeHue: hue,
-                        strokeOpacity: 0.50,
-                        strokeWidth: 1
-                    )
-                )
-                .medxGlassID("medx.segmented.selection", in: glass)
-        } else {
-            self.background(
-                Capsule(style: .continuous).fill(MedxSurface.fieldFill.opacity(0.55))
-            )
-        }
     }
 }
 
@@ -282,36 +315,30 @@ public struct MedxPill: View {
 }
 
 private extension View {
-    /// A pill's surface, by weight.
+    /// A pill's surface, by weight. All three are ink.
     ///
-    /// `soft` and `outline` are glass — they are context, and glass is what lets a row of them
-    /// sit over a card without stacking three opaque greys. `solid` stays a real opaque fill:
-    /// it is the one thing on a row that must be read first, and a tinted pane of glass cannot
-    /// be relied on to out-shout everything around it.
+    /// `soft` and `outline` were glass, which was wrong twice over: a pill is the *smallest*
+    /// surface in the app and there are often four in one row, so each one was a backdrop sample
+    /// of the same patch of page — and a row of them came out as a single smear rather than as
+    /// four readable tags.
     @ViewBuilder
     func medxPillSurface(weight: MedxPill.Weight, hue: Color) -> some View {
         switch weight {
         case .solid:
             self.background(Capsule(style: .continuous).fill(hue))
         case .soft:
-            self.medxSurface(
-                Capsule(style: .continuous),
-                MedxSurfaceSpec(
-                    tint: hue,
-                    fallbackFill: hue.opacity(0.18),
-                    strokeHue: hue,
-                    strokeOpacity: 0.32
-                )
-            )
+            self.background(Capsule(style: .continuous).fill(hue.opacity(0.18)))
+                .overlay {
+                    Capsule(style: .continuous)
+                        .strokeBorder(hue.opacity(0.30), lineWidth: 0.5)
+                        .allowsHitTesting(false)
+                }
         case .outline:
-            self.medxSurface(
-                Capsule(style: .continuous),
-                MedxSurfaceSpec(
-                    fallbackFill: Color.clear,
-                    strokeOpacity: 0.35,
-                    showsRim: false
-                )
-            )
+            self.overlay {
+                Capsule(style: .continuous)
+                    .strokeBorder(MedxInk.hairline, lineWidth: 0.5)
+                    .allowsHitTesting(false)
+            }
         }
     }
 }

@@ -198,19 +198,26 @@ public struct MedxSymbolMark: View {
 }
 
 private extension View {
-    /// The mark's own pane of glass, tinted with the hue it stands for. Split out so the
-    /// `filled == false` case stays a bare glyph with no surface at all — a dense list wants the
-    /// colour and nothing else, and glass on every row of forty would be forty backdrop layers.
+    /// The mark's own hue-washed square. Split out so the `filled == false` case stays a bare
+    /// glyph with no surface at all — a dense list wants the colour and nothing else.
+    ///
+    /// Ink, deliberately. This was a pane of glass, and it is the single most repeated surface in
+    /// the app: seventeen call sites, several of them inside a row that repeats a thousand times.
+    /// Seventeen backdrop samples per screen is what "too much glass" looked like in practice.
+    ///
+    /// The radius is a *fraction* of the size rather than a `MedxRadius` constant, because this
+    /// square is drawn anywhere from 30pt to 54pt and a fixed radius would read as a squircle at
+    /// one end and a rounded rectangle at the other. 0.30 is the ratio that keeps it a squircle
+    /// at every size the app asks for.
     @ViewBuilder
     func medxMarkSurface(filled: Bool, hue: Color, size: CGFloat) -> some View {
         if filled {
             self.medxSurface(
                 RoundedRectangle(cornerRadius: size * 0.30, style: .continuous),
                 MedxSurfaceSpec(
-                    tint: hue,
-                    fallbackFill: hue.opacity(0.16),
+                    fill: hue.opacity(0.18),
                     strokeHue: hue,
-                    strokeOpacity: 0.30
+                    strokeOpacity: 0.28
                 )
             )
         } else {

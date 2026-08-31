@@ -103,7 +103,7 @@ public struct FlashcardStudyView: View {
                     cardTile(card, number: index + 1, layout: layout)
                 }
                 .buttonStyle(.plain)
-                .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: MedxRadius.tile, style: .continuous))
                 .accessibilityLabel("Flashcard \(index + 1), \(card.name)")
                 .accessibilityHint("Opens the full-screen viewer")
             }
@@ -161,7 +161,7 @@ public struct FlashcardStudyView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
         }
-        .medxCard(cornerRadius: 14)
+        .medxCard(cornerRadius: MedxRadius.tile)
     }
 }
 

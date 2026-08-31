@@ -56,7 +56,9 @@ public struct VideosBatchListView: View {
         }
         .medxPage(.videos)
         .navigationTitle("Classes")
-        .navigationBarTitleDisplayMode(.inline)
+        // Large, and the only "Classes" on the page — there used to be an inline title *and* a
+        // `MedxPageHeader` under it saying the same word.
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
@@ -93,12 +95,7 @@ public struct VideosBatchListView: View {
     private var content: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
-                MedxPageHeader(
-                    section: .videos,
-                    title: "Classes",
-                    lead: "Every recorded ARISE lecture, by batch and then by subject. "
-                        + "Hold a subject to save the whole thing for no signal."
-                )
+                MedxPageCaption("Every recorded ARISE lecture, by batch then subject")
 
                 MedxMetricsRow {
                     MedxMetric(
@@ -275,8 +272,8 @@ public struct VideosBatchListView: View {
             }
             .padding(14)
             .frame(width: 196, height: 152, alignment: .topLeading)
-            .medxCard(cornerRadius: 14)
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .medxCard(cornerRadius: MedxRadius.tile)
+            .contentShape(RoundedRectangle(cornerRadius: MedxRadius.tile, style: .continuous))
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -310,16 +307,16 @@ public struct VideosBatchListView: View {
             VStack(spacing: 10) {
                 ForEach(0..<6, id: \.self) { _ in
                     HStack(spacing: 14) {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
                             .fill(Color.primary.opacity(0.07))
                             .frame(width: 38, height: 38)
 
                         VStack(alignment: .leading, spacing: 6) {
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            Capsule(style: .continuous)
                                 .fill(Color.primary.opacity(0.07))
                                 .frame(height: 14)
                                 .frame(maxWidth: 190)
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            Capsule(style: .continuous)
                                 .fill(Color.primary.opacity(0.05))
                                 .frame(height: 10)
                                 .frame(maxWidth: 120)
@@ -533,7 +530,7 @@ struct VideoDownloadButton: View {
                         .trim(from: 0, to: max(0.03, item.progress))
                         .stroke(MedxTheme.accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                         .rotationEffect(.degrees(-90))
-                    RoundedRectangle(cornerRadius: 1, style: .continuous)
+                    RoundedRectangle(cornerRadius: 2.5, style: .continuous)
                         .fill(MedxTheme.accent)
                         .frame(width: 7, height: 7)
                 }
@@ -621,8 +618,10 @@ struct DownloadsView: View {
                     }
                 }
                 .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
             }
         }
+        .medxPage(.videos)
         .navigationTitle("Downloads")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
@@ -665,7 +664,7 @@ struct DownloadsView: View {
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(statusColor(item))
                 .frame(width: 38, height: 38)
-                .background(statusColor(item).opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(statusColor(item).opacity(0.14), in: RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.video.title)

@@ -47,8 +47,8 @@ public struct CountdownWidgetView: View {
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .medxCard(cornerRadius: 20)
-            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .medxCard(cornerRadius: MedxRadius.card)
+            .contentShape(RoundedRectangle(cornerRadius: MedxRadius.card, style: .continuous))
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(title) countdown")
             .accessibilityValue("\(remaining.days) days, \(remaining.hours) hours remaining")
@@ -153,6 +153,8 @@ struct MedxExamDateSheet: View {
                     Text("The Home Screen and Lock Screen widgets use this too.")
                 }
             }
+            .scrollContentBackground(.hidden)
+            .medxPage(.home)
             .navigationTitle("Exam countdown")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

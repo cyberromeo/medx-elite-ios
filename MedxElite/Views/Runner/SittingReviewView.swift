@@ -273,7 +273,7 @@ public struct SittingReviewView: View {
             }
         }
         .padding(18)
-        .medxCard(cornerRadius: 24, raised: true)
+        .medxCard(cornerRadius: MedxRadius.card, raised: true)
     }
 
     /// A mark for the result, and the one place in this app where a sticker carries meaning
@@ -364,7 +364,7 @@ private struct QuestionReviewCard: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .medxSurface(Capsule(style: .continuous), MedxSurfaceSpec(fallbackFill: MedxSurface.fieldFill, strokeOpacity: 0.16))
+                .medxSurface(Capsule(style: .continuous), MedxSurfaceSpec(fill: MedxInk.field))
 
             Label(outcome.title, systemImage: outcome.icon)
                 .font(.caption.weight(.semibold))
@@ -435,7 +435,7 @@ private struct QuestionReviewCard: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-                .medxTile(cornerRadius: 12, accentColor: tint, isSelected: tint != nil)
+                .medxTile(cornerRadius: MedxRadius.control, accentColor: tint, isSelected: tint != nil)
             }
         }
     }
@@ -476,7 +476,7 @@ private struct QuestionReviewCard: View {
                 }
             }
             .padding(14)
-            .medxTile(cornerRadius: 14)
+            .medxTile(cornerRadius: MedxRadius.tile)
         }
     }
 }

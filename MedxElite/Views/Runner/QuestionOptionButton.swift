@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// One answer row. Reads as a native selectable cell: neutral fill, a hairline border, a
-/// letter badge and a radio glyph. State is carried by the badge and the border, not by a
-/// tinted glass sheet.
+/// One answer row. Reads as a native selectable cell: an opaque fill one step off the card, a
+/// hairline border, a letter badge and a state glyph. State is carried by the badge and by a real
+/// 1.5pt border in the state's colour — not by a tinted sheet of glass, which is what these were
+/// and which could not be relied on to out-shout the three rows around it.
 public struct QuestionOptionButton: View {
     public let option: QuestionOption
     /// Position in the question, used only to letter a row whose `label` the backend left blank.
@@ -69,7 +70,7 @@ public struct QuestionOptionButton: View {
         .buttonStyle(BouncyButtonStyle())
         .disabled(isLocked)
         .animation(.easeOut(duration: 0.16), value: isChosen)
-        .animation(.easeOut(duration: 0.16), value: isRevealed)
+        .animation(MedxMotion.snap, value: isRevealed)
         .accessibilityLabel("Option \(letter)")
         .accessibilityValue(accessibilityState)
         .accessibilityAddTraits(isChosen ? [.isSelected] : [])
@@ -79,9 +80,9 @@ public struct QuestionOptionButton: View {
 
     /// The letter, on its own small surface.
     ///
-    /// A stateful row inks it solid — a green A on a correct answer has to survive being
-    /// glanced at — while a neutral one is a pane of glass like the row it sits on, one step
-    /// brighter so it still reads as a badge rather than as part of the fill.
+    /// A stateful row inks it solid — a green A on a correct answer has to survive being glanced
+    /// at — while a neutral one sits one step brighter than the row it is on, so it still reads
+    /// as a badge rather than as part of the fill.
     private var letterBadge: some View {
         Text(letter)
             .font(.subheadline.weight(.bold))
@@ -92,30 +93,33 @@ public struct QuestionOptionButton: View {
                     Circle().fill(stateColor ?? MedxTheme.accent)
                 }
             }
-            .medxBadgeGlass(plain: !isFilledBadge)
+            .medxBadgeInk(plain: !isFilledBadge)
     }
 
     /// Only ever drawn when it means something.
     ///
     /// There used to be a hollow `circle` on every unpicked row — four empty rings per question,
     /// forty questions a paper, saying nothing the lettered badge on the left had not already
-    /// said. The row's own glass and its letter are the affordance; the glyph is reserved for
-    /// state.
+    /// said. The row's own fill and its letter are the affordance; the glyph is reserved for
+    /// state, and it pops in rather than appearing because the pop *is* the feedback.
     @ViewBuilder
     private var trailingGlyph: some View {
-        if isRevealed, isCorrect {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.title3)
-                .foregroundStyle(MedxTheme.successGreen)
-        } else if isRevealed, isChosen {
-            Image(systemName: "xmark.circle.fill")
-                .font(.title3)
-                .foregroundStyle(MedxTheme.destructiveRed)
-        } else if isChosen {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.title3)
-                .foregroundStyle(MedxTheme.accent)
+        Group {
+            if isRevealed, isCorrect {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(MedxTheme.successGreen)
+            } else if isRevealed, isChosen {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(MedxTheme.destructiveRed)
+            } else if isChosen {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(MedxTheme.accent)
+            }
         }
+        .transition(.scale(scale: 0.4).combined(with: .opacity))
     }
 
     // MARK: - Derived state
@@ -176,17 +180,14 @@ public enum MedxOptionLetter {
 
 private extension View {
     /// The badge's own surface, added only where the badge is standing on its own — a stateful
-    /// one already has an opaque circle of its state colour underneath and putting glass over
+    /// one already has an opaque circle of its state colour underneath and putting anything over
     /// that would just mute it.
     @ViewBuilder
-    func medxBadgeGlass(plain: Bool) -> some View {
+    func medxBadgeInk(plain: Bool) -> some View {
         if plain {
             self.medxSurface(
                 Circle(),
-                MedxSurfaceSpec(
-                    fallbackFill: MedxSurface.fieldFill,
-                    strokeOpacity: 0.22
-                )
+                MedxSurfaceSpec(fill: MedxInk.field)
             )
         } else {
             self
