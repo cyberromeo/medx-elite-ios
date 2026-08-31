@@ -69,8 +69,7 @@ public struct CustomModulesView: View {
             .padding(.top, 6)
             .padding(.bottom, 28)
         }
-        .background(MedxSurface.groupedBackground.ignoresSafeArea())
-        .medxScrollEdge()
+        .medxPage(.custom)
         .navigationTitle("Custom modules")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await store.reload(uid: uid) }
@@ -428,7 +427,7 @@ struct MedxCustomRunSheet: View {
                 .padding(.top, 12)
                 .padding(.bottom, 28)
             }
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxPage(.custom)
             .navigationTitle(module.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

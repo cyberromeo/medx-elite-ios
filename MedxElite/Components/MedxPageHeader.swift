@@ -134,6 +134,9 @@ public struct MedxSegmented<Value: Hashable>: View {
     private let segments: [MedxSegment<Value>]
     @Binding private var selection: Value
 
+    @Namespace private var glass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     public init(
         section: MedxSection,
         segments: [MedxSegment<Value>],
@@ -151,41 +154,73 @@ public struct MedxSegmented<Value: Hashable>: View {
         }
     }
 
+    /// One lens sliding along a track, rather than four pills each lighting up in turn.
+    ///
+    /// Only the *selected* segment is glass, and every selected segment shares one
+    /// `medxGlassID` inside a `MedxGlassGroup` — so on iOS 26 the selection flows from one
+    /// label to the next instead of fading out here and in over there. The unselected ones are
+    /// a quiet flat fill on purpose: four panes of glass in a row would all be sampling the
+    /// same patch of page and would read as a smear.
     private var row: some View {
-        HStack(spacing: 6) {
-            ForEach(segments) { segment in
-                let isOn = segment.value == selection
-                Button {
-                    guard !isOn else { return }
-                    HapticManager.selection()
-                    selection = segment.value
-                } label: {
-                    HStack(spacing: 5) {
-                        Text(segment.label)
-                            .font(.subheadline.weight(.semibold))
-                        if let count = segment.count {
-                            Text(count.formatted())
-                                .font(.caption2.weight(.bold).monospacedDigit())
-                                .opacity(isOn ? 0.75 : 0.55)
-                        }
-                    }
-                    .foregroundStyle(isOn ? section.onSoft : Color.secondary)
-                    .padding(.horizontal, 13)
-                    .frame(minHeight: 34)
-                    .background(Capsule().fill(isOn ? section.soft : MedxSurface.fieldFill))
-                    .overlay(
-                        Capsule().strokeBorder(
-                            isOn ? section.fill.opacity(0.55) : Color.clear,
-                            lineWidth: 1
-                        )
-                    )
-                    .contentShape(Capsule())
+        MedxGlassGroup(spacing: 12) {
+            HStack(spacing: 6) {
+                ForEach(segments) { segment in
+                    segmentButton(segment)
                 }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
             }
         }
-        .animation(.snappy(duration: 0.18), value: selection)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.26), value: selection)
+    }
+
+    private func segmentButton(_ segment: MedxSegment<Value>) -> some View {
+        let isOn = segment.value == selection
+
+        return Button {
+            guard !isOn else { return }
+            HapticManager.selection()
+            selection = segment.value
+        } label: {
+            HStack(spacing: 5) {
+                Text(segment.label)
+                    .font(.subheadline.weight(.semibold))
+                if let count = segment.count {
+                    Text(count.formatted())
+                        .font(.caption2.weight(.bold).monospacedDigit())
+                        .opacity(isOn ? 0.75 : 0.55)
+                }
+            }
+            .foregroundStyle(isOn ? section.onSoft : Color.secondary)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 36)
+            .medxSegmentSurface(isOn: isOn, hue: section.fill, glass: glass)
+            .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(BouncyButtonStyle())
+        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func medxSegmentSurface(isOn: Bool, hue: Color, glass: Namespace.ID) -> some View {
+        if isOn {
+            self
+                .medxSurface(
+                    Capsule(style: .continuous),
+                    MedxSurfaceSpec(
+                        tint: hue,
+                        fallbackFill: hue.opacity(0.20),
+                        strokeHue: hue,
+                        strokeOpacity: 0.50,
+                        strokeWidth: 1
+                    )
+                )
+                .medxGlassID("medx.segmented.selection", in: glass)
+        } else {
+            self.background(
+                Capsule(style: .continuous).fill(MedxSurface.fieldFill.opacity(0.55))
+            )
+        }
     }
 }
 
@@ -228,14 +263,9 @@ public struct MedxPill: View {
                 .font(.caption2.weight(.bold))
         }
         .foregroundStyle(foreground)
-        .padding(.horizontal, 7)
+        .padding(.horizontal, 8)
         .padding(.vertical, 3)
-        .background(background)
-        .overlay {
-            if weight == .outline {
-                Capsule().strokeBorder(MedxSurface.separator, lineWidth: MedxSurface.hairline)
-            }
-        }
+        .medxPillSurface(weight: weight, hue: hue)
         .accessibilityElement(children: .combine)
     }
 
@@ -249,13 +279,39 @@ public struct MedxPill: View {
         case .outline: return .secondary
         }
     }
+}
 
+private extension View {
+    /// A pill's surface, by weight.
+    ///
+    /// `soft` and `outline` are glass — they are context, and glass is what lets a row of them
+    /// sit over a card without stacking three opaque greys. `solid` stays a real opaque fill:
+    /// it is the one thing on a row that must be read first, and a tinted pane of glass cannot
+    /// be relied on to out-shout everything around it.
     @ViewBuilder
-    private var background: some View {
+    func medxPillSurface(weight: MedxPill.Weight, hue: Color) -> some View {
         switch weight {
-        case .solid: Capsule().fill(hue)
-        case .soft: Capsule().fill(hue.opacity(0.18))
-        case .outline: Capsule().fill(Color.clear)
+        case .solid:
+            self.background(Capsule(style: .continuous).fill(hue))
+        case .soft:
+            self.medxSurface(
+                Capsule(style: .continuous),
+                MedxSurfaceSpec(
+                    tint: hue,
+                    fallbackFill: hue.opacity(0.18),
+                    strokeHue: hue,
+                    strokeOpacity: 0.32
+                )
+            )
+        case .outline:
+            self.medxSurface(
+                Capsule(style: .continuous),
+                MedxSurfaceSpec(
+                    fallbackFill: Color.clear,
+                    strokeOpacity: 0.35,
+                    showsRim: false
+                )
+            )
         }
     }
 }

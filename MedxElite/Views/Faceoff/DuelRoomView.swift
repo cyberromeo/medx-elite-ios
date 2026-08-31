@@ -85,7 +85,7 @@ public struct DuelRoomView: View {
     public var body: some View {
         NavigationStack {
             content
-                .background(MedxSurface.groupedBackground.ignoresSafeArea())
+                .medxPage(.duel)
                 .navigationTitle(room.source?.name ?? "Faceoff")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbar }

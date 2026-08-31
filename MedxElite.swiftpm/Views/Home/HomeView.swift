@@ -72,8 +72,7 @@ public struct HomeView: View {
             .padding(.top, 4)
             .padding(.bottom, 28)
         }
-        .background(MedxSurface.groupedBackground.ignoresSafeArea())
-        .medxScrollEdge()
+        .medxPage(.home)
         .scrollIndicators(.automatic)
         .navigationTitle("Home")
         .navigationBarTitleDisplayMode(.large)

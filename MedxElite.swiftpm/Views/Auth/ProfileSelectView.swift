@@ -43,7 +43,7 @@ public struct ProfileSelectView: View {
                     .padding(.bottom, 20)
             }
             .frame(maxWidth: .infinity)
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxPage(.home)
             .sheet(item: $selectedProfile) { profile in
                 PasswordPromptView(profile: profile)
             }
@@ -73,7 +73,7 @@ public struct ProfileSelectView: View {
                     .overlay(alignment: .bottomTrailing) {
                         MedxSticker(profile.sticker, size: 20)
                             .padding(3)
-                            .background(MedxSurface.cardFill, in: Circle())
+                            .medxSurface(Circle(), .card())
                             .offset(x: 3, y: 3)
                     }
 

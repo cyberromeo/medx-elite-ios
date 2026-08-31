@@ -59,7 +59,7 @@ public struct StartSessionSheet: View {
                 .padding(.bottom, 24)
             }
             .scrollBounceBehavior(.basedOnSize)
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxPage(.qbank)
             .navigationTitle("Start Sitting")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

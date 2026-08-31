@@ -42,8 +42,7 @@ public struct LibraryView: View {
             .padding(.top, 8)
             .padding(.bottom, 28)
         }
-        .background(MedxSurface.groupedBackground.ignoresSafeArea())
-        .medxScrollEdge()
+        .medxPage(.library)
         .navigationTitle("Library")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

@@ -54,8 +54,7 @@ public struct VideosBatchListView: View {
                 }
             }
         }
-        .background(MedxSurface.groupedBackground.ignoresSafeArea())
-        .medxScrollEdge()
+        .medxPage(.videos)
         .navigationTitle("Classes")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -701,11 +700,42 @@ struct DownloadsView: View {
             HapticManager.light()
             activeVideo = item.video
         }
-        .swipeActions(edge: .trailing) {
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive) {
+                HapticManager.warning()
                 downloads.remove(item.id)
             } label: {
                 Label("Delete", systemImage: "trash")
+            }
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            // A queue is the one place pausing is worth a gesture: it is the thing you reach for
+            // when a download is eating the connection you are trying to watch something on.
+            switch item.state {
+            case .queued, .downloading:
+                Button {
+                    HapticManager.light()
+                    downloads.pause(item.id)
+                } label: {
+                    Label("Pause", systemImage: "pause.fill")
+                }
+                .tint(MedxTheme.warningOrange)
+            case .paused, .failed:
+                Button {
+                    HapticManager.light()
+                    downloads.resume(item.id)
+                } label: {
+                    Label("Resume", systemImage: "play.fill")
+                }
+                .tint(MedxTheme.successGreen)
+            case .completed:
+                Button {
+                    HapticManager.light()
+                    activeVideo = item.video
+                } label: {
+                    Label("Play", systemImage: "play.fill")
+                }
+                .tint(MedxCandy.violet)
             }
         }
         .accessibilityElement(children: .combine)

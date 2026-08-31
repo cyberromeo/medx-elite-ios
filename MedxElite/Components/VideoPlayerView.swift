@@ -88,9 +88,20 @@ public struct VideoPlayerView: View {
         Label("Playing your download", systemImage: "arrow.down.circle.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(.white)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 11)
             .padding(.vertical, 6)
-            .background(.ultraThinMaterial, in: Capsule())
+            // `.clear` glass rather than `.regular`: this floats over video, which is bright and
+            // already carries the detail, so the badge wants to be a lens on it rather than a
+            // frosted card in front of it.
+            .medxSurface(
+                Capsule(style: .continuous),
+                MedxSurfaceSpec(
+                    clear: true,
+                    fallbackFill: Color.black.opacity(0.35),
+                    strokeHue: .white,
+                    strokeOpacity: 0.22
+                )
+            )
             .accessibilityLabel("Playing the offline download")
     }
 

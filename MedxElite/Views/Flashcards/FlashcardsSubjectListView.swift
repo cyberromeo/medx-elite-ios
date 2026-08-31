@@ -61,8 +61,7 @@ public struct FlashcardsSubjectListView: View {
                     }
                 }
             }
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
-            .medxScrollEdge()
+            .medxPage(.cards)
         }
         .navigationTitle("Cards")
         .navigationBarTitleDisplayMode(.inline)

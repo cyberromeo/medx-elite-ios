@@ -192,12 +192,29 @@ public struct MedxSymbolMark: View {
             .foregroundStyle(filled ? MedxCandy.onSoft(hue) : hue)
             .symbolRenderingMode(.hierarchical)
             .frame(width: size, height: size)
-            .background {
-                if filled {
-                    RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                        .fill(hue.opacity(0.16))
-                }
-            }
+            .medxMarkSurface(filled: filled, hue: hue, size: size)
             .accessibilityHidden(true)
+    }
+}
+
+private extension View {
+    /// The mark's own pane of glass, tinted with the hue it stands for. Split out so the
+    /// `filled == false` case stays a bare glyph with no surface at all — a dense list wants the
+    /// colour and nothing else, and glass on every row of forty would be forty backdrop layers.
+    @ViewBuilder
+    func medxMarkSurface(filled: Bool, hue: Color, size: CGFloat) -> some View {
+        if filled {
+            self.medxSurface(
+                RoundedRectangle(cornerRadius: size * 0.30, style: .continuous),
+                MedxSurfaceSpec(
+                    tint: hue,
+                    fallbackFill: hue.opacity(0.16),
+                    strokeHue: hue,
+                    strokeOpacity: 0.30
+                )
+            )
+        } else {
+            self
+        }
     }
 }

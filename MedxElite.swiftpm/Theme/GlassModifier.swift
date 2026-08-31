@@ -1,24 +1,34 @@
 import SwiftUI
 
-// MARK: - Surface System (Apple HIG)
+// MARK: - Surface System
 //
-// The app used to wrap almost every rectangle in Liquid Glass, which on iOS 26 turned
-// content into frosted soup and cost a blur pass per card. The rule now is the one
-// Apple actually uses in its own apps:
+// The app's first pass at Liquid Glass wrapped every rectangle in `.ultraThinMaterial` over a
+// flat grey page and got frosted soup: nothing behind the panels to refract, a blur pass per
+// card, and text sitting on haze. It was taken back out and the app went flat.
 //
-//   * Content sits on flat, semantic, grouped backgrounds.
-//   * Glass / materials are reserved for chrome that genuinely floats over content
-//     (nav bars, bottom action bars, media overlays).
-//   * Never put an `interactive()` glass effect inside a `Button` label — the effect
-//     takes the touch and the button stops firing.
+// It is glass again now, but built the other way round — see `Theme/MedxLiquidGlass.swift`
+// for the four rules, of which the first is the one that was missing: **the backdrop comes
+// first**. `MedxAurora` washes each page in the hue that destination already owns, so a glass
+// card has something to bend, and the same card looks lime-lit on the QBank and warm on Tests
+// without a line of per-screen styling.
 //
-// The old modifier names are kept as thin aliases so every existing call site keeps
-// working while rendering the new, quieter surface.
+// What survives from the flat era, unchanged, is the discipline:
+//
+//   * One place decides what a rectangle is made of — `medxSurface`, which also owns the
+//     iOS 17 fallback and the Reduce Transparency escape hatch.
+//   * Never put an `interactive()` glass effect inside a `Button` label. The effect takes the
+//     touch and the button stops firing; that is what broke the flashcard close button.
+//     Interactive glass comes from `.buttonStyle(.glass)`, which the system wires up itself.
+//   * Glass near glass shares a `MedxGlassGroup`, because glass cannot sample glass.
+//
+// Every call site of `medxCard` / `medxTile` / `medxBar` in the app — 75 of them — is
+// unchanged and simply renders the new material.
 
 public enum MedxSurface {
-    /// Corner radii. Matched to the system's own grouped-list and widget geometry.
-    public static let cardRadius: CGFloat = 16
-    public static let tileRadius: CGFloat = 12
+    /// Corner radii. Rounder than the flat set they replace: iOS 26's own geometry is, and a
+    /// tight radius makes a glass edge read as a sticker rather than as a lens.
+    public static let cardRadius: CGFloat = MedxGlass.cardRadius
+    public static let tileRadius: CGFloat = MedxGlass.tileRadius
     public static let hairline: CGFloat = 0.5
 
     public static var cardFill: Color { Color(uiColor: .secondarySystemGroupedBackground) }
@@ -33,33 +43,26 @@ public enum MedxSurface {
 
 // MARK: - Cards
 
-/// A flat content card: grouped fill, hairline border, no tint, no glow.
+/// A content card. Glass on iOS 26 over the page's own wash, the flat grouped fill below it.
 public struct MedxCardModifier: ViewModifier {
     public var cornerRadius: CGFloat
-    /// A raised card gets a soft neutral shadow; the default sits flush on the page.
+    /// A raised card is the one card on a screen that *is* the screen's subject — a score
+    /// hero, a live invite. It gets the deeper shadow so it reads as nearer the eye.
     public var raised: Bool
+    /// Carries meaning through the glass: a duel card in a player's colour, a correct answer.
+    public var tint: Color?
 
-    public init(cornerRadius: CGFloat = MedxSurface.cardRadius, raised: Bool = false) {
+    public init(cornerRadius: CGFloat = MedxSurface.cardRadius, raised: Bool = false, tint: Color? = nil) {
         self.cornerRadius = cornerRadius
         self.raised = raised
+        self.tint = tint
     }
 
     public func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-
-        content
-            .background(shape.fill(MedxSurface.cardFill))
-            .overlay(
-                shape.strokeBorder(
-                    MedxSurface.separator.opacity(raised ? 0.20 : 0.28),
-                    lineWidth: MedxSurface.hairline
-                )
-            )
-            .shadow(
-                color: Color.black.opacity(raised ? 0.06 : 0),
-                radius: raised ? 8 : 0,
-                y: raised ? 3 : 0
-            )
+        content.medxSurface(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
+            .card(raised: raised, tint: tint)
+        )
     }
 }
 
@@ -76,24 +79,23 @@ public struct MedxTileModifier: ViewModifier {
     }
 
     public func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        let accent = accentColor ?? MedxTheme.accent
-
-        content
-            .background(shape.fill(isSelected ? accent.opacity(0.12) : MedxSurface.tileFill))
-            .overlay(
-                shape.strokeBorder(
-                    isSelected ? accent.opacity(0.75) : MedxSurface.separator.opacity(0.30),
-                    lineWidth: isSelected ? 1.5 : MedxSurface.hairline
-                )
-            )
+        content.medxSurface(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
+            .tile(accent: accentColor, selected: isSelected)
+        )
     }
 }
 
 public extension View {
-    /// Flat content card. The canonical container for anything that is not chrome.
+    /// The canonical container for anything that is not chrome.
     func medxCard(cornerRadius: CGFloat = MedxSurface.cardRadius, raised: Bool = false) -> some View {
         modifier(MedxCardModifier(cornerRadius: cornerRadius, raised: raised))
+    }
+
+    /// A card that carries a hue through its glass — used where the card's colour *is* the
+    /// information, as in a duel row or a live invite.
+    func medxCard(tint: Color, cornerRadius: CGFloat = MedxSurface.cardRadius, raised: Bool = false) -> some View {
+        modifier(MedxCardModifier(cornerRadius: cornerRadius, raised: raised, tint: tint))
     }
 
     /// Secondary surface used *inside* a card — answer options, matrix cells, stat tiles.
@@ -101,20 +103,31 @@ public extension View {
         modifier(MedxTileModifier(cornerRadius: cornerRadius, accentColor: accentColor, isSelected: isSelected))
     }
 
-    /// Bar-style chrome that floats over scrolling content: bottom action bars, toolbars.
+    /// Bar-style chrome pinned to an edge: bottom action bars on the screens that want a
+    /// full-width one rather than the floating capsule (`medxFloatingBar`).
     ///
-    /// This is the only place in the app that uses a material. `.bar` is what a real
-    /// `UIToolbar` uses, and as a `ShapeStyle` background it extends into the safe area on
-    /// its own — so the bar reaches the bottom edge instead of leaving a stripe of page
-    /// above the home indicator.
+    /// `.bar` is what a real `UIToolbar` uses and, as a `ShapeStyle` background, it extends
+    /// into the safe area on its own — so the bar reaches the bottom edge instead of leaving a
+    /// stripe of page above the home indicator. On iOS 26 the system renders that material as
+    /// glass already; what is added here is the specular top rim, so the bar has an edge
+    /// instead of a seam.
     func medxBar(topDivider: Bool = false) -> some View {
         self
             .background(.bar)
             .overlay(alignment: .top) {
                 if topDivider {
-                    Rectangle()
-                        .fill(MedxSurface.separator.opacity(0.5))
-                        .frame(height: MedxSurface.hairline)
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.22), Color.clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 1)
+                    .overlay(alignment: .top) {
+                        Rectangle()
+                            .fill(MedxSurface.separator.opacity(0.45))
+                            .frame(height: MedxSurface.hairline)
+                    }
+                    .allowsHitTesting(false)
                 }
             }
     }
@@ -342,15 +355,12 @@ public struct MedxCircleButton: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(filled ? Color.white : (tint ?? Color.primary))
-                .frame(width: 32, height: 32)
-                .background {
-                    Circle().fill(filled ? (tint ?? MedxTheme.accent) : MedxSurface.fieldFill)
-                }
+                .foregroundStyle(filled ? MedxCandy.onSolid : (tint ?? Color.primary))
+                .medxGlassCircle(diameter: 34, tint: filled ? (tint ?? MedxTheme.accent) : tint)
                 .frame(width: 44, height: 44)
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(BouncyButtonStyle())
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(accessibilityValue ?? "")
     }
@@ -378,9 +388,7 @@ public struct MedxChip: View {
                 .font(.caption2.weight(.semibold))
         }
         .foregroundStyle(tint)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(tint.opacity(0.14), in: Capsule())
+        .medxGlassCapsule(tint: tint, horizontal: 9, vertical: 4)
         .accessibilityElement(children: .combine)
     }
 }

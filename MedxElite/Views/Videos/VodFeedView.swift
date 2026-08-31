@@ -100,28 +100,51 @@ public struct VodFeedView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 18) {
+        // A `List`, so the bucket's ~2,900 rows take the platform's own swipe actions: pull a row
+        // left to save it offline, right to play it. The day headers become real section headers
+        // and stick to the top as you scroll back in time, which they never did as plain text in
+        // a `LazyVStack`.
+        List {
+            Section {
                 header
+                    .medxPlainRow(vertical: 4)
                 metaCard
+                    .medxPlainRow(vertical: 4)
                 tools
+                    .medxPlainRow(vertical: 4)
 
                 if let failure {
                     errorNote(failure)
+                        .medxPlainRow(vertical: 4)
                 }
-
-                ForEach(days) { day in
-                    daySection(day)
-                }
-
-                footer
             }
-            .padding(.horizontal, MedxSurface.gutter)
-            .padding(.top, 6)
-            .padding(.bottom, 28)
+
+            ForEach(days) { day in
+                Section {
+                    ForEach(day.items) { item in
+                        row(item)
+                            .medxPlainRow(vertical: 4)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                vodDownloadAction(item)
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                vodPlayAction(item)
+                            }
+                    }
+                } header: {
+                    MedxRuleHeader(day.label, count: day.items.count)
+                        .textCase(nil)
+                }
+            }
+
+            Section {
+                footer
+                    .medxPlainRow(vertical: 4)
+            }
         }
-        .background(MedxSurface.groupedBackground.ignoresSafeArea())
-        .medxScrollEdge()
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .medxPage(.vod)
         .navigationTitle("VOD feed")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await reload() }
@@ -132,6 +155,45 @@ public struct VodFeedView: View {
         }
         .fullScreenCover(item: $playing) { video in
             VideoPlayerView(video: video) { playing = nil }
+        }
+    }
+
+    // MARK: - Swipe actions
+
+    /// Trailing swipe: save it, or throw the saved copy away. A row with no stream behind it gets
+    /// nothing rather than a button that would fail.
+    @ViewBuilder
+    private func vodDownloadAction(_ item: MedxVodItem) -> some View {
+        if item.streamUrl.isEmpty {
+            EmptyView()
+        } else if downloads.items[item.id]?.state == .completed {
+            Button(role: .destructive) {
+                HapticManager.warning()
+                downloads.remove(item.id)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        } else {
+            Button {
+                HapticManager.success()
+                downloads.start(item.asRecordedVideo, quality: .standard)
+            } label: {
+                Label("Save", systemImage: "arrow.down.circle")
+            }
+            .tint(MedxTheme.successGreen)
+        }
+    }
+
+    @ViewBuilder
+    private func vodPlayAction(_ item: MedxVodItem) -> some View {
+        if !item.streamUrl.isEmpty {
+            Button {
+                HapticManager.light()
+                playing = item.asRecordedVideo
+            } label: {
+                Label("Play", systemImage: "play.fill")
+            }
+            .tint(MedxCandy.blue)
         }
     }
 
@@ -244,7 +306,7 @@ public struct VodFeedView: View {
                 }
                 .padding(.horizontal, 12)
                 .frame(height: 38)
-                .background(MedxSurface.fieldFill, in: Capsule())
+                .medxSurface(Capsule(style: .continuous), MedxSurfaceSpec(fallbackFill: MedxSurface.fieldFill, strokeOpacity: 0.16))
 
                 Button {
                     HapticManager.selection()
@@ -280,16 +342,6 @@ public struct VodFeedView: View {
     }
 
     // MARK: - Rows
-
-    private func daySection(_ day: MedxVodDay) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            MedxRuleHeader(day.label, count: day.items.count)
-
-            ForEach(day.items) { item in
-                row(item)
-            }
-        }
-    }
 
     private func row(_ item: MedxVodItem) -> some View {
         let label = item.display
@@ -361,10 +413,11 @@ public struct VodFeedView: View {
                 .filter { !$0.isEmpty }
                 .joined(separator: ", "))
 
-            // A bucket recording is an HLS stream like any class, so the same downloader takes
-            // it. The control is a sibling of the play button, not inside it: a `Menu` nested in
-            // a `Button` label never receives the tap.
-            if !item.streamUrl.isEmpty {
+            // A bucket recording is an HLS stream like any class, so the same downloader takes it.
+            // The button is only here while a download is actually in flight — then it is the
+            // progress readout and the pause control. Starting one is the swipe, or the long-press
+            // menu when you want to pick a quality.
+            if downloads.items[item.id].map({ $0.state != .completed }) == true {
                 VideoDownloadButton(video: video)
             }
         }

@@ -27,7 +27,7 @@ public struct PasswordPromptView: View {
                         .onSubmit(handleSignIn)
                         .font(.body)
                         .padding(14)
-                        .background(MedxSurface.cardFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .medxCard(cornerRadius: 14)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .strokeBorder(
@@ -75,7 +75,7 @@ public struct PasswordPromptView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 28)
             }
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxPage(.home)
             .navigationTitle("Sign In")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

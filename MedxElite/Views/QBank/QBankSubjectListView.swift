@@ -74,8 +74,7 @@ public struct QBankSubjectListView: View {
                 }
             }
         }
-        .background(MedxSurface.groupedBackground.ignoresSafeArea())
-        .medxScrollEdge()
+        .medxPage(.qbank)
         .navigationTitle("Question Bank")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

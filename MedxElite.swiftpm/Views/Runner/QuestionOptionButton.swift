@@ -60,11 +60,11 @@ public struct QuestionOptionButton: View {
                     .padding(.top, 2)
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .frame(minHeight: 56, alignment: .center)
-            .medxTile(cornerRadius: 14, accentColor: stateColor, isSelected: isEmphasized)
-            .opacity(isDimmed ? 0.55 : 1)
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.vertical, 13)
+            .frame(minHeight: 58, alignment: .center)
+            .medxTile(cornerRadius: MedxSurface.tileRadius, accentColor: stateColor, isSelected: isEmphasized)
+            .opacity(isDimmed ? 0.5 : 1)
+            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.tileRadius, style: .continuous))
         }
         .buttonStyle(BouncyButtonStyle())
         .disabled(isLocked)
@@ -77,22 +77,30 @@ public struct QuestionOptionButton: View {
 
     // MARK: - Pieces
 
+    /// The letter, on its own small surface.
+    ///
+    /// A stateful row inks it solid — a green A on a correct answer has to survive being
+    /// glanced at — while a neutral one is a pane of glass like the row it sits on, one step
+    /// brighter so it still reads as a badge rather than as part of the fill.
     private var letterBadge: some View {
         Text(letter)
             .font(.subheadline.weight(.bold))
-            .foregroundStyle(isFilledBadge ? Color.white : Color.primary)
-            .frame(width: 28, height: 28)
-            .background(
-                Circle().fill(isFilledBadge ? (stateColor ?? MedxTheme.accent) : MedxSurface.fieldFill)
-            )
-            .overlay(
-                Circle().strokeBorder(
-                    isFilledBadge ? Color.clear : Color(uiColor: .quaternaryLabel),
-                    lineWidth: 1
-                )
-            )
+            .foregroundStyle(isFilledBadge ? MedxCandy.onSolid : Color.primary)
+            .frame(width: 30, height: 30)
+            .background {
+                if isFilledBadge {
+                    Circle().fill(stateColor ?? MedxTheme.accent)
+                }
+            }
+            .medxBadgeGlass(plain: !isFilledBadge)
     }
 
+    /// Only ever drawn when it means something.
+    ///
+    /// There used to be a hollow `circle` on every unpicked row — four empty rings per question,
+    /// forty questions a paper, saying nothing the lettered badge on the left had not already
+    /// said. The row's own glass and its letter are the affordance; the glyph is reserved for
+    /// state.
     @ViewBuilder
     private var trailingGlyph: some View {
         if isRevealed, isCorrect {
@@ -107,10 +115,6 @@ public struct QuestionOptionButton: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.title3)
                 .foregroundStyle(MedxTheme.accent)
-        } else if !isRevealed {
-            Image(systemName: "circle")
-                .font(.title3)
-                .foregroundStyle(Color(uiColor: .quaternaryLabel))
         }
     }
 
@@ -167,5 +171,25 @@ public enum MedxOptionLetter {
         guard index >= 0 else { return "?" }
         let scalar = UnicodeScalar(65 + index % 26) ?? "?"
         return String(Character(scalar))
+    }
+}
+
+private extension View {
+    /// The badge's own surface, added only where the badge is standing on its own — a stateful
+    /// one already has an opaque circle of its state colour underneath and putting glass over
+    /// that would just mute it.
+    @ViewBuilder
+    func medxBadgeGlass(plain: Bool) -> some View {
+        if plain {
+            self.medxSurface(
+                Circle(),
+                MedxSurfaceSpec(
+                    fallbackFill: MedxSurface.fieldFill,
+                    strokeOpacity: 0.22
+                )
+            )
+        } else {
+            self
+        }
     }
 }

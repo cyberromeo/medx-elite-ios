@@ -241,8 +241,7 @@ public struct FaceoffLobbyView: View {
                 .padding(.top, 6)
                 .padding(.bottom, 28)
             }
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
-            .medxScrollEdge()
+            .medxPage(.duel)
             .navigationTitle("Faceoff")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -350,7 +349,7 @@ public struct FaceoffLobbyView: View {
         HStack(spacing: 12) {
             MedxSticker("hourglass", size: 26, tilt: 6)
                 .frame(width: 38, height: 38)
-                .background(MedxSurface.fieldFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .medxTile(cornerRadius: 12)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Waiting for \(other?.displayName ?? "the other one")")
@@ -593,7 +592,7 @@ struct FaceoffHostSheet: View {
 
                 dealBar
             }
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxPage(.duel)
             .navigationTitle("Host a faceoff")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -669,7 +668,7 @@ struct FaceoffHostSheet: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 38)
-        .background(MedxSurface.fieldFill, in: Capsule())
+        .medxSurface(Capsule(style: .continuous), MedxSurfaceSpec(fallbackFill: MedxSurface.fieldFill, strokeOpacity: 0.16))
     }
 
     // MARK: - The list

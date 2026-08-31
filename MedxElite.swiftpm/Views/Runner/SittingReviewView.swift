@@ -187,8 +187,7 @@ public struct SittingReviewView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 28)
             }
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
-            .medxScrollEdge()
+            .medxPage(section)
             .navigationTitle(name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -274,7 +273,7 @@ public struct SittingReviewView: View {
             }
         }
         .padding(18)
-        .medxCard(cornerRadius: 20)
+        .medxCard(cornerRadius: 24, raised: true)
     }
 
     /// A mark for the result, and the one place in this app where a sticker carries meaning
@@ -365,7 +364,7 @@ private struct QuestionReviewCard: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(MedxSurface.fieldFill, in: Capsule())
+                .medxSurface(Capsule(style: .continuous), MedxSurfaceSpec(fallbackFill: MedxSurface.fieldFill, strokeOpacity: 0.16))
 
             Label(outcome.title, systemImage: outcome.icon)
                 .font(.caption.weight(.semibold))
@@ -477,7 +476,7 @@ private struct QuestionReviewCard: View {
                 }
             }
             .padding(14)
-            .background(MedxSurface.tileFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .medxTile(cornerRadius: 14)
         }
     }
 }
