@@ -61,7 +61,7 @@ public struct LibraryView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                ProfileSettingsButton()
+                MedxSettingsMonogram()
             }
         }
         .navigationDestination(item: $appState.libraryDestination) { destination in

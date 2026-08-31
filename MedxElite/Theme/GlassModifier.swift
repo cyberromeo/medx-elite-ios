@@ -154,13 +154,18 @@ public extension View {
 
     /// Softens a scroll view's edges so content dissolves under the bars instead of sliding
     /// under a hard line.
-    @ViewBuilder
+    ///
+    /// **Gone, not disabled.** `scrollEdgeEffectStyle(.soft, for: .all)` is a live blur along all four
+    /// scroll edges, recomputed every frame of every scroll, and `medxPage` applied it to all 36
+    /// screens. It was the most expensive thing in the app by a distance, and on a `#000` page there is
+    /// no gradient of content for it to soften — it was blurring black into black. The default hard
+    /// edge is what the design wants anyway: content meets the bar and stops.
+    ///
+    /// Kept as a no-op only until the last `medxPage(_:intensity:)` call site loses its arguments; the
+    /// body is `self` and there is no availability branch left, so nothing here can come back by
+    /// accident.
     func medxScrollEdge() -> some View {
-        if #available(iOS 26.0, *) {
-            self.scrollEdgeEffectStyle(.soft, for: .all)
-        } else {
-            self
-        }
+        self
     }
 
     /// A secondary action. Flat on every OS version — see the note above. Deliberately does
@@ -302,17 +307,25 @@ public struct MedxMetric: View {
 public struct MedxMetricsRow<Content: View>: View {
     private let content: Content
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     public init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
 
+    /// Branched on the type size rather than wrapped in `ViewThatFits`.
+    ///
+    /// `ViewThatFits` builds *every* candidate in order to measure it and then throws all but one
+    /// away, on every layout pass. Two candidates each holding three `MedxMetric`s is six metric
+    /// subtrees built to show three. The condition here is the same one `MedxMetric` already branches
+    /// on internally, so the two now agree instead of one measuring what the other decided.
     public var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 10) {
+        if typeSize.isAccessibilitySize {
+            VStack(spacing: 8) {
                 content
             }
-
-            VStack(spacing: 8) {
+        } else {
+            HStack(alignment: .top, spacing: 10) {
                 content
             }
         }

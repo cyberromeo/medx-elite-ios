@@ -78,7 +78,7 @@ public struct FlashcardsSubjectListView: View {
             }
 
             ToolbarItem(placement: .topBarTrailing) {
-                ProfileSettingsButton()
+                MedxSettingsMonogram()
             }
         }
         .searchable(

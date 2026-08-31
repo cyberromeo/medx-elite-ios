@@ -172,6 +172,8 @@ public struct MedxSegmented<Value: Hashable>: View {
     private let segments: [MedxSegment<Value>]
     @Binding private var selection: Value
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     public init(
         section: MedxSection,
         segments: [MedxSegment<Value>],
@@ -182,18 +184,20 @@ public struct MedxSegmented<Value: Hashable>: View {
         self._selection = selection
     }
 
-    /// The row is a real `View` type rather than a computed property for one specific reason:
-    /// `ViewThatFits` builds *both* candidates in order to measure them, and the row carries a
-    /// `matchedGeometryEffect`. Two rows sharing one `@Namespace` would put two sources in the same
-    /// geometry group. A separate type gives each candidate its own namespace, which is the only
-    /// way the slide stays a slide.
+    /// One row, and a `ScrollView` around it only where it cannot fit.
+    ///
+    /// This was a `ViewThatFits` of the row and a scrolling copy of the row, which meant SwiftUI built
+    /// *both* on every layout pass in order to measure them — and because the row carries a
+    /// `matchedGeometryEffect`, each copy also needed its own `@Namespace` to stop two sources landing
+    /// in one geometry group. The type size is the only thing that ever decided the outcome, so it
+    /// decides it directly now: one row built, one namespace, no measuring pass.
     public var body: some View {
-        ViewThatFits(in: .horizontal) {
-            MedxSegmentedRow(section: section, segments: segments, selection: $selection)
-
+        if typeSize.isAccessibilitySize {
             ScrollView(.horizontal, showsIndicators: false) {
                 MedxSegmentedRow(section: section, segments: segments, selection: $selection)
             }
+        } else {
+            MedxSegmentedRow(section: section, segments: segments, selection: $selection)
         }
     }
 }

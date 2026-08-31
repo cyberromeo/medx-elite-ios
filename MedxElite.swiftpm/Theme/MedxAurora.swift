@@ -1,73 +1,32 @@
 import SwiftUI
 
-// MARK: - Backdrop
+// MARK: - Backdrop (deprecated shim)
 //
-// Pitch black, and one faint glow.
+// There is no backdrop any more. This file is a forwarder, kept for exactly as long as it takes to
+// drop the arguments at the 36 `medxPage(_:intensity:)` call sites; the real page treatment is
+// `medxPage()` in `Theme/MedxDS.swift`, which is one fill.
 //
-// The version of this file before it was a wash: three radial blooms of the section's hue plus a
-// cool one from the accent, sitting behind every screen so that glass had something to refract.
-// That was the right answer to the wrong question. The app does not put glass on content any
-// more — see `Theme/MedxLiquidGlass.swift` — so the two places glass still appears (the runner's
-// chrome, and anything presented) refract *real content* underneath them, which is a far better
-// thing to bend than a gradient.
+// What was here, and why it went:
 //
-// What is left is a page. `MedxInk.page` is `#000` in dark, and on an OLED phone that is not a
-// colour at all — the pixels are off. Everything above it is opaque, so the black is what gives
-// the app its contrast rather than a grey that has to be lit.
+//   * **A radial gradient of the section's hue behind every screen.** Its job was to give glass
+//     something to refract, and then to hint at which tab you were on. The app no longer puts glass on
+//     content, and the tab bar already says which tab you are on in the same colour — so it was a
+//     full-screen gradient composited under every scroll, encoding something already on screen.
+//   * **`scrollEdgeEffectStyle(.soft, for: .all)`**, applied to all 36 screens through `medxPage`.
+//     That is a live blur along all four scroll edges, recomputed every frame of every scroll. It was
+//     the single most expensive thing in the app and it was invisible on a black page. It is not
+//     disabled behind a flag — the helper that applied it is gone.
 //
-// One bloom survives, at the top edge only and at 5%: enough that the QBank reads faintly lime
-// and Tests faintly warm as you switch tabs, and not enough to stop the page being black. It is
-// wayfinding at the threshold of visibility, which is the most a pitch-black app can spend on it.
-//
-// Static, as before — no `TimelineView`, no animation. A drifting gradient behind text you are
-// trying to read is exactly the kind of thing that gets an app called tiring, and this sits
-// behind every screen.
-
-public struct MedxAurora: View {
-    private let section: MedxSection
-    private let intensity: Double
-
-    @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    /// `intensity` scales the bloom. The runner passes `0`: a question stem is the densest text
-    /// in the app and wants nothing behind it at all.
-    public init(section: MedxSection, intensity: Double = 1) {
-        self.section = section
-        self.intensity = max(intensity, 0)
-    }
-
-    public var body: some View {
-        ZStack {
-            MedxInk.page
-
-            // Under Reduce Transparency the surfaces above are opaque anyway, so a wash they
-            // cannot refract is just stray colour behind solid cards.
-            if !reduceTransparency, intensity > 0 {
-                RadialGradient(
-                    colors: [section.fill.opacity(alpha), .clear],
-                    center: UnitPoint(x: 0.5, y: -0.06),
-                    startRadius: 0,
-                    endRadius: 440
-                )
-            }
-        }
-        .ignoresSafeArea()
-        .accessibilityHidden(true)
-    }
-
-    /// A touch stronger in light, where the page is white and 5% of a candy hue disappears.
-    private var alpha: Double {
-        (scheme == .dark ? 0.05 : 0.08) * intensity
-    }
-}
+// `MedxAurora` itself is no longer a view. Nothing constructs it.
 
 public extension View {
-    /// The page treatment every destination wears: black, the section's own glow at the top
-    /// edge, and the platform's soft scroll edges so content dissolves under the bars.
+    /// Forwards to `medxPage()`. The section and the intensity are both ignored: there is nothing
+    /// left on the page for either of them to change.
+    ///
+    /// Deliberately not marked `@available(*, deprecated:)` — a deprecation warning on 36 call sites
+    /// is noise in a build log that has to stay readable, and the call sites are being rewritten in
+    /// the same pass that deletes this file.
     func medxPage(_ section: MedxSection, intensity: Double = 1) -> some View {
-        self
-            .background(MedxAurora(section: section, intensity: intensity))
-            .medxScrollEdge()
+        medxPage()
     }
 }

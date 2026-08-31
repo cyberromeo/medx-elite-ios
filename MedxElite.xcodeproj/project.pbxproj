@@ -102,6 +102,10 @@
 		9B0011502A00000100000001 /* MedxAurora.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00114F2A00000100000001 /* MedxAurora.swift */; };
 		9B0011522A00000100000001 /* RunnerChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011512A00000100000001 /* RunnerChrome.swift */; };
 		9B0011542A00000100000001 /* MedxInk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011532A00000100000001 /* MedxInk.swift */; };
+		9B0011562A00000100000001 /* MedxDS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011552A00000100000001 /* MedxDS.swift */; };
+		9B0011582A00000100000001 /* MedxSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011572A00000100000001 /* MedxSheet.swift */; };
+		9B00115A2A00000100000001 /* MedxList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011592A00000100000001 /* MedxList.swift */; };
+		9B00115C2A00000100000001 /* MedxMonogram.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00115B2A00000100000001 /* MedxMonogram.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -218,6 +222,10 @@
 		9B00114F2A00000100000001 /* MedxAurora.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxAurora.swift; sourceTree = "<group>"; };
 		9B0011512A00000100000001 /* RunnerChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runner/RunnerChrome.swift; sourceTree = "<group>"; };
 		9B0011532A00000100000001 /* MedxInk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxInk.swift; sourceTree = "<group>"; };
+		9B0011552A00000100000001 /* MedxDS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxDS.swift; sourceTree = "<group>"; };
+		9B0011572A00000100000001 /* MedxSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxSheet.swift; sourceTree = "<group>"; };
+		9B0011592A00000100000001 /* MedxList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxList.swift; sourceTree = "<group>"; };
+		9B00115B2A00000100000001 /* MedxMonogram.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxMonogram.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -322,6 +330,7 @@
 				9B00114D2A00000100000001 /* MedxLiquidGlass.swift */,
 				9B00114F2A00000100000001 /* MedxAurora.swift */,
 				9B0011532A00000100000001 /* MedxInk.swift */,
+				9B0011552A00000100000001 /* MedxDS.swift */,
 			);
 			path = Theme;
 			sourceTree = "<group>";
@@ -342,6 +351,9 @@
 				9B0011142A00000100000001 /* MedxOfflineAssetLoader.swift */,
 				9B00111B2A00000100000001 /* MedxSticker.swift */,
 				9B00111D2A00000100000001 /* MedxPageHeader.swift */,
+				9B0011572A00000100000001 /* MedxSheet.swift */,
+				9B0011592A00000100000001 /* MedxList.swift */,
+				9B00115B2A00000100000001 /* MedxMonogram.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -600,6 +612,10 @@
 				9B0011502A00000100000001 /* MedxAurora.swift in Sources */,
 				9B0011522A00000100000001 /* RunnerChrome.swift in Sources */,
 				9B0011542A00000100000001 /* MedxInk.swift in Sources */,
+				9B0011562A00000100000001 /* MedxDS.swift in Sources */,
+				9B0011582A00000100000001 /* MedxSheet.swift in Sources */,
+				9B00115A2A00000100000001 /* MedxList.swift in Sources */,
+				9B00115C2A00000100000001 /* MedxMonogram.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

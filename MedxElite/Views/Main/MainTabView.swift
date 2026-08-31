@@ -8,8 +8,15 @@ import SwiftUI
 public struct MainTabView: View {
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var authService = AuthService.shared
-    @ObservedObject private var stats = MedxStudyStatsStore.shared
     @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
+
+    // `MedxStudyStatsStore` is deliberately **not** observed here.
+    //
+    // It was, and it is the app's busiest publisher — `answeredToday`, `correctToday`, `streakDays`,
+    // `due`, `weeklyAnswered` all change as a sitting is answered. Observing it from the shell meant
+    // every answered question re-evaluated this `body`: the `TabView`, all five destinations and nine
+    // `.sheet` modifiers, while the runner was on screen. Nothing in `body` reads it — only
+    // `startTodaysRevision()` does, and that reaches `.shared` directly, which needs no observation.
 
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var columnVisibility: NavigationSplitViewVisibility = .doubleColumn
@@ -266,6 +273,7 @@ public struct MainTabView: View {
 
         guard let uid, let token = try? await AuthService.shared.getValidIdToken() else { return }
 
+        let stats = MedxStudyStatsStore.shared
         if !stats.hasIngested {
             let attempts = (try? await FirestoreService.shared.fetchUserAttempts(uid: uid, idToken: token)) ?? []
             stats.ingest(attempts: attempts)
@@ -309,41 +317,15 @@ public struct MainTabView: View {
 }
 
 
-public struct ProfileSettingsButton: View {
-    @ObservedObject private var authService = AuthService.shared
-    @State private var showSettings = false
-
-    public init() {}
-
-    public var body: some View {
-        Button {
-            HapticManager.light()
-            showSettings = true
-        } label: {
-            if let profile = authService.currentProfile {
-                ProfileAvatarView(profile: profile, size: 34)
-                    .frame(width: 44, height: 44)
-            } else {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
-            }
-        }
-        .buttonStyle(.plain)
-        .frame(width: 44, height: 44)
-        .fixedSize()
-        .clipShape(Circle())
-        .contentShape(Circle())
-        .accessibilityLabel("Profile settings")
-        .accessibilityHint("Opens account, bookmarks, history, and app settings")
-        .sheet(isPresented: $showSettings) {
-            SettingsView()
-        }
-    }
-}
-
 // MARK: - Profile Avatar
+//
+// `ProfileSettingsButton` used to live here: a toolbar button drawing a `ProfileAvatarView` at 34pt —
+// a photo if one had been picked, otherwise two letters over a two-stop `LinearGradient` inside a
+// `strokeBorder` ring, with `AvatarStore` observed from all six toolbars that used it. It is
+// `MedxSettingsMonogram` now: one circle, one letter, in the face every number in the app is set in.
+//
+// `ProfileAvatarView` itself stays, for the two places the picture *is* the content — choosing between
+// two people on `ProfileSelectView`, and knowing whose turn it is in a duel.
 
 /// Circular profile picture with an initials-over-gradient fallback when the
 /// user has not chosen a photo yet.

@@ -23,7 +23,6 @@ public struct HomeView: View {
     @State private var summary = HomeSummary.empty
     @State private var trackerDoc: UserTrackerDoc?
     @State private var isLoading = true
-    @State private var showSettings = false
     @State private var showTrackerSheet = false
     @State private var resumeVideo: RecordedVideo?
 
@@ -103,14 +102,11 @@ public struct HomeView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                profileButton
+                MedxSettingsMonogram()
             }
         }
         .refreshable {
             await loadHomeData()
-        }
-        .sheet(isPresented: $showSettings) {
-            SettingsView()
         }
         .sheet(isPresented: $showTrackerSheet) {
             if let uid {
@@ -184,27 +180,6 @@ public struct HomeView: View {
     private var profileGreeting: String {
         guard let name = authService.currentProfile?.displayName else { return greeting }
         return "\(greeting), \(name)"
-    }
-
-    private var profileButton: some View {
-        Button {
-            HapticManager.light()
-            showSettings = true
-        } label: {
-            Group {
-                if let profile = authService.currentProfile {
-                    ProfileAvatarView(profile: profile, size: 32)
-                } else {
-                    Image(systemName: "person.crop.circle")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: 44, height: 44)
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Profile and settings")
     }
 
     // MARK: - Goal & streak

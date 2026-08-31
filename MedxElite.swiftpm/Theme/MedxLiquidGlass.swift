@@ -80,14 +80,13 @@ public struct MedxSurfaceSpec {
     /// Tints glass with meaning — a low clock, a chosen option. Ignored by `ink`, which carries
     /// meaning in `fill` and in its border instead.
     public var tint: Color?
-    /// Hairline border. `nil` takes `MedxInk.hairline` at full strength.
+    /// A border, only where the hue *is* information. `nil` draws nothing — see
+    /// `MedxSurfaceModifier.edge`.
     public var strokeHue: Color?
     public var strokeOpacity: Double
     public var strokeWidth: CGFloat
-    /// The top-lit hairline that makes an edge read as a bevel rather than as a cut. On a black
-    /// page this is the *only* thing that can say "nearer the eye" — a drop shadow on `#000`
-    /// is invisible.
-    public var showsRim: Bool
+    /// Glass only. A pane that floats casts a shadow; ink does not, because on `#000` there is nothing
+    /// for it to fall on.
     public var shadowOpacity: Double
     public var shadowRadius: CGFloat
     public var shadowY: CGFloat
@@ -99,7 +98,6 @@ public struct MedxSurfaceSpec {
         strokeHue: Color? = nil,
         strokeOpacity: Double = 1,
         strokeWidth: CGFloat = 0.5,
-        showsRim: Bool = true,
         shadowOpacity: Double = 0,
         shadowRadius: CGFloat = 0,
         shadowY: CGFloat = 0
@@ -110,7 +108,6 @@ public struct MedxSurfaceSpec {
         self.strokeHue = strokeHue
         self.strokeOpacity = strokeOpacity
         self.strokeWidth = strokeWidth
-        self.showsRim = showsRim
         self.shadowOpacity = shadowOpacity
         self.shadowRadius = shadowRadius
         self.shadowY = shadowY
@@ -120,37 +117,30 @@ public struct MedxSurfaceSpec {
 public extension MedxSurfaceSpec {
     /// A content card. Ink, always — a card is content and content does not refract.
     ///
-    /// `raised` used to mean a deeper shadow. On a black page a shadow is invisible, so it now
-    /// means a brighter rim: the card catches more light at its top edge, which is what reads
-    /// as nearer the eye.
+    /// `raised` no longer does anything. It meant a deeper shadow, then a brighter rim; both of those
+    /// were layers spent on an elevation cue that a 15-unit step in fill already gives. The parameter
+    /// stays only so 60-odd `medxCard(raised:)` call sites keep compiling until they are rewritten.
     static func card(raised: Bool = false, tint: Color? = nil) -> MedxSurfaceSpec {
         MedxSurfaceSpec(
             fill: MedxInk.raised,
             strokeHue: tint,
             strokeOpacity: 0.45,
-            strokeWidth: tint == nil ? 0.5 : 1,
-            showsRim: true,
-            // Kept for the light appearance, where a page *is* lighter than its cards and a
-            // shadow still does something. Zero on black by virtue of being unseeable there.
-            shadowOpacity: raised ? 0.10 : 0.04,
-            shadowRadius: raised ? 14 : 6,
-            shadowY: raised ? 6 : 2
+            strokeWidth: tint == nil ? 0.5 : 1
         )
     }
 
     /// A secondary surface *inside* a card — answer options, matrix cells, stat tiles.
     ///
-    /// Selection is carried by a real border and a hue wash rather than by tinted glass: a
-    /// chosen answer has to be unmistakable at a glance, and a translucent pane cannot be
-    /// relied on to out-shout the four rows around it.
+    /// Selection is a real border and a hue wash, which is the one place a stroke survived: a chosen
+    /// answer has to be unmistakable against the three rows around it, and a fill step alone is not
+    /// enough to carry that.
     static func tile(accent: Color? = nil, selected: Bool = false) -> MedxSurfaceSpec {
         let hue = accent ?? MedxTheme.accent
         return MedxSurfaceSpec(
-            fill: selected ? hue.opacity(0.14) : MedxInk.sunken,
+            fill: selected ? hue.opacity(0.16) : MedxInk.sunken,
             strokeHue: selected ? hue : nil,
             strokeOpacity: 0.75,
-            strokeWidth: selected ? 1.5 : 0.5,
-            showsRim: !selected
+            strokeWidth: selected ? 1.5 : 0.5
         )
     }
 
@@ -161,7 +151,6 @@ public extension MedxSurfaceSpec {
             material: .glass(clear: false),
             fill: MedxInk.raised,
             strokeOpacity: 0.45,
-            showsRim: true,
             shadowOpacity: 0.16,
             shadowRadius: 18,
             shadowY: 8
@@ -181,7 +170,6 @@ public extension MedxSurfaceSpec {
             strokeHue: tint,
             strokeOpacity: 0.45,
             strokeWidth: tint == nil ? 0.5 : 1,
-            showsRim: true,
             shadowOpacity: 0.14,
             shadowRadius: 16,
             shadowY: 7
@@ -192,9 +180,8 @@ public extension MedxSurfaceSpec {
     static func pill(_ hue: Color, solid: Bool = false) -> MedxSurfaceSpec {
         MedxSurfaceSpec(
             fill: solid ? hue : hue.opacity(0.18),
-            strokeHue: solid ? nil : hue,
-            strokeOpacity: 0.32,
-            showsRim: !solid
+            strokeHue: nil,
+            strokeOpacity: 0.32
         )
     }
 }
@@ -217,7 +204,6 @@ public struct MedxSurfaceModifier<S: InsettableShape>: ViewModifier {
     public let spec: MedxSurfaceSpec
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorScheme) private var scheme
 
     public init(shape: S, spec: MedxSurfaceSpec) {
         self.shape = shape
@@ -252,15 +238,21 @@ public struct MedxSurfaceModifier<S: InsettableShape>: ViewModifier {
         }
     }
 
+    /// **One fill, and nothing else.**
+    ///
+    /// This used to paint four layers: the fill, a hairline `strokeBorder`, a `LinearGradient` rim
+    /// `strokeBorder` for the bevel, and a `.shadow`. There are 82 surfaces in the app and a single
+    /// list row is often three of them — a card holding a mark holding a badge — so a row cost about
+    /// twelve layers, one of which was an offscreen blur pass for a shadow that is *invisible on a
+    /// black page*.
+    ///
+    /// A 15-unit step in fill separates a card from `#000` on its own. The only stroke left is the one
+    /// that carries meaning: a hue border on a chosen answer or a live invite, which is why `edge` is
+    /// now empty unless `strokeHue` is set.
     private func inked(_ content: Content) -> some View {
         content
             .background(shape.fill(spec.fill))
             .overlay { edge }
-            .shadow(
-                color: Color.black.opacity(spec.shadowOpacity),
-                radius: spec.shadowRadius,
-                y: spec.shadowY
-            )
     }
 
     /// Built inside its own availability island: `Glass` does not exist on iOS 17, so it
@@ -274,40 +266,19 @@ public struct MedxSurfaceModifier<S: InsettableShape>: ViewModifier {
         return value
     }
 
-    /// Hairline plus specular rim, in one overlay that never takes a touch.
+    /// The one stroke left: a hue border where the hue *is* information — a chosen answer, a live
+    /// invite, a player's colour. No hue, no stroke.
     ///
-    /// `strokeOpacity` applies to `strokeHue`. With no hue the edge is `MedxInk.hairline` at
-    /// full strength — that token carries its own alpha, tuned for a black page, and dimming
-    /// it further would erase the only line separating a card from the void behind it.
+    /// The neutral hairline that used to be here ran around every card, tile, pill and mark in the app.
+    /// On a black page an outline on an opaque rectangle is drawing the edge twice: the fill already
+    /// ends there.
+    @ViewBuilder
     private var edge: some View {
-        ZStack {
-            if let hue = spec.strokeHue {
-                shape.strokeBorder(hue.opacity(spec.strokeOpacity), lineWidth: spec.strokeWidth)
-            } else {
-                shape.strokeBorder(MedxInk.hairline, lineWidth: spec.strokeWidth)
-            }
-
-            if spec.showsRim {
-                shape.strokeBorder(rim, lineWidth: 0.9)
-            }
+        if let hue = spec.strokeHue {
+            shape
+                .strokeBorder(hue.opacity(spec.strokeOpacity), lineWidth: spec.strokeWidth)
+                .allowsHitTesting(false)
         }
-        .allowsHitTesting(false)
-    }
-
-    /// Light comes from the top of the screen, so the bevel is bright at the top edge and gone
-    /// by the bottom. On black this is doing the whole job a shadow would do on grey.
-    private var rim: LinearGradient {
-        let top = scheme == .dark ? 0.16 : 0.75
-        let middle = scheme == .dark ? 0.04 : 0.18
-        return LinearGradient(
-            colors: [
-                Color.white.opacity(top),
-                Color.white.opacity(middle),
-                Color.clear
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
     }
 }
 

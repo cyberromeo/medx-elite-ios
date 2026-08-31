@@ -1,0 +1,70 @@
+import SwiftUI
+
+// MARK: - Monogram
+//
+// The toolbar button, and the thing it replaces is worth naming: `ProfileSettingsButton` drew a
+// `ProfileAvatarView` — a photo if one had been picked, otherwise a two-letter monogram over a
+// two-stop `LinearGradient` inside a `strokeBorder` ring, watching `AvatarStore` for changes. Six
+// toolbars, and a published store observed from all of them, to draw a 32pt circle.
+//
+// One circle, one letter, in the same face every number in the app is set in. The photo has a place —
+// `ProfileSelectView`, where choosing between two people is the whole screen, and the duel header,
+// where whose turn it is matters — and a navigation bar is not it.
+
+public struct MedxMonogram: View {
+    private let letter: String
+    private let hue: Color
+    private let diameter: CGFloat
+    private let action: () -> Void
+
+    /// `nil` profile happens on the first frame after launch, before the session resolves. A dash
+    /// rather than a placeholder glyph, so the button does not change *shape* a moment later.
+    public init(profile: Profile?, diameter: CGFloat = 32, action: @escaping () -> Void) {
+        self.letter = profile?.initials.first.map(String.init) ?? "–"
+        self.hue = profile?.accentColor ?? .secondary
+        self.diameter = diameter
+        self.action = action
+    }
+
+    public var body: some View {
+        Button {
+            HapticManager.light()
+            action()
+        } label: {
+            Text(letter)
+                .font(MedxType.figure(diameter * 0.45, weight: .bold))
+                .foregroundStyle(hue)
+                .frame(width: diameter, height: diameter)
+                .background(Circle().fill(MedxDS.sunken))
+                // The tap target is the platform's 44pt regardless of how big the circle is.
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Profile and settings")
+        .accessibilityHint("Opens account, bookmarks, history and app settings")
+    }
+}
+
+// MARK: - Toolbar convenience
+
+/// The monogram wired to Settings, which is what all six toolbars want.
+///
+/// Holds its own presentation rather than reaching into `AppState.showSettings`: Settings is reachable
+/// from every screen, and routing six toolbars through one shared flag means the sheet is owned by
+/// whichever screen happened to be on top when it was set.
+public struct MedxSettingsMonogram: View {
+    @ObservedObject private var authService = AuthService.shared
+    @State private var showSettings = false
+
+    public init() {}
+
+    public var body: some View {
+        MedxMonogram(profile: authService.currentProfile) {
+            showSettings = true
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
+    }
+}

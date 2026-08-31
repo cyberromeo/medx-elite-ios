@@ -16,9 +16,13 @@ public struct CountdownWidgetView: View {
     private var title: String { stats.examName }
 
     public var body: some View {
-        // One second is the smallest unit shown, so that is the tick rate. `TimelineView`
-        // keeps the redraw scoped to this card instead of the whole Home screen.
-        TimelineView(.periodic(from: Date(), by: 1.0)) { context in
+        // **One tick a minute, not one a second.**
+        //
+        // The headline is a number of days. A 1 Hz schedule redrew this card 86,400 times a day so that
+        // a seconds digit — which nobody reads on a countdown measured in months — could advance, and
+        // it did it on the screen the app opens on. `.periodic` at 60s keeps the hours-and-minutes
+        // readout honest to within a minute, which is as precise as a readout in that unit can be.
+        TimelineView(.periodic(from: Date(), by: 60.0)) { context in
             let remaining = TimeRemaining(until: targetDate, from: context.date)
 
             VStack(alignment: .leading, spacing: 14) {
@@ -86,6 +90,9 @@ public struct CountdownWidgetView: View {
         }
     }
 
+    /// Hours and minutes. **No seconds** — the card ticks once a minute now, so a seconds digit would
+    /// sit frozen on a stale value between ticks, which is worse than not showing one. A countdown
+    /// measured in months does not have a seconds hand.
     private func clock(remaining: TimeRemaining) -> some View {
         HStack(spacing: 4) {
             unit(String(format: "%02d", remaining.hours), label: "hr")
@@ -93,10 +100,6 @@ public struct CountdownWidgetView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.tertiary)
             unit(String(format: "%02d", remaining.minutes), label: "min")
-            Text(":")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.tertiary)
-            unit(String(format: "%02d", remaining.seconds), label: "sec")
         }
     }
 

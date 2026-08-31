@@ -61,7 +61,7 @@ public struct TestsListView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                ProfileSettingsButton()
+                MedxSettingsMonogram()
             }
         }
         .searchable(
