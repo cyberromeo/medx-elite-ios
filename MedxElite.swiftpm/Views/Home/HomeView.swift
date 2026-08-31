@@ -1,22 +1,29 @@
 import SwiftUI
 
-/// Home is a dashboard, not a launcher.
+/// Home is a dashboard, and it answers one question: **what do I do next, and how far am I from the
+/// exam.**
 ///
-/// It used to be both, and that was the app's worst duplication: a "Jump back in" grid whose six
-/// tiles opened Question Bank, Test series and Classes — all three of which are *tabs*, one thumb
-/// away at the bottom of the same screen — plus Faceoff, Quick sitting and Custom modules, all
-/// three of which are also tiles in Library. Every destination in the app had two front doors and
-/// three of them had the same heading printed twice.
+/// Two things it used to be, and is not:
 ///
-/// So navigation left. The tab bar owns the five browsables and Library owns everything else, and
-/// what is here now only answers questions about *today*: is somebody waiting for a game, how long
-/// is left, is today being used, what is due, where did I stop, how am I doing.
+/// * **A launcher.** A "Jump back in" grid whose six tiles opened Question Bank, Test series and
+///   Classes — all three of which are *tabs*, one thumb away at the bottom of the same screen — plus
+///   Faceoff, Quick sitting and Custom modules, all three of which are Library tiles. Every
+///   destination in the app had two front doors. Navigation now lives in exactly one place each.
+/// * **A stack of cards.** Nine of them, each with its own heading, each fading and lifting into place
+///   on a spring as the page arrived. What is left is a `List`: one hero and five rows.
+///
+/// The hero is the app's signature — today's answer sheet, one cell per question, green for right and
+/// red for wrong, against the day's goal. It replaced a card with a progress ring in it that reported
+/// the same number twice: once as an arc and once as a figure inside the arc.
+///
+/// "3 modules are due" is gone. It counted something the student had no way to check and made a
+/// recommendation out of an interval table; the spaced schedule still drives Today's revision from
+/// Library and from the Siri shortcut, which is where a suggestion belongs.
 public struct HomeView: View {
     @ObservedObject private var authService = AuthService.shared
     @ObservedObject private var activityStore = ActivityStore.shared
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var stats = MedxStudyStatsStore.shared
-    @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
     @ObservedObject private var lobbyWatcher = MedxLobbyWatcher.shared
 
     @State private var attempts: [SittingAttempt] = []
@@ -25,8 +32,6 @@ public struct HomeView: View {
     @State private var isLoading = true
     @State private var showTrackerSheet = false
     @State private var resumeVideo: RecordedVideo?
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init() {}
 
@@ -41,63 +46,31 @@ public struct HomeView: View {
         }
     }
 
+    /// The greeting *is* the page title. It used to be a `Text` at the top of the scroll view under a
+    /// large title reading "Home", which is two headings for one page — and "Home" was the less useful.
+    private var profileGreeting: String {
+        guard let name = authService.currentProfile?.displayName else { return greeting }
+        return "\(greeting), \(name)"
+    }
+
     private var resumeEntry: WatchHistoryEntry? {
         activityStore.watchHistory(for: uid).first { !$0.isCompleted && $0.resumePosition > 0 }
     }
 
     /// Lobbies the other one has dealt and nobody has joined.
-    private var openLobbies: [MedxDuelGame] { lobbyWatcher.theirs }
+    private var openLobby: MedxDuelGame? { lobbyWatcher.theirs.first }
+
+    // MARK: - Body
 
     public var body: some View {
-        ScrollView {
-            // A plain `VStack`, not `LazyVStack`: there are nine children, all cheap, and lazy meant
-            // each one ran its entrance animation as you scrolled down to it rather than the page
-            // arriving as a page.
-            VStack(alignment: .leading, spacing: 22) {
-                MedxPageCaption(Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day()))
-                    .medxAppear(index: 0)
-
-                // Above even the countdown: a dealt game is the one thing on this screen with
-                // somebody waiting at the other end of it.
-                if let invite = openLobbies.first {
-                    faceoffInvite(invite)
-                        .medxAppear(index: 1)
-                }
-
-                CountdownWidgetView()
-                    .medxAppear(index: 2)
-
-                goalSection
-                    .medxAppear(index: 3)
-
-                if !dueModules.isEmpty {
-                    dueSection
-                        .medxAppear(index: 4)
-                }
-
-                if let resumeEntry {
-                    continueSection(entry: resumeEntry)
-                        .medxAppear(index: 5)
-                }
-
-                thisWeekSection
-                    .medxAppear(index: 6)
-
-                progressSection
-                    .medxAppear(index: 6)
-
-                syllabusRow
-                    .medxAppear(index: 6)
-            }
-            .padding(.horizontal, MedxSurface.gutter)
-            .padding(.top, 4)
-            .padding(.bottom, 28)
+        List {
+            todaySection
+            nextSection
+            weekSection
+            progressSection
+            syllabusSection
         }
-        .medxPage(.home)
-        .scrollIndicators(.automatic)
-        // The greeting *is* the page title. It used to be a `Text` at the top of the scroll view
-        // under a large title reading "Home", which is two headings for one page — and "Home" was
-        // the less useful of the two.
+        .medxList()
         .navigationTitle(profileGreeting)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
@@ -125,385 +98,272 @@ public struct HomeView: View {
         }
     }
 
-    // MARK: - Faceoff invite
+    // MARK: - Today
 
-    /// "Sri wants a game", live.
+    /// The hero. One figure, one sheet, one streak.
     ///
-    /// Tapping it opens the room straight away rather than the lobby: there is exactly one thing to
-    /// do with a dealt game, and a screen in between it and joining is a screen nobody wants.
-    private func faceoffInvite(_ game: MedxDuelGame) -> some View {
+    /// The cells are built from what the store actually knows — `correctToday` and `answeredToday` —
+    /// padded out to the day's goal. So the sheet is literally "how today went, against the target",
+    /// which is the one thing a dashboard on this app has to say. No ring, because an arc and a figure
+    /// inside the arc are the same number drawn twice.
+    private var todaySection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text("\(stats.answeredToday)")
+                        .font(MedxType.hero)
+                        .foregroundStyle(.primary)
+                        .contentTransition(.numericText())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+
+                    Spacer(minLength: 8)
+
+                    if stats.streakDays > 0 {
+                        Label("\(stats.streakDays)", systemImage: "flame.fill")
+                            .font(MedxType.value)
+                            .foregroundStyle(MedxDS.warn)
+                            .contentTransition(.numericText())
+                            .symbolEffect(.bounce, value: stats.streakDays)
+                            .accessibilityLabel(streakSummary)
+                    }
+                }
+
+                Text(goalCaption)
+                    .medxTag()
+
+                MedxAnswerSheet(cells: todayCells, scale: .sheet, label: sheetSummary)
+            }
+            .padding(.vertical, 2)
+            .medxPlainRow()
+            .contextMenu {
+                Button {
+                    appState.open(route: .quickSitting)
+                } label: {
+                    Label("Build a quick sitting", systemImage: "dice")
+                }
+                Button {
+                    appState.open(route: .settings)
+                } label: {
+                    Label("Change daily goal", systemImage: "target")
+                }
+            }
+        }
+    }
+
+    /// Right, then wrong, then the rest of the goal unfilled. Capped at 240 cells: past that the grid
+    /// stops being readable and starts being a texture, and a day over 240 questions is a day the
+    /// figure above already tells you about.
+    private var todayCells: [MedxSheetCell] {
+        let answered = min(stats.answeredToday, 240)
+        let correct = min(stats.correctToday, answered)
+        let target = min(max(stats.dailyGoal, answered), 240)
+
+        var cells = [MedxSheetCell](repeating: .correct, count: correct)
+        cells.append(contentsOf: [MedxSheetCell](repeating: .wrong, count: answered - correct))
+        cells.append(contentsOf: [MedxSheetCell](repeating: .pending, count: max(target - answered, 0)))
+        // A day with no goal set and nothing answered would draw nothing at all, which reads as a
+        // broken view rather than as an empty one.
+        return cells.isEmpty ? [MedxSheetCell](repeating: .pending, count: 24) : cells
+    }
+
+    private var goalCaption: String {
+        if stats.isGoalMet {
+            return "answered today · goal of \(stats.dailyGoal) met"
+        }
+        if stats.answeredToday == 0 {
+            return "answered today · \(stats.dailyGoal) is the target"
+        }
+        return "answered today · \(stats.remainingToGoal) to go"
+    }
+
+    /// What the grid says, in one sentence, because VoiceOver cannot read a grid of cells.
+    private var sheetSummary: String {
+        let wrong = max(stats.answeredToday - stats.correctToday, 0)
+        return "\(stats.correctToday) correct, \(wrong) wrong, out of a goal of \(stats.dailyGoal)"
+    }
+
+    private var streakSummary: String {
+        stats.streakDays == 1 ? "1 day in a row" : "\(stats.streakDays) days in a row"
+    }
+
+    // MARK: - Next
+
+    /// The three things with somebody or something waiting: a dealt game, the exam, the class you
+    /// stopped halfway through. All rows, in that order — a dealt game has a person at the other end of
+    /// it, which outranks a date.
+    @ViewBuilder
+    private var nextSection: some View {
+        Section {
+            if let openLobby {
+                inviteRow(openLobby)
+            }
+
+            examRow
+
+            if let resumeEntry {
+                resumeRow(resumeEntry)
+            }
+        }
+    }
+
+    /// "Sri wants a game", live. Tapping it opens the room rather than the lobby: there is exactly one
+    /// thing to do with a dealt game, and a screen in between is a screen nobody wants.
+    private func inviteRow(_ game: MedxDuelGame) -> some View {
         let host = Profile.byId(game.hostProfile) ?? Profile.byUid(game.hostUid)
-        let hue = host?.duelFill ?? MedxCandy.pink
 
         return Button {
             HapticManager.medium()
             appState.open(route: .faceoffRoom(game.id))
         } label: {
-            HStack(spacing: 14) {
-                MedxSticker(host?.sticker ?? "bolt", size: 34, tilt: -8)
-                    .frame(width: 46, height: 46)
-                    .background(
-                        hue.opacity(0.2),
-                        in: RoundedRectangle(cornerRadius: MedxRadius.tile, style: .continuous)
-                    )
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(host?.displayName ?? "Someone") wants a game")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.primary)
-                    Text("\(game.source?.name ?? "a paper") · \(game.total) questions")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 0)
-
-                Text("Join")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(MedxCandy.onSolid)
-                    .padding(.horizontal, 14)
-                    .frame(height: 34)
-                    .background(hue, in: Capsule(style: .continuous))
+            MedxRow(
+                lead: "VS",
+                title: "\(host?.displayName ?? "Someone") wants a game",
+                tag: game.source?.name ?? "a paper",
+                detail: "\(game.total) questions"
+            ) {
+                MedxBadge("Join", tint: MedxDS.correct)
             }
-            .padding(14)
-            .medxCard(tint: hue, raised: true)
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
         }
-        .buttonStyle(BouncyButtonStyle())
-        .accessibilityLabel("\(host?.displayName ?? "Someone") wants a game")
+        .buttonStyle(.plain)
+        .medxListRow()
         .accessibilityHint("Opens the faceoff")
     }
 
-    // MARK: - Header
-
-    private var profileGreeting: String {
-        guard let name = authService.currentProfile?.displayName else { return greeting }
-        return "\(greeting), \(name)"
+    private var examRow: some View {
+        MedxRow(
+            lead: "\(stats.daysToExam)",
+            title: stats.examName,
+            tag: stats.daysToExam == 1 ? "1 day away" : "\(stats.daysToExam) days away",
+            detail: stats.examDate.formatted(.dateTime.day().month(.abbreviated).year())
+        ) {
+            MedxChevron()
+        }
+        .medxListRow()
+        .onTapGesture {
+            HapticManager.light()
+            appState.open(route: .settings)
+        }
+        .accessibilityHint("Change the exam date in Settings")
     }
 
-    // MARK: - Goal & streak
-
-    /// Today's goal, the streak, and the exam distance in one card. Deliberately the second
-    /// thing on the page: the countdown says how much time is left, this says whether today
-    /// is being used.
-    private var goalSection: some View {
-        HStack(spacing: 18) {
-            goalRing
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text(goalHeadline)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(spacing: 14) {
-                    Label("\(stats.streakDays)", systemImage: "flame.fill")
-                        .font(.footnote.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(MedxTheme.warningOrange)
-                        .contentTransition(.numericText())
-                        .symbolEffect(.bounce, value: stats.streakDays)
-
-                    Label("\(summary.weekAnswered)", systemImage: "calendar")
-                        .font(.footnote.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
-                }
-                // There used to be a third line here — "6 days in a row · 340 this week" — which
-                // is the two figures above it spelled out in words directly underneath them.
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(streakSummary)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .medxCard()
-        .contextMenu {
-            Button {
-                appState.open(route: .quickSitting)
-            } label: {
-                Label("Build a quick sitting", systemImage: "dice")
-            }
-            Button {
-                appState.open(route: .settings)
-            } label: {
-                Label("Change daily goal", systemImage: "target")
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Today's goal")
-        .accessibilityValue("\(stats.answeredToday) of \(stats.dailyGoal) questions, \(stats.streakDays) day streak")
-    }
-
-    private var goalHeadline: String {
-        if stats.isGoalMet {
-            return "Today's goal is done — \(stats.answeredToday) answered."
-        }
-        if stats.answeredToday == 0 {
-            return "Nothing answered yet today. \(stats.dailyGoal) is the target."
-        }
-        return "\(stats.remainingToGoal) more to reach today's \(stats.dailyGoal)."
-    }
-
-    /// What the streak and week glyphs say, for VoiceOver — which cannot read a flame.
-    private var streakSummary: String {
-        let days = stats.streakDays == 1 ? "1 day" : "\(stats.streakDays) days"
-        return "\(days) in a row, \(summary.weekAnswered) answered this week"
-    }
-
-    private var goalRing: some View {
-        ZStack {
-            Circle()
-                .stroke(MedxTheme.accent.opacity(0.16), lineWidth: 9)
-
-            Circle()
-                .trim(from: 0, to: max(stats.goalFraction, 0.004))
-                .stroke(
-                    stats.isGoalMet ? MedxTheme.successGreen : MedxTheme.accent,
-                    style: StrokeStyle(lineWidth: 9, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .animation(reduceMotion ? nil : MedxMotion.settle, value: stats.goalFraction)
-
-            VStack(spacing: 0) {
-                Text("\(stats.answeredToday)")
-                    .font(.system(.title2, design: .rounded).weight(.bold))
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-
-                // A tick the moment the target is passed, rather than a count that keeps going
-                // up against a number it has already beaten.
-                if stats.isGoalMet {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .black))
-                        .foregroundStyle(MedxTheme.successGreen)
-                        .symbolEffect(.bounce, value: stats.isGoalMet)
-                } else {
-                    Text("of \(stats.dailyGoal)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(6)
-        }
-        .frame(width: 82, height: 82)
-        .accessibilityHidden(true)
-    }
-
-    // MARK: - Due today
-
-    /// What the spaced-revision schedule says is overdue, and one button that sits it.
-    ///
-    /// This is what replaced the six-tile launcher grid, and it is the trade the whole declutter
-    /// turns on: the grid offered six places to go and made no recommendation, while this makes
-    /// the one recommendation the app is actually in a position to make. `stats.due` is already
-    /// computed — `MainTabView.startTodaysRevision` assembles the sitting from the same list — so
-    /// this is a read, not a second schedule.
-    private var dueSection: some View {
+    private func resumeRow(_ entry: WatchHistoryEntry) -> some View {
         Button {
             HapticManager.medium()
-            appState.open(route: .todaysRevision)
+            resumeVideo = entry.video
         } label: {
-            HStack(spacing: 14) {
-                MedxSymbolMark("arrow.triangle.2.circlepath", hue: MedxCandy.mint, size: 44)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(dueHeadline)
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.primary)
-                        .contentTransition(.numericText())
-
-                    Text(dueDetail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 0)
-
-                Text("Start")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(MedxCandy.onSolid)
-                    .padding(.horizontal, 14)
-                    .frame(height: 34)
-                    .background(MedxCandy.mint, in: Capsule(style: .continuous))
+            MedxRow(
+                lead: "▶",
+                title: entry.video.title,
+                tag: entry.video.subject,
+                detail: "from \(entry.formattedResumeTime)"
+            ) {
+                MedxAnswerSheet(
+                    fraction: entry.progress,
+                    label: "\(Int(entry.progress * 100)) percent watched"
+                )
             }
-            .padding(14)
-            .medxCard()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
         }
-        .buttonStyle(BouncyButtonStyle())
-        .accessibilityLabel(dueHeadline)
-        .accessibilityValue(dueDetail)
-        .accessibilityHint("Builds a revision sitting from what is overdue")
-    }
-
-    /// Capped at five, which is the same cap `startTodaysRevision` applies when it builds the
-    /// sitting — so the number on the card is the number that will be sat.
-    private var dueModules: [MedxRevisionDue] {
-        Array(stats.due.prefix(5))
-    }
-
-    private var dueHeadline: String {
-        dueModules.count == 1 ? "1 module is due" : "\(dueModules.count) modules are due"
-    }
-
-    private var dueDetail: String {
-        let subjects = Set(dueModules.map(\.subject)).sorted()
-        guard !subjects.isEmpty else { return "Spaced revision" }
-        if subjects.count == 1 { return subjects[0] }
-        return "\(subjects[0]) and \(subjects.count - 1) more"
-    }
-
-    // MARK: - Continue watching
-
-    private func continueSection(entry: WatchHistoryEntry) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            MedxSectionHeader("Continue") {
-                Button("All classes") {
-                    HapticManager.light()
-                    appState.open(route: .classes)
-                }
-                .font(.subheadline.weight(.semibold))
-                .buttonStyle(.plain)
-                .foregroundStyle(MedxTheme.accent)
-            }
-
+        .buttonStyle(.plain)
+        .medxListRow()
+        .contextMenu {
             Button {
-                HapticManager.medium()
                 resumeVideo = entry.video
             } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 40, height: 40)
-                        .background(MedxTheme.accent, in: Circle())
-
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(entry.video.title)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-
-                        Text("\(entry.video.subject) · resume at \(entry.formattedResumeTime)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-
-                        ProgressView(value: entry.progress)
-                            .tint(MedxTheme.accent)
-                    }
-
-                    MedxDisclosure()
-                }
-                .padding(14)
-                .medxCard()
-                .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+                Label("Resume", systemImage: "play.circle")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Resume \(entry.video.title)")
-            .accessibilityValue("\(Int(entry.progress * 100)) percent watched")
-            .contextMenu {
-                Button {
-                    resumeVideo = entry.video
-                } label: {
-                    Label("Resume", systemImage: "play.circle")
-                }
-                Button(role: .destructive) {
-                    activityStore.removeWatchHistory(entry, uid: uid)
-                } label: {
-                    Label("Remove from history", systemImage: "trash")
-                }
+            Button(role: .destructive) {
+                activityStore.removeWatchHistory(entry, uid: uid)
+            } label: {
+                Label("Remove from history", systemImage: "trash")
             }
         }
     }
 
-    // MARK: - This week
+    // MARK: - Last 7 days
 
-    private var thisWeekSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            MedxSectionHeader("Last 7 days")
+    private var weekSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 14) {
+                weekBars
 
-            MedxMetricsRow {
-                MedxMetric(
-                    icon: "square.stack.3d.up.fill",
-                    value: "\(summary.weekSittings)",
-                    label: "sittings",
-                    color: MedxTheme.primaryBlue
-                )
-                MedxMetric(
-                    icon: "questionmark.circle.fill",
-                    value: "\(summary.weekAnswered)",
-                    label: "questions",
-                    color: MedxTheme.indigoAccent
-                )
-                MedxMetric(
-                    icon: "target",
-                    value: summary.weekAnswered > 0 ? "\(summary.weekAccuracy)%" : "—",
-                    label: "accuracy",
-                    color: MedxTheme.successGreen
-                )
+                HStack(alignment: .top, spacing: 10) {
+                    MedxStat("\(summary.weekSittings)", label: "sittings")
+                    MedxStat("\(summary.weekAnswered)", label: "questions")
+                    MedxStat(
+                        summary.weekAnswered > 0 ? "\(summary.weekAccuracy)%" : "—",
+                        label: "accuracy",
+                        tint: summary.weekAnswered > 0 ? MedxDS.correct : nil
+                    )
+                }
+
+                if summary.weekSittings == 0, !isLoading {
+                    Text("Nothing logged this week yet. One module is enough to start the streak.")
+                        .font(MedxType.body)
+                        .foregroundStyle(.secondary)
+                }
             }
+            .padding(14)
+            .medxListRow()
+        } header: {
+            MedxHeader("Last 7 days", count: summary.weekAnswered > 0 ? summary.weekAnswered : nil)
+        }
+    }
 
-            if summary.weekSittings == 0, !isLoading {
-                Text("Nothing logged this week yet. One module is enough to start the streak.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 2)
+    /// Seven capsules, oldest on the left. Seven views is not worth a `Canvas`; the answer sheet is
+    /// because it draws two hundred.
+    private var weekBars: some View {
+        let week = stats.weeklyAnswered
+        let peak = max(week.max() ?? 0, stats.dailyGoal, 1)
+
+        return HStack(alignment: .bottom, spacing: 5) {
+            ForEach(Array(week.enumerated()), id: \.offset) { index, count in
+                Capsule(style: .continuous)
+                    .fill(count >= stats.dailyGoal ? MedxDS.correct : MedxDS.pending)
+                    .frame(height: max(CGFloat(count) / CGFloat(peak) * 40, 3))
+                    .frame(maxWidth: .infinity)
+                    .accessibilityHidden(index >= 0)
             }
         }
+        .frame(height: 40)
+        .accessibilityElement()
+        .accessibilityLabel("Questions answered each of the last seven days")
+        .accessibilityValue(week.map(String.init).joined(separator: ", "))
     }
 
     // MARK: - Progress
 
     private var progressSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            MedxSectionHeader("Progress")
-
+        Section {
             QBankProgressCard(attempts: attempts) {
                 appState.open(tab: .qbank)
             }
+            .medxPlainRow()
 
             AnalyticsCard(attempts: attempts)
+                .medxPlainRow()
+        } header: {
+            MedxHeader("Progress")
         }
     }
 
     // MARK: - Syllabus
 
-    private var syllabusRow: some View {
-        Button {
-            HapticManager.light()
-            showTrackerSheet = true
-        } label: {
-            HStack(spacing: 14) {
-                MedxSymbolMark("checklist", hue: MedxCandy.blue, size: 34)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Syllabus checklist")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    Text(trackerSubtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer(minLength: 0)
-
-                MedxDisclosure()
+    private var syllabusSection: some View {
+        Section {
+            Button {
+                HapticManager.light()
+                showTrackerSheet = true
+            } label: {
+                MedxRow(
+                    lead: "☑",
+                    title: "Syllabus checklist",
+                    detail: trackerSubtitle
+                )
             }
-            .padding(14)
-            .medxCard()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+            .buttonStyle(.plain)
+            .medxListRow()
         }
-        .buttonStyle(BouncyButtonStyle())
-        .accessibilityLabel("Open syllabus checklist")
-        .accessibilityValue(trackerSubtitle)
     }
 
     private var trackerSubtitle: String {
@@ -520,7 +380,7 @@ public struct HomeView: View {
             }
         }
         guard total > 0 else { return "Videos, revision cycles and PYQs" }
-        return "\(done) of \(total) items ticked across \(subjects.count) subjects"
+        return "\(done) of \(total) ticked across \(subjects.count) subjects"
     }
 
     // MARK: - Data
@@ -540,8 +400,8 @@ public struct HomeView: View {
             attempts = loadedAttempts
             trackerDoc = tracker
             summary = HomeSummary(attempts: loadedAttempts)
-            // Feeds the goal ring, the streak, the spaced-revision list, the widgets and
-            // the reminders — all from this one fetch.
+            // Feeds the answer sheet, the streak, the spaced-revision list, the widgets and the
+            // reminders — all from this one fetch.
             stats.ingest(attempts: loadedAttempts)
         } catch {
             // Whatever is already on screen stays; the pull-to-refresh control reports the retry.
@@ -554,10 +414,6 @@ public struct HomeView: View {
 
 /// The last seven days, rolled up once when the attempt list changes rather than on every `body`
 /// evaluation — this loop walks every response of every sitting.
-///
-/// It used to also carry lifetime totals per kind (`qbankSittings`, `testSittings`,
-/// `watchedClasses`). Those existed only to put a subtitle on the launcher tiles that are gone,
-/// and a figure nothing reads is a figure that goes quietly wrong.
 struct HomeSummary: Equatable {
     var weekSittings = 0
     var weekAnswered = 0
