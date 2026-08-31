@@ -91,9 +91,15 @@ public struct MedxQuestionSearchView: View {
     private var resultsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             MedxHeader(
-                results.count == 1 ? "1 match" : "\(results.count) matches",
-                subtitle: results.count >= 300 ? "Showing the first 300" : nil
+                results.count == 1 ? "match" : "matches",
+                count: results.count
             )
+
+            if results.count >= 300 {
+                Text("Showing the first 300. Narrow the query to see the rest.")
+                    .font(MedxType.body)
+                    .foregroundStyle(.secondary)
+            }
 
             ForEach(results) { entry in
                 NavigationLink {
