@@ -85,7 +85,7 @@ public struct DuelRoomView: View {
     public var body: some View {
         NavigationStack {
             content
-                .medxPage(.duel)
+                .medxPage()
                 .navigationTitle(room.source?.name ?? "Faceoff")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbar }
@@ -175,7 +175,7 @@ public struct DuelRoomView: View {
                 .font(.system(size: 132, weight: .heavy, design: .rounded))
                 .monospacedDigit()
                 .contentTransition(.numericText(countsDown: true))
-                .foregroundStyle(MedxSection.duel.fill)
+                .foregroundStyle(MedxTheme.accent)
                 .animation(.snappy(duration: 0.2), value: room.armingIn)
 
             Text("Question \(room.qIndex + 1) coming up")
@@ -326,7 +326,7 @@ public struct DuelRoomView: View {
 
     private var clockTint: Color {
         if room.phase == .reveal { return .secondary }
-        return room.remaining <= 10 ? MedxDS.wrong : MedxSection.duel.fill
+        return room.remaining <= 10 ? MedxDS.wrong : MedxTheme.accent
     }
 
     private func options(for question: MedxDuelQuestion) -> some View {
@@ -374,7 +374,7 @@ public struct DuelRoomView: View {
                     .font(.body.weight(.semibold))
                     .frame(maxWidth: .infinity, minHeight: 50)
             }
-            .medxFilled(MedxSection.duel.fill)
+            .medxFilled(MedxTheme.accent)
             .disabled(room.phase != .reveal || room.iVoted)
         }
         .medxFloatingBar()
@@ -451,7 +451,7 @@ struct DuelLobbyPane: View {
                 .font(.body.weight(.semibold))
                 .frame(maxWidth: .infinity, minHeight: 50)
             }
-            .medxFilled(room.myProfile?.duelFill ?? MedxSection.duel.fill)
+            .medxFilled(room.myProfile?.duelFill ?? MedxTheme.accent)
         } else if room.isHost {
             VStack(spacing: 8) {
                 Button {
@@ -461,7 +461,7 @@ struct DuelLobbyPane: View {
                         .font(.body.weight(.semibold))
                         .frame(maxWidth: .infinity, minHeight: 50)
                 }
-                .medxFilled(MedxSection.duel.fill)
+                .medxFilled(MedxTheme.accent)
                 .disabled(!room.canStart)
 
                 if !room.canStart {

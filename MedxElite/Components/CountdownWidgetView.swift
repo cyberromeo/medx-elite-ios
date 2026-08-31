@@ -157,7 +157,7 @@ struct MedxExamDateSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .medxPage(.home)
+            .medxPage()
             .navigationTitle("Exam countdown")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

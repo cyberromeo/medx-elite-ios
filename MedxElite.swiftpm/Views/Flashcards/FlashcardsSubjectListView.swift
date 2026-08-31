@@ -61,7 +61,7 @@ public struct FlashcardsSubjectListView: View {
                     }
                 }
             }
-            .medxPage(.cards)
+            .medxPage()
         }
         .navigationTitle("Cards")
         // Large, and the only "Cards" on the screen — there used to be an inline title and a
@@ -95,30 +95,21 @@ public struct FlashcardsSubjectListView: View {
     private func content(layout: FlashcardLayout) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                MedxPageCaption("Image decks, tapped through one at a time · nothing is scored")
-
-                MedxMetricsRow {
-                    MedxMetric(
-                        icon: "rectangle.stack.fill",
-                        value: totalCards.formatted(),
-                        label: "cards",
-                        color: MedxCandy.butter
-                    )
-                    MedxMetric(
-                        icon: "books.vertical.fill",
-                        value: "\(subjects.count)",
-                        label: "subjects",
-                        color: MedxCandy.sky
-                    )
+                // The one screen that keeps a card grid, and it earns it: these decks are pure artwork,
+                // so a thumbnail says more about a subject than any row could. Everywhere else in the app
+                // an image is decoration and a row is the honest layout.
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(totalCards.formatted())
+                        .font(MedxType.display)
+                        .contentTransition(.numericText())
+                    Text("cards across \(subjects.count) subjects · nothing is scored")
+                        .medxTag()
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 if filteredSubjects.isEmpty {
                     ContentUnavailableView {
-                        Label {
-                            Text("No Matches")
-                        } icon: {
-                            MedxSticker("search", size: 40)
-                        }
+                        Label("No Matches", systemImage: "magnifyingglass")
                     } description: {
                         Text("No subject matches “\(searchText)”.")
                     }

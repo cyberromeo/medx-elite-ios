@@ -65,7 +65,7 @@ public struct StartSessionSheet: View {
                 .padding(.bottom, 24)
             }
             .scrollBounceBehavior(.basedOnSize)
-            .medxPage(.qbank)
+            .medxPage()
             .navigationTitle("Start Sitting")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

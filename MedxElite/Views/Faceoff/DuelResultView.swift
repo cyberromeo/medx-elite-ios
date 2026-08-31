@@ -49,7 +49,7 @@ struct DuelResultView: View {
                     .font(.body.weight(.semibold))
                     .frame(maxWidth: .infinity, minHeight: 50)
             }
-            .medxFilled(MedxSection.duel.fill)
+            .medxFilled(MedxTheme.accent)
             .medxFloatingBar()
         }
         .onAppear {
@@ -69,7 +69,7 @@ struct DuelResultView: View {
                         .font(.caption2.weight(.bold))
                         .textCase(.uppercase)
                         .tracking(0.7)
-                        .foregroundStyle(MedxSection.duel.onSoft)
+                        .foregroundStyle(MedxTheme.accent)
 
                     Text(headlineText)
                         .font(.title2.weight(.bold))

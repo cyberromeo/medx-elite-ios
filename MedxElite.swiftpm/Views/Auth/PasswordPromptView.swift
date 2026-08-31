@@ -75,7 +75,7 @@ public struct PasswordPromptView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 28)
             }
-            .medxPage(.home)
+            .medxPage()
             .navigationTitle("Sign In")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

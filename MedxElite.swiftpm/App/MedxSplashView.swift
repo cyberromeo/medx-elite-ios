@@ -34,7 +34,7 @@ public struct MedxSplashView: View {
                     Text("ARISE · MARROW · FACEOFF")
                         .font(.caption2.weight(.bold))
                         .tracking(1.4)
-                        .foregroundStyle(MedxSection.home.onSoft)
+                        .foregroundStyle(MedxTheme.accent)
                 }
                 .opacity(wordmarkVisible ? 1 : 0)
                 .offset(y: wordmarkVisible ? 0 : 10)

@@ -144,7 +144,7 @@ public struct VodFeedView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .medxPage(.vod)
+        .medxPage()
         .navigationTitle("VOD feed")
         // Large, and the only place the words appear — there used to be an inline title and a
         // `MedxPageHeader` repeating them.

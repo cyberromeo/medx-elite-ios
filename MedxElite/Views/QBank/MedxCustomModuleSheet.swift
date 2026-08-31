@@ -71,7 +71,7 @@ public struct MedxCustomModuleSheet: View {
                 availabilitySection
             }
             .scrollContentBackground(.hidden)
-            .medxPage(.qbank)
+            .medxPage()
             .navigationTitle("Custom module")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -409,7 +409,7 @@ struct MedxSubjectMultiPicker: View {
         }
         .animation(.snappy(duration: 0.18), value: selection)
         .scrollContentBackground(.hidden)
-        .medxPage(.qbank)
+        .medxPage()
         .navigationTitle("Subjects")
         .navigationBarTitleDisplayMode(.inline)
     }

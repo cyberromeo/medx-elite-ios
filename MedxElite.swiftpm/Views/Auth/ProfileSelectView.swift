@@ -43,7 +43,7 @@ public struct ProfileSelectView: View {
                     .padding(.bottom, 20)
             }
             .frame(maxWidth: .infinity)
-            .medxPage(.home)
+            .medxPage()
             .sheet(item: $selectedProfile) { profile in
                 PasswordPromptView(profile: profile)
             }

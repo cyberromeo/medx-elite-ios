@@ -62,34 +62,38 @@ public struct QBankChapterView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16) {
-                summaryCard
+        List {
+            heroSection
 
-                if matchingChapters.isEmpty {
+            if matchingChapters.isEmpty {
+                Section {
                     ContentUnavailableView {
-                        Label {
-                            Text("No Modules")
-                        } icon: {
-                            MedxSticker(searchText.isEmpty ? "filebox" : "search", size: 42)
-                        }
+                        Label("No Modules", systemImage: searchText.isEmpty ? "tray" : "magnifyingglass")
                     } description: {
                         Text(searchText.isEmpty
                              ? "This subject has no modules yet."
                              : "No module matches “\(searchText)”.")
                     }
-                    .padding(.top, 32)
-                } else {
-                    ForEach(matchingChapters) { chapter in
-                        chapterSection(chapter)
+                    .medxPlainRow()
+                }
+            } else {
+                // A `Section` per chapter, so collapsing is the header's job and a 247-module subject
+                // still only builds the rows on screen. The hand-built disclosure card this replaces was
+                // a `Button` wrapping a card wrapping a rotating chevron.
+                ForEach(matchingChapters) { chapter in
+                    Section(isExpanded: expandedBinding(for: chapter)) {
+                        ForEach(chapter.modules) { module in
+                            moduleRow(module)
+                        }
+                    } header: {
+                        MedxHeader(chapter.name, count: chapter.modules.count)
                     }
                 }
             }
-            .padding(.horizontal, MedxDS.gutter)
-            .padding(.top, 8)
-            .padding(.bottom, 32)
         }
-        .medxPage(.qbank)
+        .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        .medxPage()
         .navigationTitle(subject.name)
         .navigationBarTitleDisplayMode(.large)
         .searchable(
@@ -114,93 +118,42 @@ public struct QBankChapterView: View {
         }
     }
 
-    // MARK: - Summary
-
-    private var summaryCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                MedxSymbolMark(MedxSubjectArt.symbol(for: subject.name), hue: MedxSection.qbank.fill, size: 38)
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("\(subject.moduleCount) modules")
-                        .font(.subheadline.weight(.semibold))
-                    Text("\(subject.questionCount.formatted()) questions available")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+    /// A search result is always open — hiding a match behind a collapsed header is the one thing a
+    /// filtered list must never do.
+    private func expandedBinding(for chapter: MedxBankChapter) -> Binding<Bool> {
+        Binding(
+            get: { expandedChapters.contains(chapter.id) || !searchText.isEmpty },
+            set: { open in
+                guard searchText.isEmpty else { return }
+                HapticManager.light()
+                if open {
+                    expandedChapters.insert(chapter.id)
+                } else {
+                    expandedChapters.remove(chapter.id)
                 }
-
-                Spacer(minLength: 8)
-
-                MedxPill(subject.bank.label, hue: MedxSection.qbank.fill)
             }
-
-            ProgressView(
-                value: Double(practisedCount),
-                total: Double(max(subject.moduleCount, 1))
-            )
-            .tint(MedxDS.correct)
-
-            Text("\(practisedCount) practised")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .medxCard()
+        )
     }
 
-    // MARK: - Chapter
+    // MARK: - Hero
 
-    private func chapterSection(_ chapter: MedxBankChapter) -> some View {
-        let isExpanded = expandedChapters.contains(chapter.id) || !searchText.isEmpty
-        let modules = chapter.modules
+    private var heroSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(subject.questionCount.formatted())
+                    .font(MedxType.display)
+                    .contentTransition(.numericText())
 
-        return VStack(alignment: .leading, spacing: 8) {
-            Button {
-                HapticManager.light()
-                withAnimation(.easeOut(duration: 0.2)) {
-                    if expandedChapters.contains(chapter.id) {
-                        expandedChapters.remove(chapter.id)
-                    } else {
-                        expandedChapters.insert(chapter.id)
-                    }
-                }
-            } label: {
-                HStack(spacing: 10) {
-                    Text(chapter.name)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.leading)
+                Text("\(subject.bank.label) · \(subject.moduleCount) modules · \(practisedCount) practised")
+                    .medxTag()
 
-                    Spacer(minLength: 8)
-
-                    Text("\(modules.count)")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .medxCard(cornerRadius: MedxDS.control)
-                .contentShape(MedxDS.shape(MedxDS.control))
+                MedxAnswerSheet(
+                    fraction: Double(practisedCount) / Double(max(subject.moduleCount, 1)),
+                    scale: .sheet,
+                    label: "\(practisedCount) of \(subject.moduleCount) modules practised"
+                )
             }
-            .buttonStyle(.plain)
-            .disabled(!searchText.isEmpty)
-            .accessibilityLabel(chapter.name)
-            .accessibilityValue("\(modules.count) modules, \(isExpanded ? "expanded" : "collapsed")")
-
-            if isExpanded {
-                VStack(spacing: 8) {
-                    ForEach(modules) { module in
-                        moduleRow(module)
-                    }
-                }
-                .padding(.leading, 8)
-            }
+            .medxPlainRow()
         }
     }
 
@@ -213,37 +166,24 @@ public struct QBankChapterView: View {
             HapticManager.light()
             selectedModuleForStart = module
         } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(module.name)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.leading)
-
-                    if let result {
-                        Text("\(module.questionCount) questions · best \(result.best)/\(result.total) · \(result.count) sitting\(result.count == 1 ? "" : "s")")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(MedxDS.correct)
-                    } else {
-                        Text("\(module.questionCount) questions")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+            MedxRow(
+                lead: "\(module.questionCount)",
+                title: module.name,
+                tag: result.map { "\($0.count) sitting\($0.count == 1 ? "" : "s")" },
+                detail: result.map { "best \($0.best)/\($0.total)" } ?? "not attempted"
+            ) {
+                if let result {
+                    MedxAnswerSheet(
+                        fraction: Double(result.best) / Double(max(result.total, 1)),
+                        label: "best \(result.best) of \(result.total)"
+                    )
+                } else {
+                    EmptyView()
                 }
-
-                Spacer(minLength: 0)
-
-                Image(systemName: result == nil ? "play.circle.fill" : "checkmark.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(result == nil ? MedxTheme.accent : MedxDS.correct)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .frame(minHeight: 60)
-            .medxTile()
-            .contentShape(MedxDS.shape(MedxDS.control))
         }
-        .buttonStyle(MedxPressStyle())
+        .buttonStyle(.plain)
+        .medxListRow()
         // Long press to skip the mode sheet — the two modes are the whole decision.
         .contextMenu {
             Button {
@@ -259,8 +199,6 @@ public struct QBankChapterView: View {
                 Label("Exam mode", systemImage: "timer")
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(module.name)
         .accessibilityValue(result == nil
                             ? "\(module.questionCount) questions, not attempted"
                             : "\(module.questionCount) questions, best \(result?.best ?? 0) of \(result?.total ?? 0)")

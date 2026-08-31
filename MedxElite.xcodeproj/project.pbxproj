@@ -99,7 +99,6 @@
 		9B00114B2A00000100000001 /* MedxSharedIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00114A2A00000100000001 /* MedxSharedIntents.swift */; };
 		9B00114C2A00000100000001 /* MedxSharedIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00114A2A00000100000001 /* MedxSharedIntents.swift */; };
 		9B00114E2A00000100000001 /* MedxLiquidGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00114D2A00000100000001 /* MedxLiquidGlass.swift */; };
-		9B0011502A00000100000001 /* MedxAurora.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00114F2A00000100000001 /* MedxAurora.swift */; };
 		9B0011522A00000100000001 /* RunnerChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011512A00000100000001 /* RunnerChrome.swift */; };
 		9B0011542A00000100000001 /* MedxInk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011532A00000100000001 /* MedxInk.swift */; };
 		9B0011562A00000100000001 /* MedxDS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011552A00000100000001 /* MedxDS.swift */; };
@@ -219,7 +218,6 @@
 		9B0011472A00000100000001 /* MedxActivityChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxActivityChrome.swift; sourceTree = "<group>"; };
 		9B00114A2A00000100000001 /* MedxSharedIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxSharedIntents.swift; sourceTree = "<group>"; };
 		9B00114D2A00000100000001 /* MedxLiquidGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxLiquidGlass.swift; sourceTree = "<group>"; };
-		9B00114F2A00000100000001 /* MedxAurora.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxAurora.swift; sourceTree = "<group>"; };
 		9B0011512A00000100000001 /* RunnerChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runner/RunnerChrome.swift; sourceTree = "<group>"; };
 		9B0011532A00000100000001 /* MedxInk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxInk.swift; sourceTree = "<group>"; };
 		9B0011552A00000100000001 /* MedxDS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxDS.swift; sourceTree = "<group>"; };
@@ -328,7 +326,6 @@
 				9B0011102A00000100000001 /* AccentTheme.swift */,
 				9B0011192A00000100000001 /* MedxSections.swift */,
 				9B00114D2A00000100000001 /* MedxLiquidGlass.swift */,
-				9B00114F2A00000100000001 /* MedxAurora.swift */,
 				9B0011532A00000100000001 /* MedxInk.swift */,
 				9B0011552A00000100000001 /* MedxDS.swift */,
 			);
@@ -609,7 +606,6 @@
 				9B0011482A00000100000001 /* MedxActivityChrome.swift in Sources */,
 				9B00114B2A00000100000001 /* MedxSharedIntents.swift in Sources */,
 				9B00114E2A00000100000001 /* MedxLiquidGlass.swift in Sources */,
-				9B0011502A00000100000001 /* MedxAurora.swift in Sources */,
 				9B0011522A00000100000001 /* RunnerChrome.swift in Sources */,
 				9B0011542A00000100000001 /* MedxInk.swift in Sources */,
 				9B0011562A00000100000001 /* MedxDS.swift in Sources */,

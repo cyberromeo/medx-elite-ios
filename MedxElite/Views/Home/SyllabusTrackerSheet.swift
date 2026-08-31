@@ -71,7 +71,7 @@ public struct SyllabusTrackerSheet: View {
                 .padding(.top, 12)
                 .padding(.bottom, 32)
             }
-            .medxPage(.home)
+            .medxPage()
             .navigationTitle("Syllabus")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -241,7 +241,7 @@ public struct FaceoffLobbyView: View {
                 .padding(.top, 6)
                 .padding(.bottom, 28)
             }
-            .medxPage(.duel)
+            .medxPage()
             .navigationTitle("Faceoff")
             // Large, and the only "Faceoff" on the screen. There used to be an inline title here
             // and a `MedxPageHeader` repeating the word below it.
@@ -399,7 +399,7 @@ public struct FaceoffLobbyView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 50)
         }
-        .medxFilled(MedxSection.duel.fill)
+        .medxFilled(MedxTheme.accent)
         .disabled(lobby.remoteWorks == false)
     }
 
@@ -591,7 +591,7 @@ struct FaceoffHostSheet: View {
 
                 dealBar
             }
-            .medxPage(.duel)
+            .medxPage()
             .navigationTitle("Host a faceoff")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -793,10 +793,10 @@ struct FaceoffHostSheet: View {
         HStack(spacing: 12) {
             Image(systemName: symbol)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(isOn ? MedxSection.duel.onSoft : Color.secondary)
+                .foregroundStyle(isOn ? MedxTheme.accent : Color.secondary)
                 .frame(width: 34, height: 34)
                 .background(
-                    isOn ? MedxSection.duel.soft : MedxDS.sunken,
+                    isOn ? MedxTheme.accent.opacity(0.16) : MedxDS.sunken,
                     in: MedxDS.shape(MedxDS.control)
                 )
                 .accessibilityHidden(true)
@@ -818,12 +818,12 @@ struct FaceoffHostSheet: View {
             if isOn {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.title3)
-                    .foregroundStyle(MedxSection.duel.fill)
+                    .foregroundStyle(MedxTheme.accent)
             }
         }
         .padding(12)
         .frame(minHeight: 54)
-        .medxTile(accentColor: MedxSection.duel.fill, isSelected: isOn)
+        .medxTile(accentColor: MedxTheme.accent, isSelected: isOn)
         .contentShape(MedxDS.shape(MedxDS.control))
         .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
     }
@@ -856,7 +856,7 @@ struct FaceoffHostSheet: View {
                     .font(.body.weight(.semibold))
                     .frame(maxWidth: .infinity, minHeight: 50)
             }
-            .medxFilled(MedxSection.duel.fill)
+            .medxFilled(MedxTheme.accent)
             .disabled(picked == nil || lobby.busy == "deal")
         }
         .medxFloatingBar()

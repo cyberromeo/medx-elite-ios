@@ -46,7 +46,7 @@ public struct MedxQuestionSearchView: View {
     public var body: some View {
         NavigationStack {
             content
-                .medxPage(.qbank)
+                .medxPage()
                 .navigationTitle("Search questions")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
@@ -533,7 +533,7 @@ struct MedxSearchResultDetailView: View {
             }
             .padding(MedxDS.gutter)
         }
-        .medxPage(.qbank)
+        .medxPage()
         .navigationTitle(entry.subject)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

@@ -38,30 +38,28 @@ public struct TestDetailCard: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            chips
-
-            if let prior = test.priorAttempt, prior.status == "COMPLETED" {
-                priorAttemptLine(prior)
+        Button {
+            HapticManager.light()
+            showStartSheet = true
+        } label: {
+            MedxRow(
+                lead: "\(test.questionCount)",
+                title: test.name,
+                tag: test.gradable ? test.subject : "no key",
+                detail: detailLine
+            ) {
+                if let bestAttempt {
+                    MedxAnswerSheet(
+                        fraction: Double(test.gradable ? bestScore : bestAttempt.attempted)
+                            / Double(max(bestAttempt.total, 1)),
+                        label: detailLine
+                    )
+                } else {
+                    MedxChevron()
+                }
             }
-
-            if let bestAttempt {
-                historyLine(best: bestAttempt)
-            }
-
-            if !test.gradable {
-                Text("Not scored — the source app withheld this paper's answer key, so it can be answered for practice only.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            startButton
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .medxCard()
+        .buttonStyle(.plain)
         .contextMenu {
             Button {
                 HapticManager.light()
@@ -91,85 +89,38 @@ public struct TestDetailCard: View {
                 onStart(mode)
             }
         }
+        .accessibilityLabel(test.name)
+        .accessibilityValue(accessibilityValue)
+        .accessibilityHint("Opens the mode picker")
     }
 
-    // MARK: - Pieces
+    // MARK: - Lines
+    //
+    // Four stacked lines, three chips and a full-width button became one row and its strip. Everything
+    // that is gone was either said twice — the question count was in `metaLine` *and* in the history
+    // line — or was a chip restating a field the row already carries. The button went because the row
+    // itself opens the mode picker, which is what the button did.
 
-    private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(test.name)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(metaLine)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 0)
-
-            if !testAttempts.isEmpty {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(MedxDS.correct)
-                    .accessibilityLabel("Already attempted")
-            }
+    private var detailLine: String {
+        guard let best = bestAttempt else {
+            return "\(test.officialTimeMins) min · not attempted"
         }
+        let score = test.gradable
+            ? "best \(bestScore)/\(best.total)"
+            : "best \(best.attempted)/\(best.total) answered"
+        let sittings = "\(testAttempts.count) sitting\(testAttempts.count == 1 ? "" : "s")"
+        return "\(score) · \(sittings)"
     }
 
-    private var chips: some View {
-        HStack(spacing: 6) {
-            if let mode = test.mode, !mode.isEmpty {
-                MedxChip(mode.capitalized, tint: MedxTheme.primaryBlue)
-            }
-            MedxChip(
-                test.gradable ? "Answer key" : "No key",
-                icon: test.gradable ? "checkmark.seal.fill" : "exclamationmark.triangle.fill",
-                tint: test.gradable ? MedxDS.correct : MedxDS.warn
-            )
-            if let batch = test.batch, !batch.isEmpty {
-                MedxChip(batch, tint: MedxTheme.indigoAccent)
-            }
-            Spacer(minLength: 0)
+    private var accessibilityValue: String {
+        var parts = [metaLine]
+        if !test.gradable {
+            parts.append("no official answer key, practice only")
         }
-    }
-
-    private func priorAttemptLine(_ prior: PriorAttemptInfo) -> some View {
-        var text = "On Arise: \(prior.correct ?? 0)/\(prior.questionCount ?? 0)"
-        if let rank = prior.testRank { text += " · rank \(rank)" }
-
-        return Label(text, systemImage: "clock.arrow.circlepath")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-    }
-
-    private func historyLine(best: SittingAttempt) -> some View {
-        let detail = test.gradable
-            ? "Best \(bestScore)/\(best.total) (\(best.totalPercentage)%)"
-            : "Best \(best.attempted)/\(best.total) answered"
-
-        return Label(
-            "\(testAttempts.count) sitting\(testAttempts.count == 1 ? "" : "s") · \(detail)",
-            systemImage: "chart.bar.fill"
-        )
-        .font(.caption)
-        .foregroundStyle(MedxDS.correct)
-    }
-
-    private var startButton: some View {
-        Button {
-            HapticManager.light()
-            showStartSheet = true
-        } label: {
-            Text(testAttempts.isEmpty ? "Begin Test" : "Reattempt")
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity, minHeight: 44)
+        if let prior = test.priorAttempt, prior.status == "COMPLETED" {
+            parts.append("on Arise \(prior.correct ?? 0) of \(prior.questionCount ?? 0)")
         }
-        .medxFilledButton()
-        .buttonBorderShape(.capsule)
-        .tint(test.gradable ? MedxTheme.accent : MedxDS.warn)
-        .padding(.top, 2)
+        parts.append(detailLine)
+        return parts.joined(separator: ", ")
     }
 }

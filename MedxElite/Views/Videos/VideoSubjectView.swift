@@ -58,7 +58,7 @@ public struct VideoSubjectView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .medxPage(.videos)
+        .medxPage()
         .navigationTitle(subjectGroup.name)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {

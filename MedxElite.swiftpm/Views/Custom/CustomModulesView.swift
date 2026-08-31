@@ -63,7 +63,7 @@ public struct CustomModulesView: View {
             .padding(.top, 6)
             .padding(.bottom, 28)
         }
-        .medxPage(.custom)
+        .medxPage()
         .navigationTitle("Custom modules")
         // Large, and the only place the words appear — there used to be an inline title and a
         // `MedxPageHeader` repeating them.
@@ -143,7 +143,7 @@ public struct CustomModulesView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 48)
         }
-        .medxFilled(MedxSection.custom.fill)
+        .medxFilled(MedxTheme.accent)
         .disabled(uid == nil)
     }
 
@@ -253,7 +253,7 @@ struct CustomModuleCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                MedxSymbolMark(MedxSection.custom.symbol, hue: MedxSection.custom.fill, size: 36)
+                MedxSymbolMark(MedxSection.custom.symbol, hue: MedxTheme.accent, size: 36)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(module.name)
@@ -335,7 +335,7 @@ struct CustomModuleCard: View {
                 .frame(minWidth: 66, minHeight: 34)
                 .padding(.horizontal, 6)
             }
-            .medxFilled(MedxSection.custom.fill)
+            .medxFilled(MedxTheme.accent)
 
             Button {
                 HapticManager.light()
@@ -421,7 +421,7 @@ struct MedxCustomRunSheet: View {
                 .padding(.top, 12)
                 .padding(.bottom, 28)
             }
-            .medxPage(.custom)
+            .medxPage()
             .navigationTitle(module.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -446,9 +446,9 @@ struct MedxCustomRunSheet: View {
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: icon)
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(MedxSection.custom.onSoft)
+                    .foregroundStyle(MedxTheme.accent)
                     .frame(width: 42, height: 42)
-                    .background(MedxSection.custom.soft, in: MedxDS.shape(MedxDS.control))
+                    .background(MedxTheme.accent.opacity(0.16), in: MedxDS.shape(MedxDS.control))
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)

@@ -380,7 +380,7 @@ public struct SettingsView: View {
             // not black. Hiding it and putting the app's page underneath is what makes every
             // `List` in the app agree with every `ScrollView` in it.
             .scrollContentBackground(.hidden)
-            .medxPage(.library)
+            .medxPage()
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -1179,7 +1179,7 @@ struct BookmarkedQuestionsView: View {
                 .searchable(text: $searchText, prompt: "Search bookmarks…")
             }
         }
-        .medxPage(.qbank)
+        .medxPage()
         .navigationTitle("Bookmarks")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -1423,7 +1423,7 @@ private struct WatchHistoryView: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .medxPage(.videos)
+        .medxPage()
         .navigationTitle("Watch History")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -1586,7 +1586,7 @@ struct ActivityLogView: View {
                 .searchable(text: $searchText, prompt: "Search activity log…")
             }
         }
-        .medxPage(.library)
+        .medxPage()
         .navigationTitle("Activity Log")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
