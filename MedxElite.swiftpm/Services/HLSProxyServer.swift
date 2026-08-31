@@ -65,6 +65,7 @@ public final class HLSProxyServer: ObservableObject {
     // MARK: - Public API
 
     /// Start the local proxy server
+    @MainActor
     public func start() {
         // `listener != nil` covers the window between binding and `.ready`: starting twice
         // there used to orphan the first listener and report the wrong port.
@@ -95,6 +96,15 @@ public final class HLSProxyServer: ObservableObject {
                     case .cancelled:
                         self.isRunning = false
                         self.port = 0
+                        // **This line is the bug that made every other symptom permanent.**
+                        //
+                        // `.failed` above clears `listener`; this branch did not. `start()` bails out
+                        // early on `if isRunning || listener != nil`, so once a listener had been
+                        // cancelled — which is what iOS does to a listening socket when it suspends the
+                        // process — the guard saw a non-nil listener forever and the proxy could never
+                        // be rebound for the life of the process. Backgrounding the app once meant no
+                        // video would stream again until it was force-quit.
+                        self.listener = nil
                     default:
                         break
                     }
@@ -112,22 +122,38 @@ public final class HLSProxyServer: ObservableObject {
         }
     }
 
-    /// Stop the proxy server
+    /// Stop the proxy server.
+    ///
+    /// `@MainActor` and setting the published pair **synchronously**, which matters for `restart()`:
+    /// this used to hop onto main with `DispatchQueue.main.async`, so a `stop()` immediately followed by
+    /// a `start()` would find `isRunning` still `true` and bail out on `start()`'s own guard. The
+    /// listener would be gone and nothing would replace it.
+    @MainActor
     public func stop() {
         listener?.cancel()
         listener = nil
-        DispatchQueue.main.async {
-            self.isRunning = false
-            self.port = 0
-        }
+        isRunning = false
+        port = 0
     }
 
-    /// `start()` binds asynchronously, so a caller that needs a URL immediately has to
-    /// wait for the port. Returns false if the listener never came up.
+    /// `start()` binds asynchronously, so a caller that needs a URL immediately has to wait for the
+    /// port. Returns false if the listener never came up.
+    ///
+    /// **It probes rather than trusting its own flags.** `isRunning` and `port` are only ever updated
+    /// from `NWListener`'s state handler, and that handler does not run while the process is suspended —
+    /// so after the app has been backgrounded and reopened, both can still describe a socket the kernel
+    /// closed. This used to return `true` on that stale pair and hand `AVPlayer` a URL on a dead port,
+    /// which is exactly the "no video plays after I reopen the app" report: connection refused,
+    /// `AVPlayerItem.status == .failed`, playback error.
+    ///
+    /// One `GET /health` against the bound port settles it in a few milliseconds. If nothing answers,
+    /// the listener is torn down and rebound.
     @MainActor
     public func waitUntilRunning(timeout: TimeInterval = 3) async -> Bool {
-        if isRunning, port > 0 { return true }
-        start()
+        if isRunning, port > 0, await isAnswering() { return true }
+
+        // Either never started, or bound to a port that no longer answers. Both want a fresh listener.
+        restart()
 
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
@@ -135,6 +161,37 @@ public final class HLSProxyServer: ObservableObject {
             try? await Task.sleep(nanoseconds: 60_000_000)
         }
         return isRunning && port > 0
+    }
+
+    /// Tear down and rebind. The port changes, which is fine — every caller builds its URL through
+    /// `proxiedURL(for:)` at the moment it needs one.
+    @MainActor
+    public func restart() {
+        stop()
+        start()
+    }
+
+    /// Rebind **only if the socket has actually gone.** What the app calls when it comes back to the
+    /// foreground.
+    ///
+    /// The distinction matters: audio is a declared background mode, so a class can still be playing
+    /// through this proxy when the app becomes active again, and an unconditional `restart()` would cut
+    /// it off mid-segment. A probe costs a few milliseconds and a round trip to localhost.
+    @MainActor
+    public func revalidate() async {
+        if isRunning, port > 0, await isAnswering() { return }
+        restart()
+    }
+
+    /// Does the bound port actually answer? A listener object existing is not the same claim.
+    @MainActor
+    private func isAnswering() async -> Bool {
+        guard port > 0, let url = URL(string: "http://127.0.0.1:\(port)/health") else { return false }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 0.6
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        guard let (_, response) = try? await session.data(for: request) else { return false }
+        return (response as? HTTPURLResponse)?.statusCode == 200
     }
 
     /// Convert a remote stream URL to a local proxied URL
@@ -212,6 +269,13 @@ public final class HLSProxyServer: ObservableObject {
             // Only GET /proxy?url=… is served now that offline playback is handled by
             // `MedxOfflineAssetLoader` rather than a second route on this server.
             let path = parts[1]
+
+            // `/health` exists so `waitUntilRunning` can ask the socket rather than trusting a
+            // `@Published` flag that stops being updated the moment the process suspends.
+            if path.hasPrefix("/health") {
+                self.sendHealth(connection: connection)
+                return
+            }
 
             // Extract the target URL from query parameter
             if path.hasPrefix("/proxy?url="),
@@ -322,6 +386,17 @@ public final class HLSProxyServer: ObservableObject {
     private func sendError(connection: NWConnection, code: Int, message: String) {
         let body = "{\"error\": \"\(message)\"}"
         let response = "HTTP/1.1 \(code) \(message)\r\nContent-Type: application/json\r\nContent-Length: \(body.utf8.count)\r\nAccess-Control-Allow-Origin: *\r\n\r\n\(body)"
+        connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in
+            connection.cancel()
+        })
+    }
+
+    /// The liveness answer. Deliberately trivial and uncached — the only thing it proves is that this
+    /// port is still bound to a listener in this process, which is precisely the thing `isRunning`
+    /// cannot promise after a suspend.
+    private func sendHealth(connection: NWConnection) {
+        let body = "{\"ok\": true}"
+        let response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: \(body.utf8.count)\r\nCache-Control: no-store\r\n\r\n\(body)"
         connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in
             connection.cancel()
         })

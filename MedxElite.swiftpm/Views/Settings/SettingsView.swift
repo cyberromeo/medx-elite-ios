@@ -13,6 +13,7 @@ public struct SettingsView: View {
     @ObservedObject private var spotlight = MedxSpotlightIndexer.shared
     @ObservedObject private var playback = MedxPlaybackDiagnostics.shared
     @ObservedObject private var vod = MedxVodWatcher.shared
+    @ObservedObject private var proxy = HLSProxyServer.shared
     @State private var attempts: [SittingAttempt] = []
     @State private var subjects: [MedxBankSubject] = []
     @State private var showSignOutConfirm = false
@@ -814,6 +815,39 @@ public struct SettingsView: View {
         .accessibilityLabel("MedX Elite, app designed by Srihari, version 1.0.0")
     }
 
+    /// The stream proxy's state, and a way to rebind it by hand.
+    ///
+    /// iOS closes the listening socket whenever it suspends the app, which is why the port changes every
+    /// time you come back to the foreground — and why "no class will play since I reopened the app" was a
+    /// real bug rather than a network problem. `revalidate()` probes the bound port and only rebinds if
+    /// nothing answers, so pressing this while a class is playing is safe.
+    private var proxyDiagnostics: some View {
+        Group {
+            diagnosticRow(
+                title: "Stream proxy",
+                detail: proxy.isRunning
+                    ? "Bound to port \(proxy.port)"
+                    : "Not bound — classes will not stream",
+                ok: proxy.isRunning
+            )
+
+            Button {
+                HapticManager.medium()
+                Task { await HLSProxyServer.shared.revalidate() }
+            } label: {
+                Label {
+                    Text("Rebind the stream proxy")
+                        .font(.body)
+                } icon: {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .foregroundStyle(MedxCandy.mint)
+                }
+                .frame(minHeight: 44)
+            }
+            .accessibilityHint("Checks whether the local proxy still answers and binds a new port if it does not")
+        }
+    }
+
     /// Sideloaded builds cannot be attached to Xcode, so the handful of facts that actually
     /// explain "widgets are empty", "Live Activities don't appear" and "this looks like the old
     /// iOS" are surfaced here rather than left to guesswork.
@@ -869,6 +903,12 @@ public struct SettingsView: View {
                 detail: vodDiagnostic,
                 ok: vod.lastCheckedAt != nil
             )
+
+            // The local HLS proxy is the only thing that can attach the headers the CDN insists on, so
+            // when it is not bound no class will stream — and that used to be indistinguishable from a
+            // dead stream. Row and button are one `Group` because a `Section` takes ten children and
+            // this is the eleventh thing Diagnostics wants to say.
+            proxyDiagnostics
 
             Button {
                 HapticManager.medium()

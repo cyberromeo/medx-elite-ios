@@ -107,6 +107,17 @@ struct MedxEliteApp: App {
             MedxVodWatcher.shared.scheduleBackgroundCheck()
 
         case .active:
+            // The local HLS proxy has to be re-armed here, and this is the fix for "minimise the app,
+            // come back, no video plays". iOS closes listening sockets when it suspends a process, and
+            // `NWListener`'s state handler does not get to run while suspended — so nothing in the app
+            // ever learned the socket had gone.
+            //
+            // `revalidate()` and not `restart()`: audio is a declared background mode, so a class can
+            // still be playing through the proxy when this fires — coming back from Control Centre is an
+            // `.active` too. An unconditional rebind would cut a stream that was working. This probes
+            // first and only rebinds if nothing answers.
+            Task { await HLSProxyServer.shared.revalidate() }
+
             Task { await MedxNotificationManager.shared.refreshAuthorization() }
             // The foreground check is the *guarantee* behind the new-drop notification: iOS may
             // not run the background task for days, so returning to the app is what actually

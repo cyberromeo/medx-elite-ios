@@ -24,6 +24,8 @@ public struct VideoPlayerView: View {
     @State private var usingOfflineCopy = false
     @State private var forceOnlinePlayback = false
     @State private var showOfflineBadge = false
+    /// One retry through a freshly bound proxy, and only one. See `watchForLoadFailure`.
+    @State private var hasRetriedThroughProxy = false
     @ObservedObject private var activityStore = ActivityStore.shared
     @ObservedObject private var authService = AuthService.shared
     @Environment(\.dismiss) private var dismiss
@@ -169,6 +171,7 @@ public struct VideoPlayerView: View {
     @MainActor
     private func setupProxyAndPlayer() {
         hasError = false
+        hasRetriedThroughProxy = false
         configureAudioSession()
 
         // Offline first, and with no dependency on the proxy: a download is served by
@@ -285,6 +288,17 @@ public struct VideoPlayerView: View {
                         // than dead-end.
                         MedxPlaybackDiagnostics.shared.record(failure, context: "offline playlist rejected")
                         fallBackToOnlinePlayback()
+                    } else if !hasRetriedThroughProxy {
+                        // The streaming failure this catches is almost always a dead proxy port: the app
+                        // was backgrounded, iOS closed the listening socket, and the URL this item was
+                        // built from points at a port nothing is bound to. `revalidate()` probes and
+                        // rebinds, then the item is rebuilt against the new port.
+                        //
+                        // Once, deliberately. A real 403 from the CDN fails the same way, and retrying
+                        // that in a loop would turn a clear error into a spinner.
+                        hasRetriedThroughProxy = true
+                        MedxPlaybackDiagnostics.shared.record(failure, context: "retrying through a fresh proxy")
+                        retryThroughFreshProxy()
                     } else {
                         MedxPlaybackDiagnostics.shared.record(failure, context: playbackContext)
                         hasError = true
@@ -376,6 +390,25 @@ public struct VideoPlayerView: View {
             duration: duration.isFinite ? duration : 0,
             syncToCloud: syncToCloud
         )
+    }
+
+    /// Rebinds the proxy and builds the item again, keeping the saved position.
+    ///
+    /// Same shape as `fallBackToOnlinePlayback` below, and separate from it on purpose: that one swaps a
+    /// rejected *download* for the stream, this one swaps a dead *port* for a live one.
+    @MainActor
+    private func retryThroughFreshProxy() {
+        removeObservers()
+        player?.pause()
+        player?.replaceCurrentItem(with: nil)
+        player = nil
+
+        Task { @MainActor in
+            await proxy.revalidate()
+            _ = await proxy.waitUntilRunning()
+            guard let asset = streamingAsset() else { return }
+            createPlayer(with: asset)
+        }
     }
 
     /// Swaps a failed offline copy for the live stream without touching saved progress.
