@@ -90,6 +90,7 @@ public struct QBankChapterView: View {
             .padding(.bottom, 32)
         }
         .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxScrollEdge()
         .navigationTitle(subject.name)
         .navigationBarTitleDisplayMode(.large)
         .searchable(
@@ -119,9 +120,7 @@ public struct QBankChapterView: View {
     private var summaryCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                MedxSticker(MedxSubjectArt.sticker(for: subject.name), size: 30, tilt: -7)
-                    .frame(width: 38, height: 38)
-                    .background(MedxSection.qbank.soft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                MedxSymbolMark(MedxSubjectArt.symbol(for: subject.name), hue: MedxSection.qbank.fill, size: 38)
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text("\(subject.moduleCount) modules")

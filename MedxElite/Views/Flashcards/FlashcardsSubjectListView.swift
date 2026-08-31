@@ -42,7 +42,7 @@ public struct FlashcardsSubjectListView: View {
                             loadState = .loading
                             Task { await loadFlashcards() }
                         }
-                        .buttonStyle(.borderedProminent)
+                        .medxFilledButton()
                         .buttonBorderShape(.capsule)
                     }
                 case .loaded:
@@ -62,6 +62,7 @@ public struct FlashcardsSubjectListView: View {
                 }
             }
             .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxScrollEdge()
         }
         .navigationTitle("Cards")
         .navigationBarTitleDisplayMode(.inline)
@@ -97,8 +98,7 @@ public struct FlashcardsSubjectListView: View {
                     section: .cards,
                     title: "Cards",
                     lead: "Image decks, tapped through one at a time. Nothing here is scored — "
-                        + "these are the pictures you either recognise or you do not.",
-                    sticker: "cards"
+                        + "these are the pictures you either recognise or you do not."
                 )
 
                 MedxMetricsRow {

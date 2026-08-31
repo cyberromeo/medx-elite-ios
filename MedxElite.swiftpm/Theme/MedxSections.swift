@@ -162,6 +162,28 @@ public enum MedxSection: String, CaseIterable, Identifiable, Sendable {
         case .custom: return "memo"
         }
     }
+
+    /// The SF Symbol that stands for this destination.
+    ///
+    /// Symbols, not the Fluent stickers, are what the app's *chrome* is built from: they take
+    /// the section hue, scale with Dynamic Type, switch weight with the surrounding font and
+    /// carry a real accessibility name — none of which a WebP image does. The stickers stay
+    /// where a picture is the content rather than the label: profile marks, empty states and
+    /// the end of a sitting.
+    public var symbol: String {
+        switch self {
+        case .home: return "house.fill"
+        case .qbank: return "books.vertical.fill"
+        case .tests: return "list.clipboard.fill"
+        case .cards: return "rectangle.stack.fill"
+        case .videos: return "play.rectangle.fill"
+        case .vod: return "antenna.radiowaves.left.and.right"
+        case .library: return "square.grid.2x2.fill"
+        case .duel: return "bolt.fill"
+        case .custom: return "slider.horizontal.3"
+        }
+    }
+
     public var eyebrow: String {
         switch self {
         case .home: return "Today"

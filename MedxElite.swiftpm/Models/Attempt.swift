@@ -305,13 +305,14 @@ public enum MedxAttemptKind: String, CaseIterable, Sendable {
         }
     }
 
-    public var sticker: String {
+    /// The SF Symbol on an activity-log row.
+    public var symbol: String {
         switch self {
-        case .qbank: return "brain"
-        case .test: return "flag"
-        case .series: return "trophy"
-        case .custom: return "memo"
-        case .duel: return "bolt"
+        case .qbank: return "books.vertical.fill"
+        case .test: return "flag.pattern.checkered"
+        case .series: return "trophy.fill"
+        case .custom: return "slider.horizontal.3"
+        case .duel: return "bolt.fill"
         }
     }
 
@@ -320,7 +321,7 @@ public enum MedxAttemptKind: String, CaseIterable, Sendable {
         MedxAttemptKind(rawValue: raw)?.label ?? "Sitting"
     }
 
-    public static func sticker(_ raw: String) -> String {
-        MedxAttemptKind(rawValue: raw)?.sticker ?? "memo"
+    public static func symbol(_ raw: String) -> String {
+        MedxAttemptKind(rawValue: raw)?.symbol ?? "text.book.closed.fill"
     }
 }

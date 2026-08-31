@@ -65,10 +65,11 @@ public enum MedxRoute: Hashable, Sendable {
     case home
     case qbank
     case tests
+    /// The flashcard subjects, one level inside Library.
     case flashcards
     /// The Library hub itself.
     case library
-    /// The ARISE recorded classes, one level inside Library.
+    /// The ARISE recorded classes — the Videos tab.
     case classes
     /// The raw `medx_vod` bucket feed.
     case vodFeed
@@ -98,8 +99,8 @@ public enum MedxRoute: Hashable, Sendable {
         case .home, .todaysRevision: return .home
         case .qbank, .search, .quickSitting, .bookmarks, .module: return .qbank
         case .tests: return .tests
-        case .flashcards: return .flashcards
-        case .library, .classes, .vodFeed, .batchPapers, .downloads, .customModules, .faceoff,
+        case .classes: return .videos
+        case .library, .flashcards, .vodFeed, .batchPapers, .downloads, .customModules, .faceoff,
              .faceoffRoom:
             return .library
         case .settings: return nil
@@ -136,6 +137,9 @@ public final class AppState: ObservableObject {
     @Published public var showSettings = false
     @Published public var showBookmarks = false
     @Published public var showDownloads = false
+    /// The full sitting-and-class history. A sheet rather than a push, because it is reachable
+    /// from both Library and Settings and only one of those has a stack to push onto.
+    @Published public var showActivityLog = false
     @Published public var showCustomModules = false
     @Published public var showFaceoff = false
     /// Non-nil while a duel room is on screen. Carries the game id so a Home invite card, a
@@ -172,12 +176,12 @@ public final class AppState: ObservableObject {
         }
 
         switch route {
-        case .home, .qbank, .tests, .flashcards:
+        case .home, .qbank, .tests, .classes:
             break
         case .library:
             libraryDestination = nil
-        case .classes:
-            push(.classes)
+        case .flashcards:
+            push(.flashcards)
         case .vodFeed:
             push(.vodFeed)
         case .batchPapers:
@@ -228,7 +232,7 @@ public final class AppState: ObservableObject {
 /// The screens the Library tab pushes to. A value type rather than a view, so `AppState` can
 /// drive the stack without importing SwiftUI's navigation into every caller.
 public enum MedxLibraryDestination: Hashable, Sendable {
-    case classes
+    case flashcards
     case vodFeed
     case batchPapers
 }

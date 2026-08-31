@@ -336,7 +336,7 @@ public struct ModuleBuilderSheet: View {
                 loadState = .loading
                 Task { await load() }
             }
-            .buttonStyle(.borderedProminent)
+            .medxFilledButton()
             .buttonBorderShape(.capsule)
         }
     }
@@ -423,9 +423,7 @@ public struct ModuleBuilderSheet: View {
         isOpen: Bool
     ) -> some View {
         HStack(spacing: 10) {
-            MedxSticker(MedxSubjectArt.sticker(for: subject.name), size: 24, tilt: -6)
-                .frame(width: 32, height: 32)
-                .background(MedxSection.qbank.soft, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            MedxSymbolMark(MedxSubjectArt.symbol(for: subject.name), hue: MedxSection.qbank.fill, size: 32)
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 5) {

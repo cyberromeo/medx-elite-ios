@@ -210,7 +210,7 @@ public struct DuelRoomView: View {
                 room.close()
                 onClose()
             }
-            .buttonStyle(.borderedProminent)
+            .medxFilledButton()
             .buttonBorderShape(.capsule)
         }
     }
@@ -222,7 +222,7 @@ public struct DuelRoomView: View {
             Text("It was cancelled, or the link was for a game that no longer exists.")
         } actions: {
             Button("Back to the lobby") { onClose() }
-                .buttonStyle(.borderedProminent)
+                .medxFilledButton()
                 .buttonBorderShape(.capsule)
         }
     }
@@ -234,7 +234,7 @@ public struct DuelRoomView: View {
             Text(message + " Nothing else in the app is affected.")
         } actions: {
             Button("Back") { onClose() }
-                .buttonStyle(.borderedProminent)
+                .medxFilledButton()
                 .buttonBorderShape(.capsule)
         }
     }
@@ -332,16 +332,17 @@ public struct DuelRoomView: View {
 
     private func options(for question: MedxDuelQuestion) -> some View {
         VStack(spacing: 8) {
-            ForEach(question.options) { option in
+            ForEach(Array(question.options.enumerated()), id: \.offset) { pair in
                 QuestionOptionButton(
-                    option: option,
-                    isChosen: room.shownMine?.optionId == option.id,
-                    isCorrect: question.correctIds.contains(option.id),
+                    option: pair.element,
+                    index: pair.offset,
+                    isChosen: room.shownMine?.optionId == pair.element.id,
+                    isCorrect: question.correctIds.contains(pair.element.id),
                     // Nothing is revealed until both sides are in, or the minute has gone.
                     isRevealed: room.phase == .reveal,
                     isLocked: room.phase != .asked
                 ) {
-                    room.answer(option)
+                    room.answer(pair.element)
                 }
             }
         }

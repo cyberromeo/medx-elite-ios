@@ -62,7 +62,7 @@ public struct PasswordPromptView: View {
                         .font(.body.weight(.semibold))
                         .frame(maxWidth: .infinity, minHeight: 48)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .medxFilledButton()
                     .buttonBorderShape(.capsule)
                     .disabled(password.isEmpty || authService.isBusy)
 

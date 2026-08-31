@@ -2,11 +2,11 @@ import SwiftUI
 
 /// The app's five top-level destinations.
 ///
-/// `Videos` used to be the fifth and is now a row inside `Library`, which is the tab that
-/// holds everything that is not a study surface in its own right: the class library and the
-/// raw VOD feed, the ARISE batch papers, Faceoff, the custom modules, and the saved things.
-/// Five tabs is what iOS lays out comfortably on the smallest target device, and the new
-/// destinations would have made six.
+/// `Videos` is a tab because watching a class is a daily habit and it is the one thing here that
+/// gets opened without a reason. `Cards` is not, for the opposite reason — flashcards are a thing
+/// you go *to*, so they live in `Library` alongside the raw VOD feed, the ARISE batch papers,
+/// Faceoff, the custom modules and the saved things. Five tabs is what iOS lays out comfortably on
+/// the smallest target device, and everything above would have made nine.
 ///
 /// (File name is historical: this used to also hold a custom floating glass tab bar.
 /// `MainTabView` now uses the system `TabView`, which brings the platform's own
@@ -15,7 +15,7 @@ public enum TabItem: String, CaseIterable, Identifiable {
     case home = "Home"
     case qbank = "QBank"
     case tests = "Tests"
-    case flashcards = "Cards"
+    case videos = "Videos"
     case library = "Library"
 
     public var id: String { rawValue }
@@ -24,8 +24,8 @@ public enum TabItem: String, CaseIterable, Identifiable {
         switch self {
         case .home: return "house"
         case .qbank: return "books.vertical"
-        case .tests: return "checkmark.seal"
-        case .flashcards: return "rectangle.stack"
+        case .tests: return "list.clipboard"
+        case .videos: return "play.rectangle"
         case .library: return "square.grid.2x2"
         }
     }
@@ -34,8 +34,8 @@ public enum TabItem: String, CaseIterable, Identifiable {
         switch self {
         case .home: return "house.fill"
         case .qbank: return "books.vertical.fill"
-        case .tests: return "checkmark.seal.fill"
-        case .flashcards: return "rectangle.stack.fill"
+        case .tests: return "list.clipboard.fill"
+        case .videos: return "play.rectangle.fill"
         case .library: return "square.grid.2x2.fill"
         }
     }
@@ -46,7 +46,7 @@ public enum TabItem: String, CaseIterable, Identifiable {
         case .home: return .home
         case .qbank: return .qbank
         case .tests: return .tests
-        case .flashcards: return .cards
+        case .videos: return .videos
         case .library: return .library
         }
     }

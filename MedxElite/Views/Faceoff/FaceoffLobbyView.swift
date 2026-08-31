@@ -242,6 +242,7 @@ public struct FaceoffLobbyView: View {
                 .padding(.bottom, 28)
             }
             .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxScrollEdge()
             .navigationTitle("Faceoff")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -283,8 +284,7 @@ public struct FaceoffLobbyView: View {
             title: "Faceoff",
             lead: "One question, one minute, two of you. A right answer is 40 points plus whatever "
                 + "is still on the clock — \(MedxDuelRules.maxPoints) if you are instant, "
-                + "\(MedxDuelRules.basePoints) if you scrape it, nothing if you are wrong.",
-            sticker: "bolt"
+                + "\(MedxDuelRules.basePoints) if you scrape it, nothing if you are wrong."
         )
     }
 
@@ -368,7 +368,7 @@ public struct FaceoffLobbyView: View {
                 openRoom = MedxRoomRequest(id: game.id)
             }
             .font(.subheadline.weight(.semibold))
-            .buttonStyle(.bordered)
+            .medxBorderedButton()
             .buttonBorderShape(.capsule)
 
             Button(role: .destructive) {
@@ -378,7 +378,7 @@ public struct FaceoffLobbyView: View {
                     .font(.caption.weight(.bold))
                     .frame(width: 34, height: 30)
             }
-            .buttonStyle(.bordered)
+            .medxBorderedButton()
             .buttonBorderShape(.capsule)
             .disabled(lobby.busy != nil)
             .accessibilityLabel("Cancel this lobby")
@@ -690,7 +690,7 @@ struct FaceoffHostSheet: View {
                 draft = MedxCustomModule.blank(uid: uid)
             } label: {
                 sourceRow(
-                    sticker: "memo",
+                    symbol: "plus.rectangle.on.rectangle",
                     title: "Build a new one",
                     detail: "Pick chapters out of either bank, then deal it straight into the game",
                     isOn: false
@@ -716,7 +716,7 @@ struct FaceoffHostSheet: View {
                     picked = .custom(module)
                 } label: {
                     sourceRow(
-                        sticker: "memo",
+                        symbol: "slider.horizontal.3",
                         title: module.name,
                         detail: "\(module.effectiveCount) q · \(module.sources.count) module"
                             + (module.sources.count == 1 ? "" : "s")
@@ -750,7 +750,7 @@ struct FaceoffHostSheet: View {
                     picked = .series(paper)
                 } label: {
                     sourceRow(
-                        sticker: MedxSeriesRules.sticker(for: paper),
+                        symbol: MedxSeriesRules.symbol(for: paper),
                         title: paper.title,
                         detail: paper.line,
                         isOn: picked == .series(paper)
@@ -787,18 +787,21 @@ struct FaceoffHostSheet: View {
     // MARK: - Row and bar
 
     private func sourceRow(
-        sticker: String,
+        symbol: String,
         title: String,
         detail: String,
         isOn: Bool
     ) -> some View {
         HStack(spacing: 12) {
-            MedxSticker(sticker, size: 24, tilt: -6)
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(isOn ? MedxSection.duel.onSoft : Color.secondary)
                 .frame(width: 34, height: 34)
                 .background(
                     isOn ? MedxSection.duel.soft : MedxSurface.fieldFill,
                     in: RoundedRectangle(cornerRadius: 10, style: .continuous)
                 )
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)

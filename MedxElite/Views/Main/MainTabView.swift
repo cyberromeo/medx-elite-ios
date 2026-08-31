@@ -73,6 +73,16 @@ public struct MainTabView: View {
                         }
                 }
             }
+            .sheet(isPresented: $appState.showActivityLog) {
+                NavigationStack {
+                    MedxActivityLogHost(uid: uid)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button("Done") { appState.showActivityLog = false }
+                            }
+                        }
+                }
+            }
             .sheet(item: $appState.pendingModulePick) { pick in
                 StartSessionSheet(
                     title: pick.name,
@@ -123,6 +133,9 @@ public struct MainTabView: View {
                 .tag(tab)
             }
         }
+        // On iOS 26 the bar shrinks to a pill as you scroll down and comes back the moment you
+        // scroll up, which is the platform's own answer to a five-tab app on a phone.
+        .medxTabBarMinimize()
         // The tab bar's background is deliberately *not* specified. Forcing
         // `.toolbarBackground(.bar, for: .tabBar)` overrode whatever the running OS wanted to
         // do with it, which on iOS 26+ meant opting out of the system's own treatment — the app
@@ -169,8 +182,8 @@ public struct MainTabView: View {
             }
 
             Section("Library") {
-                sidebarAction("Classes", icon: "play.rectangle") {
-                    appState.open(route: .classes)
+                sidebarAction("Flashcards", icon: "rectangle.stack") {
+                    appState.open(route: .flashcards)
                 }
                 sidebarAction("VOD feed", icon: "antenna.radiowaves.left.and.right") {
                     appState.open(route: .vodFeed)
@@ -231,7 +244,7 @@ public struct MainTabView: View {
         case .home: HomeView()
         case .qbank: QBankSubjectListView()
         case .tests: TestsListView()
-        case .flashcards: FlashcardsSubjectListView()
+        case .videos: VideosBatchListView()
         case .library: LibraryView()
         }
     }

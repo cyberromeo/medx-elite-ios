@@ -57,6 +57,7 @@ public struct BatchPapersView: View {
             }
         }
         .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxScrollEdge()
         .navigationTitle("Batch papers")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(
@@ -86,7 +87,7 @@ public struct BatchPapersView: View {
                     title: "Batch papers",
                     lead: "The batch's own four papers. Most exported without an answer key, so "
                         + "they are answerable but not all of them can be scored.",
-                    sticker: "flag"
+                    symbol: "flag.pattern.checkered"
                 )
 
                 summaryRow
@@ -208,7 +209,7 @@ public struct BatchPapersView: View {
                 HapticManager.light()
                 Task { await load() }
             }
-            .buttonStyle(.borderedProminent)
+            .medxFilledButton()
             .buttonBorderShape(.capsule)
         }
     }
@@ -224,7 +225,7 @@ public struct BatchPapersView: View {
                 loadState = .loading
                 Task { await load() }
             }
-            .buttonStyle(.borderedProminent)
+            .medxFilledButton()
             .buttonBorderShape(.capsule)
         }
     }

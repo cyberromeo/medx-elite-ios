@@ -21,7 +21,7 @@ public struct StartSessionSheet: View {
             ScrollView {
                 VStack(spacing: 20) {
                     VStack(spacing: 6) {
-                        MedxSticker("bullseye", size: 46, tilt: -8)
+                        MedxSymbolMark("target", hue: MedxCandy.lime, size: 52)
                             .padding(.bottom, 2)
 
                         Text(title)
@@ -38,7 +38,7 @@ public struct StartSessionSheet: View {
                     VStack(spacing: 12) {
                         ModeCard(
                             mode: .revision,
-                            sticker: "bolt",
+                            symbol: "bolt.fill",
                             tint: MedxCandy.mint,
                             durationText: "60s per question"
                         ) {
@@ -47,7 +47,7 @@ public struct StartSessionSheet: View {
 
                         ModeCard(
                             mode: .exam,
-                            sticker: "hourglass",
+                            symbol: "hourglass",
                             tint: MedxCandy.tangerine,
                             durationText: "\(questionCount) min total"
                         ) {
@@ -88,7 +88,7 @@ public struct StartSessionSheet: View {
 
 private struct ModeCard: View {
     let mode: SittingMode
-    let sticker: String
+    let symbol: String
     let tint: Color
     let durationText: String
     let action: () -> Void
@@ -96,9 +96,7 @@ private struct ModeCard: View {
     var body: some View {
         Button(action: action) {
             HStack(alignment: .top, spacing: 14) {
-                MedxSticker(sticker, size: 28, tilt: -7)
-                    .frame(width: 40, height: 40)
-                    .background(tint.opacity(0.18), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                MedxSymbolMark(symbol, hue: tint, size: 40)
 
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 8) {

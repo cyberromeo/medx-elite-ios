@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// The ARISE VOD bucket, listed.
 ///
@@ -12,6 +13,7 @@ public struct VodFeedView: View {
     @ObservedObject private var watcher = MedxVodWatcher.shared
     @ObservedObject private var authService = AuthService.shared
     @ObservedObject private var activityStore = ActivityStore.shared
+    @ObservedObject private var downloads = VideoDownloadStore.shared
 
     @State private var items: [MedxVodItem] = []
     @State private var cursor: String?
@@ -89,6 +91,14 @@ public struct VodFeedView: View {
         }
     }
 
+    /// Bucket recordings saved on this device, counted against what is loaded rather than against
+    /// the whole download list — the Downloads screen is where the total lives.
+    private var savedHere: Int {
+        items.reduce(0) { total, item in
+            downloads.items[item.id]?.state == .completed ? total + 1 : total
+        }
+    }
+
     public var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 18) {
@@ -111,6 +121,7 @@ public struct VodFeedView: View {
             .padding(.bottom, 28)
         }
         .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxScrollEdge()
         .navigationTitle("VOD feed")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await reload() }
@@ -131,8 +142,7 @@ public struct VodFeedView: View {
             section: .vod,
             title: "VOD feed",
             lead: "Every recording in the ARISE bucket, newest upload first. Scroll down to go "
-                + "back in time.",
-            sticker: "satellite"
+                + "back in time."
         )
     }
 
@@ -148,7 +158,7 @@ public struct VodFeedView: View {
                         .foregroundStyle(.primary)
                 }
                 Spacer(minLength: 8)
-                MedxSticker("satellite", size: 40, tilt: 8)
+                MedxSymbolMark("shippingbox.fill", hue: MedxCandy.blue, size: 40)
             }
 
             MedxMetricsRow {
@@ -183,6 +193,18 @@ public struct VodFeedView: View {
                 }
                 .foregroundStyle(MedxCandy.onSoft(MedxCandy.blue))
             }
+
+            // Said here because the download control is a trailing glyph on a row, which is easy
+            // to miss on a feed you are flicking through.
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down.circle")
+                    .font(.caption2.weight(.bold))
+                Text(savedHere == 0
+                     ? "Tap the arrow on any row to keep it on this device."
+                     : "\(savedHere) of these are saved on this device.")
+                    .font(.caption)
+            }
+            .foregroundStyle(.secondary)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -267,84 +289,136 @@ public struct VodFeedView: View {
                 row(item)
             }
         }
-        .medxScrollReveal()
     }
 
     private func row(_ item: MedxVodItem) -> some View {
         let label = item.display
         let watched = activityStore.entry(for: item.id, uid: uid)
         let isNew = seenAtAppear.map { (item.uploadedAtRaw ?? "") > $0 } ?? false
+        let video = item.asRecordedVideo
+        let saved = downloads.items[item.id]?.state == .completed
 
-        return Button {
-            guard !item.streamUrl.isEmpty else {
-                HapticManager.error()
-                return
-            }
-            HapticManager.light()
-            playing = item.asRecordedVideo
-        } label: {
-            HStack(spacing: 12) {
-                // No poster. The bucket's thumbnails are a mix of missing, wrong-aspect and
-                // identical grey frames, so 48 of them per page read as noise — a stream mark
-                // says "this is a live HLS link" in a fifth of the width and never mis-loads.
-                Image(systemName: watched?.isCompleted == true ? "checkmark" : "antenna.radiowaves.left.and.right")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(watched?.isCompleted == true
-                                     ? MedxTheme.successGreen
-                                     : MedxCandy.onSoft(MedxCandy.blue))
-                    .frame(width: 36, height: 36)
-                    .background(
-                        watched?.isCompleted == true
-                            ? MedxTheme.successGreen.opacity(0.16)
-                            : MedxCandy.blueSoft,
-                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        return HStack(spacing: 8) {
+            Button {
+                guard !item.streamUrl.isEmpty else {
+                    HapticManager.error()
+                    return
+                }
+                HapticManager.light()
+                playing = video
+            } label: {
+                HStack(spacing: 12) {
+                    // No poster. The bucket's thumbnails are a mix of missing, wrong-aspect and
+                    // identical grey frames, so 48 of them per page read as noise — a stream mark
+                    // says "this is a live HLS link" in a fifth of the width and never mis-loads.
+                    MedxSymbolMark(
+                        rowGlyph(watched: watched, saved: saved),
+                        hue: rowHue(watched: watched, saved: saved),
+                        size: 36
                     )
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(label.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(label.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
 
-                    Text([label.sub, item.formattedDuration, item.streamUrl.isEmpty ? "no stream" : nil]
-                        .compactMap { $0 }
-                        .filter { !$0.isEmpty }
-                        .joined(separator: " · "))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                        Text([label.sub, item.formattedDuration, item.streamUrl.isEmpty ? "no stream" : nil]
+                            .compactMap { $0 }
+                            .filter { !$0.isEmpty }
+                            .joined(separator: " · "))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
 
-                    if let watched, !watched.isCompleted, watched.progress > 0.02 {
-                        ProgressView(value: watched.progress)
-                            .tint(MedxCandy.blue)
-                            .frame(maxWidth: 120)
+                        if let watched, !watched.isCompleted, watched.progress > 0.02 {
+                            ProgressView(value: watched.progress)
+                                .tint(MedxCandy.blue)
+                                .frame(maxWidth: 120)
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+
+                    VStack(alignment: .trailing, spacing: 4) {
+                        if isNew {
+                            MedxPill("new", hue: MedxCandy.blue, weight: .solid)
+                        }
+                        if item.hasSubtitles {
+                            Image(systemName: "captions.bubble")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                 }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(item.streamUrl.isEmpty)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(label.title)
+            .accessibilityValue([label.sub, item.formattedDuration, isNew ? "new" : "", saved ? "saved offline" : ""]
+                .filter { !$0.isEmpty }
+                .joined(separator: ", "))
 
-                Spacer(minLength: 0)
+            // A bucket recording is an HLS stream like any class, so the same downloader takes
+            // it. The control is a sibling of the play button, not inside it: a `Menu` nested in
+            // a `Button` label never receives the tap.
+            if !item.streamUrl.isEmpty {
+                VideoDownloadButton(video: video)
+            }
+        }
+        .padding(12)
+        .frame(minHeight: 58)
+        .medxCard()
+        .contextMenu {
+            if !item.streamUrl.isEmpty {
+                Button {
+                    HapticManager.light()
+                    playing = video
+                } label: {
+                    Label((watched?.resumePosition ?? 0) > 0 ? "Resume" : "Play", systemImage: "play.circle")
+                }
 
-                VStack(alignment: .trailing, spacing: 4) {
-                    if isNew {
-                        MedxPill("new", hue: MedxCandy.blue, weight: .solid)
+                if saved {
+                    Button(role: .destructive) {
+                        HapticManager.warning()
+                        downloads.remove(item.id)
+                    } label: {
+                        Label("Delete download", systemImage: "trash")
                     }
-                    if item.hasSubtitles {
-                        Image(systemName: "captions.bubble")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.tertiary)
+                } else {
+                    ForEach(DownloadQuality.allCases) { quality in
+                        Button {
+                            HapticManager.light()
+                            downloads.start(video, quality: quality)
+                        } label: {
+                            Label("Save · \(quality.label)", systemImage: quality.icon)
+                        }
                     }
                 }
             }
-            .padding(12)
-            .frame(minHeight: 58)
-            .medxCard()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+
+            Button {
+                UIPasteboard.general.string = item.rawKey
+            } label: {
+                Label("Copy file key", systemImage: "doc.on.doc")
+            }
         }
-        .buttonStyle(BouncyButtonStyle())
-        .disabled(item.streamUrl.isEmpty)
-        .accessibilityLabel(label.title)
-        .accessibilityValue([label.sub, item.formattedDuration, isNew ? "new" : ""]
-            .filter { !$0.isEmpty }
-            .joined(separator: ", "))
+    }
+
+    /// Offline beats watched beats plain, because "is this on the device" is the thing you are
+    /// scanning for on a feed you cannot search.
+    private func rowGlyph(watched: WatchHistoryEntry?, saved: Bool) -> String {
+        if saved { return "arrow.down.circle.fill" }
+        if watched?.isCompleted == true { return "checkmark" }
+        return "antenna.radiowaves.left.and.right"
+    }
+
+    private func rowHue(watched: WatchHistoryEntry?, saved: Bool) -> Color {
+        if saved { return MedxCandy.mint }
+        if watched?.isCompleted == true { return MedxTheme.successGreen }
+        return MedxCandy.blue
     }
 
     // MARK: - Footer, states, paging
@@ -381,7 +455,7 @@ public struct VodFeedView: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 44)
             }
-            .buttonStyle(.bordered)
+            .medxBorderedButton()
             .buttonBorderShape(.capsule)
         }
 

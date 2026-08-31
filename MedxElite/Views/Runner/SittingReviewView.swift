@@ -188,6 +188,7 @@ public struct SittingReviewView: View {
                 .padding(.bottom, 28)
             }
             .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxScrollEdge()
             .navigationTitle(name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -397,7 +398,8 @@ private struct QuestionReviewCard: View {
 
     private var optionList: some View {
         VStack(spacing: 8) {
-            ForEach(question.options) { option in
+            ForEach(Array(question.options.enumerated()), id: \.offset) { pair in
+                let option = pair.element
                 let isChosen = response?.chosenId == option.id
                 let isCorrect = option.correct == true || question.correctIds.contains(option.id)
                 let tint: Color? = isCorrect
@@ -405,7 +407,7 @@ private struct QuestionReviewCard: View {
                     : (isChosen ? MedxTheme.destructiveRed : nil)
 
                 HStack(alignment: .top, spacing: 12) {
-                    Text(option.label)
+                    Text(MedxOptionLetter.of(option, at: pair.offset))
                         .font(.footnote.weight(.bold))
                         .foregroundStyle(tint == nil ? Color.primary : Color.white)
                         .frame(width: 26, height: 26)

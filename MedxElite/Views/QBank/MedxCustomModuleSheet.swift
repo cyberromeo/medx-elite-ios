@@ -199,7 +199,7 @@ public struct MedxCustomModuleSheet: View {
             .font(.body.weight(.semibold))
             .frame(maxWidth: .infinity, minHeight: 50)
         }
-        .buttonStyle(.borderedProminent)
+        .medxFilledButton()
         .buttonBorderShape(.capsule)
         .tint(MedxTheme.accent)
         .disabled(isLoading || isBuilding)

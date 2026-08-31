@@ -5,6 +5,8 @@ import SwiftUI
 /// tinted glass sheet.
 public struct QuestionOptionButton: View {
     public let option: QuestionOption
+    /// Position in the question, used only to letter a row whose `label` the backend left blank.
+    public let index: Int
     public let isChosen: Bool
     public let isCorrect: Bool
     public let isRevealed: Bool
@@ -13,6 +15,7 @@ public struct QuestionOptionButton: View {
 
     public init(
         option: QuestionOption,
+        index: Int = 0,
         isChosen: Bool,
         isCorrect: Bool,
         isRevealed: Bool,
@@ -20,11 +23,18 @@ public struct QuestionOptionButton: View {
         onSelect: @escaping () -> Void
     ) {
         self.option = option
+        self.index = index
         self.isChosen = isChosen
         self.isCorrect = isCorrect
         self.isRevealed = isRevealed
         self.isLocked = isLocked
         self.onSelect = onSelect
+    }
+
+    /// The authored letter, or the position's own when there is none — a blank badge reads as a
+    /// rendering fault, and `MedxOptionLetter` is the same rule every option list in the app uses.
+    private var letter: String {
+        MedxOptionLetter.of(option, at: index)
     }
 
     public var body: some View {
@@ -60,7 +70,7 @@ public struct QuestionOptionButton: View {
         .disabled(isLocked)
         .animation(.easeOut(duration: 0.16), value: isChosen)
         .animation(.easeOut(duration: 0.16), value: isRevealed)
-        .accessibilityLabel("Option \(option.label)")
+        .accessibilityLabel("Option \(letter)")
         .accessibilityValue(accessibilityState)
         .accessibilityAddTraits(isChosen ? [.isSelected] : [])
     }
@@ -68,7 +78,7 @@ public struct QuestionOptionButton: View {
     // MARK: - Pieces
 
     private var letterBadge: some View {
-        Text(option.label)
+        Text(letter)
             .font(.subheadline.weight(.bold))
             .foregroundStyle(isFilledBadge ? Color.white : Color.primary)
             .frame(width: 28, height: 28)
@@ -136,5 +146,26 @@ public struct QuestionOptionButton: View {
             return "Not selected"
         }
         return isChosen ? "Selected" : "Not selected"
+    }
+}
+
+/// The letter shown beside an option.
+///
+/// Authored labels are used as given — the two banks both supply `A`…`D`, and a paper that
+/// deliberately labels its options `i`…`iv` should keep them. A blank falls back to the position,
+/// because an empty badge looks like a bug, and every option list in the app asks this one
+/// question so they cannot drift apart.
+public enum MedxOptionLetter {
+    public static func of(_ option: QuestionOption, at index: Int) -> String {
+        let trimmed = option.label.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return trimmed }
+        return at(index)
+    }
+
+    /// `0 → "A"`, wrapping past 26 rather than running off the end of the alphabet.
+    public static func at(_ index: Int) -> String {
+        guard index >= 0 else { return "?" }
+        let scalar = UnicodeScalar(65 + index % 26) ?? "?"
+        return String(Character(scalar))
     }
 }

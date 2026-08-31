@@ -39,6 +39,7 @@ public struct VideoSubjectView: View {
             .padding(.bottom, 32)
         }
         .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxScrollEdge()
         .navigationTitle(subjectGroup.name)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {

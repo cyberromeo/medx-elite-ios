@@ -47,6 +47,7 @@ public struct MedxQuestionSearchView: View {
         NavigationStack {
             content
                 .background(MedxSurface.groupedBackground.ignoresSafeArea())
+                .medxScrollEdge()
                 .navigationTitle("Search questions")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
@@ -325,7 +326,7 @@ public struct MedxQuestionSearchView: View {
                 if index.isBuilding {
                     Button("Stop") { index.cancelBuild() }
                         .font(.caption.weight(.semibold))
-                        .buttonStyle(.bordered)
+                        .medxBorderedButton()
                         .buttonBorderShape(.capsule)
                 } else {
                     Button("Build") {
@@ -333,7 +334,7 @@ public struct MedxQuestionSearchView: View {
                         index.build(subjects: subjects)
                     }
                     .font(.caption.weight(.semibold))
-                    .buttonStyle(.borderedProminent)
+                    .medxFilledButton()
                     .buttonBorderShape(.capsule)
                     .disabled(subjects.isEmpty)
                 }
@@ -363,7 +364,7 @@ public struct MedxQuestionSearchView: View {
                     .font(.subheadline.weight(.semibold))
                     .frame(minWidth: 170, minHeight: 44)
             }
-            .buttonStyle(.borderedProminent)
+            .medxFilledButton()
             .buttonBorderShape(.capsule)
             .disabled(subjects.isEmpty || index.isBuilding)
         }
@@ -585,11 +586,12 @@ struct MedxSearchResultDetailView: View {
             .medxCard()
 
             VStack(spacing: 8) {
-                ForEach(question.options) { option in
+                ForEach(Array(question.options.enumerated()), id: \.offset) { pair in
+                    let option = pair.element
                     let isCorrect = option.correct == true || question.correctIds.contains(option.id)
 
                     HStack(alignment: .top, spacing: 12) {
-                        Text(option.label)
+                        Text(MedxOptionLetter.of(option, at: pair.offset))
                             .font(.footnote.weight(.bold).monospacedDigit())
                             .foregroundStyle(isCorrect ? Color.white : Color.primary)
                             .frame(width: 26, height: 26)

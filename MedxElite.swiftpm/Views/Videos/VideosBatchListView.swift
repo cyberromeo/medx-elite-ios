@@ -35,7 +35,7 @@ public struct VideosBatchListView: View {
                         loadState = .loading
                         Task { await loadVideos() }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .medxFilledButton()
                     .buttonBorderShape(.capsule)
                 }
             case .loaded:
@@ -55,6 +55,7 @@ public struct VideosBatchListView: View {
             }
         }
         .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxScrollEdge()
         .navigationTitle("Classes")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -97,8 +98,7 @@ public struct VideosBatchListView: View {
                     section: .videos,
                     title: "Classes",
                     lead: "Every recorded ARISE lecture, by batch and then by subject. "
-                        + "Hold a subject to save the whole thing for no signal.",
-                    sticker: "clapper"
+                        + "Hold a subject to save the whole thing for no signal."
                 )
 
                 MedxMetricsRow {
@@ -180,9 +180,7 @@ public struct VideosBatchListView: View {
         let offline = subject.videos.filter { downloads.items[$0.id]?.state == .completed }.count
 
         return HStack(spacing: 14) {
-            MedxSticker(MedxSubjectArt.sticker(for: subject.name), size: 26, tilt: -6)
-                .frame(width: 38, height: 38)
-                .background(MedxCandy.violetSoft, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            MedxSymbolMark(MedxSubjectArt.symbol(for: subject.name), hue: MedxCandy.violet, size: 38)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(subject.name)

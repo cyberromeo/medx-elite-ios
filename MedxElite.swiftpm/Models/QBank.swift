@@ -281,7 +281,7 @@ public struct Question: Identifiable, Hashable, Codable, Sendable {
         type = try? container.decodeIfPresent(String.self, forKey: .type)
         answerType = try? container.decodeIfPresent(String.self, forKey: .answerType)
         options = container.decodeLenientArray(QuestionOption.self, forKey: .options) ?? []
-        correctIds = container.decodeLenientArray(Int.self, forKey: .correctIds) ?? []
+        correctIds = (container.decodeLenientArray(MedxOptionId.self, forKey: .correctIds) ?? []).map(\.value)
         explanation = try? container.decodeIfPresent(String.self, forKey: .explanation)
         reference = try? container.decodeIfPresent(String.self, forKey: .reference)
         images = container.decodeLenientArray(String.self, forKey: .images)
@@ -332,6 +332,41 @@ public struct Question: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
+/// One option id as it arrives on the wire, in either shape the backend uses.
+///
+/// ARISE options are numbered — `333631` — and Marrow's are strings shaped
+/// `<questionId>_<ordinal>`: `"40340_1"`. Everything downstream compares option ids as `Int`:
+/// `correctIds.contains(option.id)` scores the answer, `QuestionResponse.chosenId` records it, and
+/// SwiftUI's `ForEach` uses it as the row's identity. So the string form is folded to an `Int`
+/// here, by the same rule on both sides of every one of those comparisons.
+///
+/// The trailing ordinal is what survives, because it is unique inside a question and a question is
+/// the only scope any of those comparisons has. Before this, a non-numeric id fell to `0`: all four
+/// options of a Marrow question were then identical to `ForEach`, which drew option A four times,
+/// and `correctIds` decoded to empty, which scored every Marrow answer wrong.
+public struct MedxOptionId: Decodable, Sendable {
+    public let value: Int
+
+    public init(from decoder: Decoder) throws {
+        let single = try decoder.singleValueContainer()
+        if let intVal = try? single.decode(Int.self) {
+            value = intVal
+        } else {
+            value = Self.int(from: try single.decode(String.self))
+        }
+    }
+
+    public static func int(from raw: String) -> Int {
+        if let direct = Int(raw) { return direct }
+        if let tail = raw.split(separator: "_").last, let ordinal = Int(tail) { return ordinal }
+        // Neither shape. A stable non-zero djb2 so identity is at least distinct per option text,
+        // rather than every option collapsing onto the same row.
+        var hash = 5381
+        for byte in raw.utf8 { hash = (hash &* 33) &+ Int(byte) }
+        return abs(hash % 1_000_003) + 1
+    }
+}
+
 public struct QuestionOption: Identifiable, Hashable, Codable, Sendable {
     public let id: Int
     public let label: String
@@ -346,8 +381,8 @@ public struct QuestionOption: Identifiable, Hashable, Codable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         if let intVal = try? container.decode(Int.self, forKey: .id) {
             id = intVal
-        } else if let strVal = try? container.decode(String.self, forKey: .id), let intVal = Int(strVal) {
-            id = intVal
+        } else if let strVal = try? container.decode(String.self, forKey: .id) {
+            id = MedxOptionId.int(from: strVal)
         } else {
             id = 0
         }
@@ -420,10 +455,13 @@ public enum MedxBank: String, CaseIterable, Identifiable, Codable, Sendable {
         }
     }
 
-    public var sticker: String {
+    /// The SF Symbol on a bank's chip and header. Both banks are question banks, so the
+    /// difference has to be legible at chip size: ARISE is the live course, Marrow is the
+    /// archive.
+    public var symbol: String {
         switch self {
-        case .arise: return "brain"
-        case .marrow: return "filebox"
+        case .arise: return "graduationcap.fill"
+        case .marrow: return "archivebox.fill"
         }
     }
 }

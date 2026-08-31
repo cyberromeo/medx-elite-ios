@@ -142,7 +142,7 @@ public struct SettingsView: View {
                         )
                     }
                 } header: {
-                    MedxSettingsHeader("Library", sticker: "filebox", hue: MedxCandy.mint)
+                    MedxSettingsHeader("Library", symbol: "square.grid.2x2.fill", hue: MedxCandy.mint)
                 }
 
                 // Grouped because a `List` builder takes at most ten direct children and
@@ -209,7 +209,7 @@ public struct SettingsView: View {
                         .disabled(isManualSyncing || activityStore.isSyncing)
                     }
                 } header: {
-                    MedxSettingsHeader("Cloud Synchronization", sticker: "satellite", hue: MedxCandy.blue)
+                    MedxSettingsHeader("Cloud Synchronization", symbol: "arrow.triangle.2.circlepath", hue: MedxCandy.blue)
                 }
 
                 // MARK: - Storage
@@ -305,7 +305,7 @@ public struct SettingsView: View {
                         }
                     }
                 } header: {
-                    MedxSettingsHeader("Storage", sticker: "phone", hue: MedxCandy.violet)
+                    MedxSettingsHeader("Storage", symbol: "internaldrive.fill", hue: MedxCandy.violet)
                 } footer: {
                     Text("Clearing cached data keeps your downloads, bookmarks and history — only the re-downloadable copies of questions and images are removed.")
                         .font(.caption)
@@ -339,7 +339,7 @@ public struct SettingsView: View {
                         }
                     }
                 } header: {
-                    MedxSettingsHeader("Account", sticker: "locked", hue: MedxCandy.pink)
+                    MedxSettingsHeader("Account", symbol: "person.crop.circle.fill", hue: MedxCandy.pink)
                 }
 
                 // MARK: - App Info
@@ -513,7 +513,7 @@ public struct SettingsView: View {
             .pickerStyle(.segmented)
             .padding(.vertical, 2)
         } header: {
-            MedxSettingsHeader("Appearance", sticker: "cool", hue: MedxCandy.butter)
+            MedxSettingsHeader("Appearance", symbol: "paintpalette.fill", hue: MedxCandy.butter)
         } footer: {
             Text("The accent applies across the app, its widgets and the Lock Screen activities. Colours are system colours, so contrast settings keep working.")
                 .font(.caption)
@@ -557,7 +557,7 @@ public struct SettingsView: View {
             }
             .frame(minHeight: 44)
         } header: {
-            MedxSettingsHeader("Exam & goals", sticker: "bullseye", hue: MedxCandy.tangerine)
+            MedxSettingsHeader("Exam & goals", symbol: "target", hue: MedxCandy.tangerine)
         } footer: {
             Text("\(stats.daysToExam) days to \(stats.examName). The countdown card, the widgets and the reminders all read these two values.")
                 .font(.caption)
@@ -645,7 +645,7 @@ public struct SettingsView: View {
                     .foregroundStyle(MedxTheme.warningOrange)
             }
         } header: {
-            MedxSettingsHeader("Question search", sticker: "search", hue: MedxCandy.lime)
+            MedxSettingsHeader("Question search", symbol: "magnifyingglass", hue: MedxCandy.lime)
         } footer: {
             // Both banks, so the split is worth naming: "32,467 questions" on its own does not
             // tell you whether the Marrow half actually landed.
@@ -713,7 +713,7 @@ public struct SettingsView: View {
             }
             .disabled(!reminders.enabled.contains(.dailyQuestions) || !reminders.isAuthorized)
         } header: {
-            MedxSettingsHeader("Reminders", sticker: "clock", hue: MedxCandy.pink)
+            MedxSettingsHeader("Reminders", symbol: "bell.badge.fill", hue: MedxCandy.pink)
         } footer: {
             Text(reminders.isAuthorized
                  ? "\(reminders.pendingCount) scheduled. The wording is rebuilt each time the app opens, so the numbers are current."
@@ -779,7 +779,7 @@ public struct SettingsView: View {
             }
             .padding(.vertical, 4)
         } header: {
-            MedxSettingsHeader("Siri, Spotlight & widgets", sticker: "sparkles", hue: MedxCandy.sky)
+            MedxSettingsHeader("Siri, Spotlight & widgets", symbol: "sparkles", hue: MedxCandy.sky)
         } footer: {
             Text("Nothing is uploaded — Spotlight's index lives on this device and is removed when the switch is off.")
                 .font(.caption)
@@ -891,7 +891,7 @@ public struct SettingsView: View {
                 }
             }
         } header: {
-            MedxSettingsHeader("Diagnostics", sticker: "microscope", hue: MedxCandy.violet)
+            MedxSettingsHeader("Diagnostics", symbol: "stethoscope", hue: MedxCandy.violet)
         } footer: {
             Text(MedxInstallInfo.usesLegacyAppearance
                  ? "This build was compiled against an older iOS SDK, which is why the interface uses the previous system style — iOS only applies the current design language to apps linked against the iOS 26 SDK or newer. Rebuild with the updated CI workflow."
@@ -1201,11 +1201,12 @@ private struct BookmarkedQuestionDetailView: View {
 
                 // Options with Answer Key
                 VStack(spacing: 10) {
-                    ForEach(bookmark.question.options) { option in
+                    ForEach(Array(bookmark.question.options.enumerated()), id: \.offset) { pair in
+                        let option = pair.element
                         let isCorrect = bookmark.question.correctIds.contains(option.id) || option.correct == true
 
                         HStack(alignment: .center, spacing: 12) {
-                            Text(option.label)
+                            Text(MedxOptionLetter.of(option, at: pair.offset))
                                 .font(.footnote.weight(.bold).monospacedDigit())
                                 .foregroundColor(isCorrect ? .white : .primary)
                                 .frame(width: 28, height: 28)
@@ -1256,7 +1257,7 @@ private struct BookmarkedQuestionDetailView: View {
                     Label("Remove Bookmark", systemImage: "bookmark.slash")
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .buttonStyle(.bordered)
+                .medxBorderedButton()
                 .tint(MedxTheme.destructiveRed)
                 .padding(.top, 10)
             }
@@ -1479,12 +1480,7 @@ struct ActivityLogView: View {
                     Section {
                         ForEach(filteredItems) { item in
                             HStack(spacing: 14) {
-                                MedxSticker(item.sticker, size: 26, tilt: -6)
-                                    .frame(width: 34, height: 34)
-                                    .background(
-                                        item.color.opacity(0.18),
-                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    )
+                                MedxSymbolMark(item.symbol, hue: item.color, size: 34)
 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(item.title)
@@ -1631,10 +1627,10 @@ private enum ActivityLogItem: Identifiable, Hashable {
         }
     }
 
-    var sticker: String {
+    var symbol: String {
         switch self {
-        case .video: return "clapper"
-        case .attempt(let attempt): return MedxAttemptKind.sticker(attempt.kind)
+        case .video: return "play.rectangle.fill"
+        case .attempt(let attempt): return MedxAttemptKind.symbol(attempt.kind)
         }
     }
 
@@ -1678,28 +1674,29 @@ private enum ActivityLogItem: Identifiable, Hashable {
 
 // MARK: - Section heading
 
-/// A settings section heading with its own sticker.
+/// A settings section heading with its own symbol.
 ///
 /// Settings is the one screen with nine peer sections and no hierarchy between them, so the marks
 /// are doing real work rather than decoration: they are what makes "the one with the reminders"
 /// findable by scrolling instead of by reading every heading on the way past.
 struct MedxSettingsHeader: View {
     private let title: String
-    private let sticker: String
+    private let symbol: String
     private let hue: Color
 
-    init(_ title: String, sticker: String, hue: Color) {
+    init(_ title: String, symbol: String, hue: Color) {
         self.title = title
-        self.sticker = sticker
+        self.symbol = symbol
         self.hue = hue
     }
 
     var body: some View {
         HStack(spacing: 6) {
-            MedxSticker(sticker, size: 16)
+            Image(systemName: symbol)
+                .font(.caption2.weight(.bold))
             Text(title)
-                .foregroundStyle(MedxCandy.onSoft(hue))
         }
+        .foregroundStyle(MedxCandy.onSoft(hue))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(title)
     }

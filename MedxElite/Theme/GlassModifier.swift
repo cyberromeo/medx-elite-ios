@@ -120,34 +120,68 @@ public extension View {
     }
 }
 
-// MARK: - Scroll reveal
+// MARK: - Scroll
+//
+// There used to be a `medxScrollReveal()` here: a `scrollTransition` that faded and lifted
+// each card as it came into view. It is gone, not disabled. Content that dims and slides
+// while you are trying to read it fights the scroll instead of decorating it, and none of
+// Apple's own list screens do this. Scrolling is now the platform's, untouched.
 
-/// Content fades and lifts a little as it scrolls into place.
-///
-/// Deliberately restrained, and opacity/offset only: a page where every card also *scales*
-/// on entry reads as a fairground rather than a dashboard. Skipped entirely under Reduce
-/// Motion, where the cards simply appear.
-public struct MedxScrollRevealModifier: ViewModifier {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    public init() {}
-
-    public func body(content: Content) -> some View {
-        if reduceMotion {
-            content
-        } else {
-            content.scrollTransition(.animated(.smooth(duration: 0.28))) { view, phase in
-                view
-                    .opacity(phase.isIdentity ? 1 : 0.3)
-                    .offset(y: phase.isIdentity ? 0 : 12)
-            }
-        }
-    }
-}
+// MARK: - iOS 26 chrome
+//
+// The Liquid Glass adoptions, each behind its own availability check and each in exactly one
+// place, because the deployment target is iOS 17 and every API below is iOS 26. The fallback
+// is never a stub: it is what the screen should look like on iOS 17, which is the version
+// three of the four target devices were on when this was written.
+//
+// The rule from the top of this file still holds — glass goes on chrome that floats over
+// content, never on content — so what is adopted here is the tab bar's own behaviour, the
+// scroll edges, and button styles. Cards stay flat.
 
 public extension View {
-    func medxScrollReveal() -> some View {
-        modifier(MedxScrollRevealModifier())
+    /// Lets the tab bar shrink out of the way as you scroll down a long list, which on iOS 26
+    /// is what gives a five-tab app its screen back. Below 26 the bar is fixed and there is
+    /// nothing to ask for.
+    @ViewBuilder
+    func medxTabBarMinimize() -> some View {
+        if #available(iOS 26.0, *) {
+            self.tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            self
+        }
+    }
+
+    /// Softens a scroll view's edges so content dissolves under the bars instead of sliding
+    /// under a hard line.
+    @ViewBuilder
+    func medxScrollEdge() -> some View {
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectStyle(.soft, for: .all)
+        } else {
+            self
+        }
+    }
+
+    /// A secondary action. Deliberately does **not** set a border shape: the call sites that
+    /// want a capsule already say so, and imposing one here would re-shape a dozen buttons
+    /// that are meant to be the system's default rounded rectangle.
+    @ViewBuilder
+    func medxBorderedButton() -> some View {
+        if #available(iOS 26.0, *) {
+            self.buttonStyle(.glass)
+        } else {
+            self.buttonStyle(.bordered)
+        }
+    }
+
+    /// The primary action on a screen — Start, Submit, Deal.
+    @ViewBuilder
+    func medxFilledButton() -> some View {
+        if #available(iOS 26.0, *) {
+            self.buttonStyle(.glassProminent)
+        } else {
+            self.buttonStyle(.borderedProminent)
+        }
     }
 }
 

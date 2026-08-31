@@ -55,30 +55,25 @@ public struct HomeView: View {
                 CountdownWidgetView()
 
                 goalSection
-                    .medxScrollReveal()
 
                 quickActionsSection
-                    .medxScrollReveal()
 
                 if let resumeEntry {
                     continueSection(entry: resumeEntry)
-                        .medxScrollReveal()
                 }
 
                 thisWeekSection
-                    .medxScrollReveal()
 
                 progressSection
-                    .medxScrollReveal()
 
                 syllabusRow
-                    .medxScrollReveal()
             }
             .padding(.horizontal, MedxSurface.gutter)
             .padding(.top, 4)
             .padding(.bottom, 28)
         }
         .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxScrollEdge()
         .scrollIndicators(.automatic)
         .navigationTitle("Home")
         .navigationBarTitleDisplayMode(.large)
@@ -325,11 +320,7 @@ public struct HomeView: View {
 
     private func shortcutTile(_ shortcut: HomeShortcut) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: shortcut.icon)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(shortcut.tint)
-                .frame(width: 34, height: 34)
-                .background(shortcut.tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            MedxSymbolMark(shortcut.icon, hue: shortcut.tint, size: 34)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(shortcut.title)
@@ -622,16 +613,6 @@ private enum HomeShortcut: String, CaseIterable, Identifiable {
         }
     }
 
-    var sticker: String {
-        switch self {
-        case .qbank: return "brain"
-        case .tests: return "trophy"
-        case .faceoff: return "bolt"
-        case .quickSitting: return "crystal"
-        case .customModules: return "memo"
-        case .classes: return "clapper"
-        }
-    }
 }
 
 // MARK: - Derived stats

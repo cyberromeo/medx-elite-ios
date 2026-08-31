@@ -167,7 +167,7 @@ public struct TestDetailCard: View {
                 .font(.subheadline.weight(.semibold))
                 .frame(maxWidth: .infinity, minHeight: 44)
         }
-        .buttonStyle(.borderedProminent)
+        .medxFilledButton()
         .buttonBorderShape(.capsule)
         .tint(test.gradable ? MedxTheme.accent : MedxTheme.warningOrange)
         .padding(.top, 2)

@@ -75,6 +75,7 @@ public struct QBankSubjectListView: View {
             }
         }
         .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxScrollEdge()
         .navigationTitle("Question Bank")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -126,7 +127,7 @@ public struct QBankSubjectListView: View {
                     title: "Question Bank",
                     lead: "\(allQuestions.formatted()) questions across two banks. "
                         + "Marrow's ids are prefixed, so a module runs the same either way.",
-                    sticker: bank.sticker
+                    symbol: bank.symbol
                 )
 
                 MedxSegmented(
@@ -169,8 +170,8 @@ public struct QBankSubjectListView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         MedxSectionHeader("Subjects")
 
-                        ForEach(Array(shownSubjects.enumerated()), id: \.element.id) { offset, subject in
-                            subjectLink(subject, tilt: offset.isMultiple(of: 2) ? -6 : 6)
+                        ForEach(shownSubjects) { subject in
+                            subjectLink(subject)
                         }
                     }
                 }
@@ -184,7 +185,7 @@ public struct QBankSubjectListView: View {
         }
     }
 
-    private func subjectLink(_ subject: MedxBankSubject, tilt: Double) -> some View {
+    private func subjectLink(_ subject: MedxBankSubject) -> some View {
         NavigationLink {
             QBankChapterView(
                 subject: subject,
@@ -199,10 +200,9 @@ public struct QBankSubjectListView: View {
                 )
             }
         } label: {
-            subjectRow(subject, tilt: tilt)
+            subjectRow(subject)
         }
         .buttonStyle(.plain)
-        .medxScrollReveal()
         // Long press to go straight at the subject without walking its chapter tree first.
         .contextMenu {
             Button {
@@ -220,16 +220,14 @@ public struct QBankSubjectListView: View {
         }
     }
 
-    private func subjectRow(_ subject: MedxBankSubject, tilt: Double) -> some View {
+    private func subjectRow(_ subject: MedxBankSubject) -> some View {
         let practised = practisedBySubject[subject.id] ?? 0
         let fraction = subject.moduleCount > 0
             ? Double(practised) / Double(subject.moduleCount)
             : 0
 
         return HStack(spacing: 14) {
-            MedxSticker(MedxSubjectArt.sticker(for: subject.name), size: 30, tilt: tilt)
-                .frame(width: 40, height: 40)
-                .background(MedxSection.qbank.soft, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            MedxSymbolMark(MedxSubjectArt.symbol(for: subject.name), hue: MedxSection.qbank.fill, size: 40)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(subject.name)
@@ -330,7 +328,7 @@ public struct QBankSubjectListView: View {
                 loadState = .loading
                 Task { await loadData() }
             }
-            .buttonStyle(.borderedProminent)
+            .medxFilledButton()
             .buttonBorderShape(.capsule)
         }
     }

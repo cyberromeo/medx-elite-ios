@@ -7,32 +7,36 @@ import SwiftUI
 // is `.inline`, so the accessibility title, the back-button label and the collapse behaviour
 // all remain the platform's; this is content that happens to introduce the page.
 //
-// The sticker is the only thing here that is purely decorative, and it is the thing that
-// makes a screen recognisable from across a room, which is the whole point of the redesign.
+// The mark is an SF Symbol in the section's hue, not a sticker. It is still the thing that
+// makes a screen recognisable at a glance, but as a symbol it takes the section colour,
+// tracks Dynamic Type and sits in the same rounded square the system uses in Settings and
+// Shortcuts — which is what a header mark should look like on iOS.
 
 public struct MedxPageHeader<Trailing: View>: View {
     private let section: MedxSection
     private let eyebrow: String?
     private let title: String
     private let lead: String?
-    private let sticker: String?
+    private let symbol: String?
     private let trailing: Trailing
 
     @Environment(\.dynamicTypeSize) private var typeSize
 
+    /// `symbol` defaults to the section's own, so a screen only names one when it wants
+    /// something more specific than "this is the QBank".
     public init(
         section: MedxSection,
         eyebrow: String? = nil,
         title: String,
         lead: String? = nil,
-        sticker: String? = nil,
+        symbol: String? = nil,
         @ViewBuilder trailing: () -> Trailing
     ) {
         self.section = section
         self.eyebrow = eyebrow
         self.title = title
         self.lead = lead
-        self.sticker = sticker
+        self.symbol = symbol
         self.trailing = trailing()
     }
 
@@ -54,10 +58,10 @@ public struct MedxPageHeader<Trailing: View>: View {
                 }
                 Spacer(minLength: 0)
 
-                // At an accessibility type size the art is the first thing that should give
+                // At an accessibility type size the mark is the first thing that should give
                 // up its room — the lead paragraph needs it more.
-                if let sticker, !typeSize.isAccessibilitySize {
-                    MedxSticker(sticker, size: 46, tilt: -8)
+                if !typeSize.isAccessibilitySize {
+                    MedxSymbolMark(symbol ?? section.symbol, hue: section.fill, size: 44)
                 }
 
                 trailing
@@ -84,14 +88,14 @@ public extension MedxPageHeader where Trailing == EmptyView {
         eyebrow: String? = nil,
         title: String,
         lead: String? = nil,
-        sticker: String? = nil
+        symbol: String? = nil
     ) {
         self.init(
             section: section,
             eyebrow: eyebrow,
             title: title,
             lead: lead,
-            sticker: sticker
+            symbol: symbol
         ) { EmptyView() }
     }
 }

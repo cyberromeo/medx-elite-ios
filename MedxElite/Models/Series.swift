@@ -25,13 +25,13 @@ public enum MedxSeriesGroup: String, CaseIterable, Identifiable, Codable, Sendab
     }
 
     /// A subject paper names its subject in its title ("FMGE Sprint Series- ANATOMY"), so it
-    /// gets the subject's own mark and this is `nil`. The grand and mini papers have nothing
-    /// to key off, and letting the subject hash decide put a random teddy bear next to a
-    /// grand test — so they take their group's mark instead.
-    public var sticker: String? {
+    /// gets the subject's own mark and `nil` here means "use the subject's symbol". The grand
+    /// and mini papers have nothing to key off, and letting the subject hash decide put a
+    /// random teddy bear next to a grand test — so they take their group's mark instead.
+    public var symbol: String? {
         switch self {
-        case .grand: return "trophy"
-        case .mini: return "bolt"
+        case .grand: return "trophy.fill"
+        case .mini: return "bolt.fill"
         case .subject: return nil
         }
     }
@@ -225,8 +225,8 @@ public enum MedxSeriesRules {
             + "No going back once a section is submitted."
     }
     /// The mark on a paper's row.
-    public static func sticker(for paper: MedxSeriesPaper) -> String {
-        paper.group.sticker ?? MedxSubjectArt.sticker(for: paper.title)
+    public static func symbol(for paper: MedxSeriesPaper) -> String {
+        paper.group.symbol ?? MedxSubjectArt.symbol(for: paper.title)
     }
 
     private static let monthKeyFormatter: DateFormatter = {

@@ -136,14 +136,14 @@ public struct VideoPlayerView: View {
                     Label("Retry", systemImage: "arrow.clockwise")
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .buttonStyle(.borderedProminent)
+                .medxFilledButton()
                 .buttonBorderShape(.capsule)
                 .tint(.white)
                 .foregroundStyle(.black)
 
                 Button("Close") { closePlayer() }
                     .frame(maxWidth: .infinity, minHeight: 44)
-                    .buttonStyle(.bordered)
+                    .medxBorderedButton()
                     .buttonBorderShape(.capsule)
                     .tint(.white)
             }

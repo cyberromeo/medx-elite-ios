@@ -480,15 +480,19 @@ public struct QuizRunnerView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
 
-            ForEach(question.options) { option in
+            // Keyed on position, not on `option.id`: a backend that hands out duplicate option ids
+            // would otherwise make `ForEach` draw one row several times, which is exactly what the
+            // Marrow papers did.
+            ForEach(Array(question.options.enumerated()), id: \.offset) { pair in
                 QuestionOptionButton(
-                    option: option,
-                    isChosen: response?.chosenId == option.id,
-                    isCorrect: option.correct == true || question.correctIds.contains(option.id),
+                    option: pair.element,
+                    index: pair.offset,
+                    isChosen: response?.chosenId == pair.element.id,
+                    isCorrect: pair.element.correct == true || question.correctIds.contains(pair.element.id),
                     isRevealed: isRevealed,
                     isLocked: isLocked
                 ) {
-                    handlePickOption(question: question, chosenId: option.id)
+                    handlePickOption(question: question, chosenId: pair.element.id)
                 }
             }
         }
@@ -523,7 +527,7 @@ public struct QuizRunnerView: View {
                         .font(.subheadline.weight(.semibold))
                         .frame(width: 44, height: 44)
                 }
-                .buttonStyle(.bordered)
+                .medxBorderedButton()
                 .buttonBorderShape(.capsule)
                 .disabled(currentIndex == 0)
                 .accessibilityLabel("Previous question")
@@ -537,7 +541,7 @@ public struct QuizRunnerView: View {
                             .font(.subheadline.weight(.semibold))
                             .frame(minWidth: 60, minHeight: 44)
                     }
-                    .buttonStyle(.bordered)
+                    .medxBorderedButton()
                     .buttonBorderShape(.capsule)
                 }
 
@@ -553,7 +557,7 @@ public struct QuizRunnerView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .buttonStyle(.borderedProminent)
+                .medxFilledButton()
                 .buttonBorderShape(.capsule)
                 .disabled(!canGo)
             }
@@ -632,7 +636,7 @@ public struct QuizRunnerView: View {
                         .font(.subheadline.weight(.semibold))
                         .frame(minWidth: 150, minHeight: 44)
                 }
-                .buttonStyle(.borderedProminent)
+                .medxFilledButton()
                 .buttonBorderShape(.capsule)
 
                 Button("Close") { dismiss() }
@@ -1313,7 +1317,7 @@ struct MedxSectionHandoverSheet: View {
                         lead: "\(summary.nextCount) questions, \(summary.nextMinutes) minutes. "
                             + "The block you just submitted is closed for good, and this one's "
                             + "clock starts when you tap below.",
-                        sticker: "hourglass"
+                        symbol: "hourglass"
                     )
 
                     MedxMetricsRow {

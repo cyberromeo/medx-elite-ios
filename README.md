@@ -2,9 +2,9 @@
 
 A native iOS application built in **pure Swift and SwiftUI**, targeting **iOS 17+**, connected directly to the **Medx-elite Firebase backend** (`medx-e9acd`) and Arise CDNs. It is the same backend the `Medx elite pwa` sibling runs on, and it now carries the same feature set: two question banks, the Marrow FMGE test series, the two-player Faceoff, shared custom modules and the raw VOD bucket.
 
-Designed to Apple's Human Interface Guidelines — native navigation and toolbars, Dynamic Type throughout, full VoiceOver labelling, system materials reserved for chrome that actually floats — with the PWA's visual identity layered on top: a per-destination candy accent, the eyebrow / title / lead page header, pill chips, and 62 Fluent Emoji stickers as card and empty-state marks. Materials appear in exactly one place, `medxBar`, and nowhere in content. The one deliberate exception to the flat-surface rule is the brand itself: the app icon and the launch screen get a layered glass treatment, because an icon is chrome *about* the app rather than content *within* it.
+Designed to Apple's Human Interface Guidelines — native navigation and toolbars, Dynamic Type throughout, full VoiceOver labelling, system materials reserved for chrome that actually floats — with the PWA's visual identity layered on top: a per-destination candy accent, the eyebrow / title / lead page header, and pill chips. **Icons are SF Symbols**; the 62 Fluent Emoji stickers are kept for the places where the picture is the content rather than the label — a profile mark, an empty state, the trophy at the end of a duel. Materials appear in exactly one place, `medxBar`, and nowhere in content. Where the running OS is iOS 26 the app takes the platform's own Liquid Glass chrome — a minimising tab bar, soft scroll edges, glass button styles — each behind an `#available` check, because the deployment target is iOS 17. The one deliberate exception to the flat-surface rule is the brand itself: the app icon and the launch screen get a layered glass treatment, because an icon is chrome *about* the app rather than content *within* it.
 
-Five top-level destinations: **Home · QBank · Tests · Cards · Library**. Two targets ship from this project: the app, and a `MedxWidgets` extension carrying two Home Screen widgets, three Lock Screen accessories and **three** Live Activities.
+Five top-level destinations: **Home · QBank · Tests · Classes · Library**. Cards live in Library, which is a grid of eleven doors rather than a list. Two targets ship from this project: the app, and a `MedxWidgets` extension carrying two Home Screen widgets, three Lock Screen accessories and **three** Live Activities.
 
 ---
 
@@ -22,8 +22,10 @@ Five top-level destinations: **Home · QBank · Tests · Cards · Library**. Two
 | A glyph on a candy soft wash is mixed 52% toward the label colour | `MedxCandy.onSoft` — measured, not guessed: butter-on-butter was 1.25:1 |
 | A label on a **solid** candy fill is a fixed near-black, never `.systemBackground` | `MedxCandy.onSolid`, `MedxFilledButtonStyle` — every hue is light in *both* appearances |
 | One accent for interactive chrome, chosen in Settings | `MedxTheme.accent` — **not** `Color.accentColor`, which reads the asset catalogue and does not follow `.tint()` |
-| Entry animations are opacity and offset, never scale | `medxScrollReveal()` |
-| Stickers are decoration and are always hidden from VoiceOver | `MedxSticker` — `NSDataAsset`-backed WebP, `.accessibilityHidden(true)`, no tilt under Reduce Motion |
+| Scrolling is plain scrolling — no per-card entry transition | there is no `scrollTransition` anywhere; the reveal that used to fade and lift each card was removed because it read as content popping in |
+| An icon is an SF Symbol in the section's hue, in the system's rounded square | `MedxSymbolMark` — Settings, Shortcuts and Mail all draw a list this way |
+| A sticker is an illustration, never an icon, and is always hidden from VoiceOver | `MedxSticker` — `NSDataAsset`-backed WebP, `.accessibilityHidden(true)`, no tilt under Reduce Motion |
+| iOS 26 chrome degrades to the iOS 17 equivalent, never to a stub | `medxTabBarMinimize()`, `medxScrollEdge()`, `medxBorderedButton()`, `medxFilledButton()` in `Theme/GlassModifier.swift` |
 
 ---
 
@@ -44,7 +46,7 @@ Five top-level destinations: **Home · QBank · Tests · Cards · Library**. Two
 | **Rich question rendering** | Custom HTML renderer: inline `<img>` figures render and zoom full-screen, authored light-mode colours and highlights are re-mapped for Dark Mode, and parses are cached so a 40-question review scrolls at frame rate. |
 | **Flashcard Gallery** | 895 high-yield cards from the Arise CloudFront CDN. Contact-sheet grid, Photos-style pager with pinch zoom, swipe from anywhere on the card, and an artwork override (Auto / Phone / Tablet × Portrait / Landscape) plus a quarter-turn rotate for reading landscape cards on a portrait phone. |
 | **Video Classroom** | 67 recorded classes by Batch and Subject. Native HLS `AVPlayer` with background audio, PiP, and silent resume. |
-| **The VOD feed** | Every recording in the raw ARISE bucket (~2,900 documents), newest first: a watermark card, day-header sections, a CC filter, `new` pills against the last-seen watermark, and paging 48 at a time — auto-paged three screens deep, then by tap. |
+| **The VOD feed** | Every recording in the raw ARISE bucket (~2,900 documents), newest first: a watermark card, day-header sections, a CC filter, `new` pills against the last-seen watermark, and paging 48 at a time — auto-paged three screens deep, then by tap. Every row is **downloadable for offline**: a bucket item is an HLS stream like any class, so `asRecordedVideo` hands it straight to `VideoDownloadStore` and it lands in Downloads beside them, with the same quality menu, the same pause/resume and the same shared watch progress. |
 | **New-drop notifications** | One `medx_vod/_meta` read per check, on every foreground and opportunistically every two hours in the background, tells you when something lands: *"4 new recordings in the VOD bucket — Class 7F2A11 and 3 more."* |
 | **Offline Downloads** | Per-class HLS downloads with quality choice, pause/resume from **inside the Live Activity**, and playback with no signal through a custom `medxoffline://` scheme rather than a local HTTP server. Watch progress is shared between a download and the streaming copy of the same class, and offline progress is pushed to Firestore on the next sync. |
 | **Offline Performance** | Multi-tier caching for documents (`CacheManager`) and images (`MedxImageLoader`, with downsampled decode). |
@@ -251,7 +253,7 @@ medx-elite-ios/
 │   │   ├── MedxLogoMark.swift       # The vector mark — splash and icon share its coordinates
 │   │   ├── FlashcardDeckView.swift  # Photos-style zoomable flashcard pager
 │   │   ├── ModernButton.swift       # Primary button, BouncyButtonStyle, MedxFilledButtonStyle
-│   │   └── FloatingTabBar.swift     # TabItem — Home · QBank · Tests · Cards · Library
+│   │   └── FloatingTabBar.swift     # TabItem — Home · QBank · Tests · Classes · Library
 │   ├── Views/
 │   │   ├── Auth/                    # ProfileSelectView, PasswordPromptView
 │   │   ├── Main/MainTabView.swift   # Tab bar / split view + every external presentation
@@ -264,7 +266,7 @@ medx-elite-ios/
 │   │   │                            # TestDetailCard
 │   │   ├── Faceoff/                 # FaceoffLobbyView, DuelRoomView, DuelResultView
 │   │   ├── Custom/                  # CustomModulesView, ModuleBuilderSheet
-│   │   ├── Library/LibraryView.swift# The hub: Watch / Play / Build / Saved
+│   │   ├── Library/LibraryView.swift# The hub: an eleven-tile grid, two up / four on iPad
 │   │   ├── Flashcards/              # FlashcardsSubjectListView, FlashcardStudyView
 │   │   ├── Videos/                  # VideosBatchListView, VideoSubjectView, VodFeedView
 │   │   └── Settings/SettingsView.swift

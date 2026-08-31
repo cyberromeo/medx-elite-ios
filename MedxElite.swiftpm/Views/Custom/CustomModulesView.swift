@@ -32,8 +32,7 @@ public struct CustomModulesView: View {
                     title: "Custom modules",
                     lead: "Pick any modules from either bank, shuffle them together, cap the "
                         + "length. It runs exactly like a QBank sitting — and whatever either of "
-                        + "you saves shows up here for both.",
-                    sticker: "memo"
+                        + "you saves shows up here for both."
                 )
 
                 newButton
@@ -55,7 +54,6 @@ public struct CustomModulesView: View {
                             },
                             onDelete: { confirmDelete = module }
                         )
-                        .medxScrollReveal()
                     }
                 }
 
@@ -72,6 +70,7 @@ public struct CustomModulesView: View {
             .padding(.bottom, 28)
         }
         .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxScrollEdge()
         .navigationTitle("Custom modules")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await store.reload(uid: uid) }
@@ -259,9 +258,7 @@ struct CustomModuleCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                MedxSticker("memo", size: 26, tilt: -7)
-                    .frame(width: 36, height: 36)
-                    .background(MedxSection.custom.soft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                MedxSymbolMark(MedxSection.custom.symbol, hue: MedxSection.custom.fill, size: 36)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(module.name)
@@ -353,7 +350,7 @@ struct CustomModuleCard: View {
                     .font(.subheadline.weight(.semibold))
                     .frame(minWidth: 56, minHeight: 34)
             }
-            .buttonStyle(.bordered)
+            .medxBorderedButton()
             .buttonBorderShape(.capsule)
 
             Button(role: .destructive) {
@@ -364,7 +361,7 @@ struct CustomModuleCard: View {
                     .font(.subheadline.weight(.semibold))
                     .frame(width: 40, height: 34)
             }
-            .buttonStyle(.bordered)
+            .medxBorderedButton()
             .buttonBorderShape(.capsule)
             .accessibilityLabel("Delete \(module.name)")
 
@@ -401,8 +398,7 @@ struct MedxCustomRunSheet: View {
                         lead: module.sources.count == 1
                             ? module.sources[0].subject
                             : "\(module.sources.count) modules across "
-                                + "\(Set(module.sources.map(\.subject)).count) subjects",
-                        sticker: "memo"
+                                + "\(Set(module.sources.map(\.subject)).count) subjects"
                     )
 
                     mode(

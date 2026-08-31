@@ -55,6 +55,7 @@ public struct TestsListView: View {
             }
         }
         .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxScrollEdge()
         .navigationTitle("Tests")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -130,7 +131,7 @@ public struct TestsListView: View {
                 "\($0.totalPapers.formatted()) papers, \($0.totalQuestions.formatted()) questions. "
                     + "Every one of them is keyed, so every one can be scored."
             } ?? "The Marrow FMGE test series — grand, mini and subject papers.",
-            sticker: "trophy"
+            symbol: "trophy.fill"
         )
     }
 
@@ -142,9 +143,7 @@ public struct TestsListView: View {
             BatchPapersView()
         } label: {
             HStack(spacing: 14) {
-                MedxSticker("flag", size: 30, tilt: -7)
-                    .frame(width: 38, height: 38)
-                    .background(MedxCandy.tangerineSoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                MedxSymbolMark("flag.pattern.checkered", hue: MedxCandy.tangerine, size: 38)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("ARISE batch papers")
@@ -171,14 +170,13 @@ public struct TestsListView: View {
         VStack(alignment: .leading, spacing: 10) {
             MedxRuleHeader(month.label, count: month.papers.count)
 
-            ForEach(Array(month.papers.enumerated()), id: \.element.id) { offset, paper in
-                paperRow(paper, tilt: offset.isMultiple(of: 2) ? -6 : 6)
+            ForEach(month.papers) { paper in
+                paperRow(paper)
             }
         }
-        .medxScrollReveal()
     }
 
-    private func paperRow(_ paper: MedxSeriesPaper, tilt: Double) -> some View {
+    private func paperRow(_ paper: MedxSeriesPaper) -> some View {
         let record = bestByPaper[paper.id]
         let sections = MedxSeriesRules.sections(for: paper)
 
@@ -187,9 +185,7 @@ public struct TestsListView: View {
             picked = paper
         } label: {
             HStack(spacing: 12) {
-                MedxSticker(MedxSeriesRules.sticker(for: paper), size: 28, tilt: tilt)
-                    .frame(width: 38, height: 38)
-                    .background(MedxCandy.tangerineSoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                MedxSymbolMark(MedxSeriesRules.symbol(for: paper), hue: MedxCandy.tangerine, size: 38)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(paper.title)
@@ -293,7 +289,7 @@ public struct TestsListView: View {
                     loadState = .loading
                     Task { await load() }
                 }
-                .buttonStyle(.borderedProminent)
+                .medxFilledButton()
                 .buttonBorderShape(.capsule)
 
                 NavigationLink("Open batch papers instead") {
@@ -429,7 +425,7 @@ struct MedxPaperModeSheet: View {
                             .joined(separator: " · "),
                         title: paper.title,
                         lead: paper.line,
-                        sticker: MedxSeriesRules.sticker(for: paper)
+                        symbol: MedxSeriesRules.symbol(for: paper)
                     )
 
                     modeButton(

@@ -146,8 +146,10 @@ struct MedxEliteApp: App {
             appState.open(route: .tests)
         case "library":
             appState.open(route: .library)
-        case "classes":
+        case "classes", "videos":
             appState.open(route: .classes)
+        case "cards", "flashcards":
+            appState.open(route: .flashcards)
         case "vod":
             appState.open(route: .vodFeed)
         case "custom":
