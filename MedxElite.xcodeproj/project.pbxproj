@@ -26,7 +26,6 @@
 		9B0010622A00000100000001 /* HLSProxyServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010632A00000100000001 /* HLSProxyServer.swift */; };
 		9B0010212A00000100000001 /* ColorSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010222A00000100000001 /* ColorSystem.swift */; };
 		9B0010232A00000100000001 /* GlassModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010242A00000100000001 /* GlassModifier.swift */; };
-		9B0010252A00000100000001 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010262A00000100000001 /* Typography.swift */; };
 		9B0010272A00000100000001 /* HTMLRichTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010282A00000100000001 /* HTMLRichTextView.swift */; };
 		9B00102B2A00000100000001 /* CountdownWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00102C2A00000100000001 /* CountdownWidgetView.swift */; };
 		9B0010642A00000100000001 /* AnalyticsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010652A00000100000001 /* AnalyticsCard.swift */; };
@@ -98,7 +97,6 @@
 		9B00114C2A00000100000001 /* MedxSharedIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00114A2A00000100000001 /* MedxSharedIntents.swift */; };
 		9B00114E2A00000100000001 /* MedxLiquidGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00114D2A00000100000001 /* MedxLiquidGlass.swift */; };
 		9B0011522A00000100000001 /* RunnerChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011512A00000100000001 /* RunnerChrome.swift */; };
-		9B0011542A00000100000001 /* MedxInk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011532A00000100000001 /* MedxInk.swift */; };
 		9B0011562A00000100000001 /* MedxDS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011552A00000100000001 /* MedxDS.swift */; };
 		9B0011582A00000100000001 /* MedxSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011572A00000100000001 /* MedxSheet.swift */; };
 		9B00115A2A00000100000001 /* MedxList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011592A00000100000001 /* MedxList.swift */; };
@@ -142,7 +140,6 @@
 		9B0010632A00000100000001 /* HLSProxyServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HLSProxyServer.swift; sourceTree = "<group>"; };
 		9B0010222A00000100000001 /* ColorSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorSystem.swift; sourceTree = "<group>"; };
 		9B0010242A00000100000001 /* GlassModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassModifier.swift; sourceTree = "<group>"; };
-		9B0010262A00000100000001 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
 		9B0010282A00000100000001 /* HTMLRichTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLRichTextView.swift; sourceTree = "<group>"; };
 		9B00102C2A00000100000001 /* CountdownWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownWidgetView.swift; sourceTree = "<group>"; };
 		9B0010652A00000100000001 /* AnalyticsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsCard.swift; sourceTree = "<group>"; };
@@ -215,7 +212,6 @@
 		9B00114A2A00000100000001 /* MedxSharedIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxSharedIntents.swift; sourceTree = "<group>"; };
 		9B00114D2A00000100000001 /* MedxLiquidGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxLiquidGlass.swift; sourceTree = "<group>"; };
 		9B0011512A00000100000001 /* RunnerChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runner/RunnerChrome.swift; sourceTree = "<group>"; };
-		9B0011532A00000100000001 /* MedxInk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxInk.swift; sourceTree = "<group>"; };
 		9B0011552A00000100000001 /* MedxDS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxDS.swift; sourceTree = "<group>"; };
 		9B0011572A00000100000001 /* MedxSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxSheet.swift; sourceTree = "<group>"; };
 		9B0011592A00000100000001 /* MedxList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxList.swift; sourceTree = "<group>"; };
@@ -318,11 +314,9 @@
 			children = (
 				9B0010222A00000100000001 /* ColorSystem.swift */,
 				9B0010242A00000100000001 /* GlassModifier.swift */,
-				9B0010262A00000100000001 /* Typography.swift */,
 				9B0011102A00000100000001 /* AccentTheme.swift */,
 				9B0011192A00000100000001 /* MedxSections.swift */,
 				9B00114D2A00000100000001 /* MedxLiquidGlass.swift */,
-				9B0011532A00000100000001 /* MedxInk.swift */,
 				9B0011552A00000100000001 /* MedxDS.swift */,
 			);
 			path = Theme;
@@ -533,7 +527,6 @@
 				9B0010622A00000100000001 /* HLSProxyServer.swift in Sources */,
 				9B0010212A00000100000001 /* ColorSystem.swift in Sources */,
 				9B0010232A00000100000001 /* GlassModifier.swift in Sources */,
-				9B0010252A00000100000001 /* Typography.swift in Sources */,
 				9B0010272A00000100000001 /* HTMLRichTextView.swift in Sources */,
 				9B00102B2A00000100000001 /* CountdownWidgetView.swift in Sources */,
 				9B0010642A00000100000001 /* AnalyticsCard.swift in Sources */,
@@ -599,7 +592,6 @@
 				9B00114B2A00000100000001 /* MedxSharedIntents.swift in Sources */,
 				9B00114E2A00000100000001 /* MedxLiquidGlass.swift in Sources */,
 				9B0011522A00000100000001 /* RunnerChrome.swift in Sources */,
-				9B0011542A00000100000001 /* MedxInk.swift in Sources */,
 				9B0011562A00000100000001 /* MedxDS.swift in Sources */,
 				9B0011582A00000100000001 /* MedxSheet.swift in Sources */,
 				9B00115A2A00000100000001 /* MedxList.swift in Sources */,

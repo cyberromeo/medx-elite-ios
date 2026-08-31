@@ -20,23 +20,6 @@ import SwiftUI
 // Every `medxCard` / `medxTile` call site in the app is untouched by this rewrite and simply
 // renders opaque now.
 
-public enum MedxSurface {
-    /// Geometry and colour both forward to the token files, so there is one place to change a
-    /// radius and one place to change a fill. Kept as `MedxSurface.*` because 60-odd call sites
-    /// spell them that way and renaming them would be churn rather than work.
-    public static let cardRadius: CGFloat = MedxRadius.card
-    public static let tileRadius: CGFloat = MedxRadius.tile
-    public static let hairline: CGFloat = 0.5
-
-    public static var cardFill: Color { MedxInk.raised }
-    public static var tileFill: Color { MedxInk.sunken }
-    public static var fieldFill: Color { MedxInk.field }
-    public static var groupedBackground: Color { MedxInk.page }
-    public static var separator: Color { MedxInk.hairline }
-
-    /// Standard content inset for full-width cards on iPhone.
-    public static let gutter: CGFloat = 16
-}
 
 // MARK: - Cards
 
@@ -50,7 +33,7 @@ public struct MedxCardModifier: ViewModifier {
     /// Carries meaning through the glass: a duel card in a player's colour, a correct answer.
     public var tint: Color?
 
-    public init(cornerRadius: CGFloat = MedxSurface.cardRadius, raised: Bool = false, tint: Color? = nil) {
+    public init(cornerRadius: CGFloat = MedxDS.card, raised: Bool = false, tint: Color? = nil) {
         self.cornerRadius = cornerRadius
         self.raised = raised
         self.tint = tint
@@ -70,7 +53,7 @@ public struct MedxTileModifier: ViewModifier {
     public var accentColor: Color?
     public var isSelected: Bool
 
-    public init(cornerRadius: CGFloat = MedxSurface.tileRadius, accentColor: Color? = nil, isSelected: Bool = false) {
+    public init(cornerRadius: CGFloat = MedxDS.control, accentColor: Color? = nil, isSelected: Bool = false) {
         self.cornerRadius = cornerRadius
         self.accentColor = accentColor
         self.isSelected = isSelected
@@ -86,24 +69,24 @@ public struct MedxTileModifier: ViewModifier {
 
 public extension View {
     /// The canonical container for anything that is not chrome.
-    func medxCard(cornerRadius: CGFloat = MedxSurface.cardRadius, raised: Bool = false) -> some View {
+    func medxCard(cornerRadius: CGFloat = MedxDS.card, raised: Bool = false) -> some View {
         modifier(MedxCardModifier(cornerRadius: cornerRadius, raised: raised))
     }
 
     /// A card that carries a hue on its border — used where the card's colour *is* the
     /// information, as in a duel row or a live invite.
-    func medxCard(tint: Color, cornerRadius: CGFloat = MedxSurface.cardRadius, raised: Bool = false) -> some View {
+    func medxCard(tint: Color, cornerRadius: CGFloat = MedxDS.card, raised: Bool = false) -> some View {
         modifier(MedxCardModifier(cornerRadius: cornerRadius, raised: raised, tint: tint))
     }
 
     /// Secondary surface used *inside* a card — answer options, matrix cells, stat tiles.
-    func medxTile(cornerRadius: CGFloat = MedxSurface.tileRadius, accentColor: Color? = nil, isSelected: Bool = false) -> some View {
+    func medxTile(cornerRadius: CGFloat = MedxDS.control, accentColor: Color? = nil, isSelected: Bool = false) -> some View {
         modifier(MedxTileModifier(cornerRadius: cornerRadius, accentColor: accentColor, isSelected: isSelected))
     }
 
     /// A card inside a *presented* surface — the rev/exam mode picker, the question navigator.
     /// The one content-shaped glass in the app; see `MedxSurfaceSpec.sheetCard`.
-    func medxSheetCard(cornerRadius: CGFloat = MedxSurface.cardRadius, tint: Color? = nil) -> some View {
+    func medxSheetCard(cornerRadius: CGFloat = MedxDS.card, tint: Color? = nil) -> some View {
         medxSurface(
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
             .sheetCard(tint: tint)

@@ -36,10 +36,10 @@ import SwiftUI
 // Every iOS 26 API below sits behind `#available`; the deployment target is still 17.0.
 
 public enum MedxGlass {
-    /// Radii forward to `MedxRadius`, so "no sharp ends" is one file's decision.
-    public static let cardRadius: CGFloat = MedxRadius.card
-    public static let tileRadius: CGFloat = MedxRadius.tile
-    public static let hudRadius: CGFloat = MedxRadius.hud
+    /// Radii forward to `MedxDS`, so "no sharp ends" is one file's decision.
+    public static let cardRadius: CGFloat = MedxDS.card
+    public static let tileRadius: CGFloat = MedxDS.control
+    public static let hudRadius: CGFloat = MedxDS.hud
 
     /// How close two glass shapes have to be before they should flow into each other.
     /// `GlassEffectContainer`'s spacing, and the gap the runner's action bar is built on.
@@ -93,7 +93,7 @@ public struct MedxSurfaceSpec {
 
     public init(
         material: MedxMaterial = .ink,
-        fill: Color = MedxInk.raised,
+        fill: Color = MedxDS.raised,
         tint: Color? = nil,
         strokeHue: Color? = nil,
         strokeOpacity: Double = 1,
@@ -122,7 +122,7 @@ public extension MedxSurfaceSpec {
     /// stays only so 60-odd `medxCard(raised:)` call sites keep compiling until they are rewritten.
     static func card(raised: Bool = false, tint: Color? = nil) -> MedxSurfaceSpec {
         MedxSurfaceSpec(
-            fill: MedxInk.raised,
+            fill: MedxDS.raised,
             strokeHue: tint,
             strokeOpacity: 0.45,
             strokeWidth: tint == nil ? 0.5 : 1
@@ -137,7 +137,7 @@ public extension MedxSurfaceSpec {
     static func tile(accent: Color? = nil, selected: Bool = false) -> MedxSurfaceSpec {
         let hue = accent ?? MedxTheme.accent
         return MedxSurfaceSpec(
-            fill: selected ? hue.opacity(0.16) : MedxInk.sunken,
+            fill: selected ? hue.opacity(0.16) : MedxDS.sunken,
             strokeHue: selected ? hue : nil,
             strokeOpacity: 0.75,
             strokeWidth: selected ? 1.5 : 0.5
@@ -149,7 +149,7 @@ public extension MedxSurfaceSpec {
     static var hud: MedxSurfaceSpec {
         MedxSurfaceSpec(
             material: .glass(clear: false),
-            fill: MedxInk.raised,
+            fill: MedxDS.raised,
             strokeOpacity: 0.45,
             shadowOpacity: 0.16,
             shadowRadius: 18,
@@ -165,7 +165,7 @@ public extension MedxSurfaceSpec {
     static func sheetCard(tint: Color? = nil) -> MedxSurfaceSpec {
         MedxSurfaceSpec(
             material: .glass(clear: false),
-            fill: MedxInk.raised,
+            fill: MedxDS.raised,
             tint: tint,
             strokeHue: tint,
             strokeOpacity: 0.45,
@@ -343,7 +343,7 @@ public extension View {
     /// an opaque stripe with a hairline across the top — three bands of furniture on a phone
     /// screen — and every one of its call sites was inside a sheet or a cover, which is exactly
     /// where a pane of glass has real content behind it to refract.
-    func medxFloatingBar(cornerRadius: CGFloat = MedxRadius.hud) -> some View {
+    func medxFloatingBar(cornerRadius: CGFloat = MedxDS.hud) -> some View {
         self
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -372,7 +372,7 @@ public extension View {
             .medxSurface(
                 Circle(),
                 MedxSurfaceSpec(
-                    fill: tint ?? MedxInk.field,
+                    fill: tint ?? MedxDS.sunken,
                     strokeHue: tint,
                     strokeOpacity: 0.45
                 )
@@ -388,7 +388,7 @@ public extension View {
             .medxSurface(
                 Capsule(style: .continuous),
                 MedxSurfaceSpec(
-                    fill: tint?.opacity(0.16) ?? MedxInk.field,
+                    fill: tint?.opacity(0.16) ?? MedxDS.sunken,
                     strokeHue: tint,
                     strokeOpacity: 0.34
                 )
@@ -404,7 +404,7 @@ public extension View {
                 Circle(),
                 MedxSurfaceSpec(
                     material: .glass(clear: false),
-                    fill: tint?.opacity(0.18) ?? MedxInk.field,
+                    fill: tint?.opacity(0.18) ?? MedxDS.sunken,
                     tint: tint,
                     strokeHue: tint,
                     strokeOpacity: 0.45

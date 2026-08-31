@@ -53,7 +53,7 @@ public struct ModernButton: View {
 /// Press feedback for custom card-shaped buttons.
 ///
 /// Used to be a 1.5% scale and an `easeOut` — so restrained it was hard to be sure it was there.
-/// It is a real spring now: `MedxMotion.pop` is stiff enough that the card feels like it is being
+/// It is a real spring now: `MedxDS.pop` is stiff enough that the card feels like it is being
 /// pushed rather than animated, which is the whole point of a press state. 4% is the most a
 /// full-width card can take before its neighbours look like they moved too.
 public struct BouncyButtonStyle: ButtonStyle {
@@ -76,7 +76,7 @@ public struct BouncyButtonStyle: ButtonStyle {
                 .opacity(configuration.isPressed ? 0.82 : 1)
                 .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
                 .animation(
-                    reduceMotion ? .easeOut(duration: 0.12) : MedxMotion.pop,
+                    reduceMotion ? .easeOut(duration: 0.12) : MedxDS.pop,
                     value: configuration.isPressed
                 )
         }
@@ -118,12 +118,12 @@ public struct MedxFilledButtonStyle: ButtonStyle {
         var body: some View {
             configuration.label
                 .foregroundStyle(isEnabled ? MedxCandy.onSolid : Color.secondary)
-                .background(Capsule().fill(isEnabled ? hue : MedxInk.field))
+                .background(Capsule().fill(isEnabled ? hue : MedxDS.sunken))
                 .contentShape(Capsule())
                 .opacity(configuration.isPressed ? 0.86 : 1)
                 .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
                 .animation(
-                    reduceMotion ? .easeOut(duration: 0.12) : MedxMotion.pop,
+                    reduceMotion ? .easeOut(duration: 0.12) : MedxDS.pop,
                     value: configuration.isPressed
                 )
         }

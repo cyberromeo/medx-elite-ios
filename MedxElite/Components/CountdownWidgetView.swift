@@ -30,7 +30,7 @@ public struct CountdownWidgetView: View {
 
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text("\(remaining.days)")
-                        .font(MedxFont.display(44))
+                        .font(MedxType.figure(44, weight: .bold))
                         .monospacedDigit()
                         .contentTransition(.numericText())
                         .foregroundStyle(.primary)
