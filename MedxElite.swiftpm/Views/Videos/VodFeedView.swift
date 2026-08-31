@@ -132,7 +132,7 @@ public struct VodFeedView: View {
                             }
                     }
                 } header: {
-                    MedxRuleHeader(day.label, count: day.items.count)
+                    MedxHeader(day.label, count: day.items.count)
                         .textCase(nil)
                 }
             }
@@ -202,72 +202,42 @@ public struct VodFeedView: View {
     // MARK: - Header and meta
 
     private var header: some View {
-        MedxPageCaption("Every recording in the ARISE bucket, newest upload first")
+        MedxCaption("Every recording in the ARISE bucket, newest upload first")
     }
 
+    /// One figure and two lines. This was a card with a shipping-box glyph, a three-metric row and two
+    /// icon-led sentences — five separate voices describing one bucket.
     private var metaCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Latest drop")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(latestDropLine)
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.primary)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("\(items.count.formatted())\(isDone ? "" : "+")")
+                .font(MedxType.display)
+                .contentTransition(.numericText())
+
+            Text("loaded here · newest \(latestDropLine)")
+                .medxTag()
+
+            HStack(alignment: .top, spacing: 10) {
+                MedxStat(
+                    (watcher.meta?.count ?? 0).formatted(),
+                    label: "in the bucket"
+                )
+                if freshCount > 0 {
+                    MedxStat("\(freshCount)", label: "new", tint: MedxDS.correct)
                 }
-                Spacer(minLength: 8)
-                MedxSymbolMark("shippingbox.fill", hue: MedxCandy.blue, size: 40)
-            }
-
-            MedxMetricsRow {
-                MedxMetric(
-                    icon: "square.stack.3d.down.right.fill",
-                    value: "\(items.count.formatted())\(isDone ? "" : "+")",
-                    label: "loaded here",
-                    color: MedxCandy.blue
-                )
-                MedxMetric(
-                    icon: "clock.arrow.circlepath",
-                    value: watcher.meta?.updatedAt?.formatted(.relative(presentation: .numeric)) ?? "—",
-                    label: "bucket scanned",
-                    color: MedxTheme.indigoAccent
-                )
-                MedxMetric(
-                    icon: "plus.circle.fill",
-                    value: (watcher.meta?.count ?? 0).formatted(),
-                    label: "added by sync",
-                    color: MedxTheme.tealAccent
-                )
-            }
-
-            if freshCount > 0 {
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .font(.caption2.weight(.bold))
-                    Text(freshCount == 1
-                         ? "1 new since you last opened this"
-                         : "\(freshCount) new since you last opened this")
-                        .font(.caption.weight(.semibold))
+                if savedHere > 0 {
+                    MedxStat("\(savedHere)", label: "saved here")
                 }
-                .foregroundStyle(MedxCandy.onSoft(MedxCandy.blue))
             }
 
-            // Said here because the download control is a trailing glyph on a row, which is easy
-            // to miss on a feed you are flicking through.
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.down.circle")
-                    .font(.caption2.weight(.bold))
-                Text(savedHere == 0
-                     ? "Tap the arrow on any row to keep it on this device."
-                     : "\(savedHere) of these are saved on this device.")
-                    .font(.caption)
+            if savedHere == 0 {
+                // Said here because the download control is a trailing glyph on a row, which is easy to
+                // miss on a feed you are flicking through.
+                Text("Tap the arrow on any row to keep it on this device.")
+                    .font(MedxType.body)
+                    .foregroundStyle(.secondary)
             }
-            .foregroundStyle(.secondary)
         }
-        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .medxCard()
     }
 
     private var latestDropLine: String {
@@ -356,48 +326,27 @@ public struct VodFeedView: View {
                 HapticManager.light()
                 playing = video
             } label: {
-                HStack(spacing: 12) {
-                    // No poster. The bucket's thumbnails are a mix of missing, wrong-aspect and
-                    // identical grey frames, so 48 of them per page read as noise — a stream mark
-                    // says "this is a live HLS link" in a fifth of the width and never mis-loads.
-                    MedxSymbolMark(
-                        rowGlyph(watched: watched, saved: saved),
-                        hue: rowHue(watched: watched, saved: saved),
-                        size: 36
-                    )
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(label.title)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-
-                        Text([label.sub, item.formattedDuration, item.streamUrl.isEmpty ? "no stream" : nil]
-                            .compactMap { $0 }
-                            .filter { !$0.isEmpty }
-                            .joined(separator: " · "))
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-
-                        if let watched, !watched.isCompleted, watched.progress > 0.02 {
-                            ProgressView(value: watched.progress)
-                                .tint(MedxCandy.blue)
-                                .frame(maxWidth: 120)
-                        }
-                    }
-
-                    Spacer(minLength: 0)
-
-                    VStack(alignment: .trailing, spacing: 4) {
-                        if isNew {
-                            MedxPill("new", hue: MedxCandy.blue, weight: .solid)
-                        }
-                        if item.hasSubtitles {
-                            Image(systemName: "captions.bubble")
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(.tertiary)
-                        }
+                // No poster. The bucket's thumbnails are a mix of missing, wrong-aspect and identical
+                // grey frames, so 48 of them per page read as noise. The lead is the duration, which is
+                // the one figure that decides whether you have time for this recording now.
+                MedxRow(
+                    lead: item.formattedDuration,
+                    title: label.title,
+                    tag: isNew ? "new" : (saved ? "offline" : nil),
+                    detail: [label.sub, item.streamUrl.isEmpty ? "no stream" : nil]
+                        .compactMap { $0 }
+                        .filter { !$0.isEmpty }
+                        .joined(separator: " · ")
+                ) {
+                    if let watched, !watched.isCompleted, watched.progress > 0.02 {
+                        MedxAnswerSheet(
+                            fraction: watched.progress,
+                            label: "\(Int(watched.progress * 100)) percent watched"
+                        )
+                    } else if item.hasSubtitles {
+                        Image(systemName: "captions.bubble")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.tertiary)
                     }
                 }
                 .contentShape(Rectangle())
@@ -418,9 +367,6 @@ public struct VodFeedView: View {
                 VideoDownloadButton(video: video)
             }
         }
-        .padding(12)
-        .frame(minHeight: 58)
-        .medxCard()
         .contextMenu {
             if !item.streamUrl.isEmpty {
                 Button {
@@ -455,20 +401,6 @@ public struct VodFeedView: View {
                 Label("Copy file key", systemImage: "doc.on.doc")
             }
         }
-    }
-
-    /// Offline beats watched beats plain, because "is this on the device" is the thing you are
-    /// scanning for on a feed you cannot search.
-    private func rowGlyph(watched: WatchHistoryEntry?, saved: Bool) -> String {
-        if saved { return "arrow.down.circle.fill" }
-        if watched?.isCompleted == true { return "checkmark" }
-        return "antenna.radiowaves.left.and.right"
-    }
-
-    private func rowHue(watched: WatchHistoryEntry?, saved: Bool) -> Color {
-        if saved { return MedxCandy.mint }
-        if watched?.isCompleted == true { return MedxDS.correct }
-        return MedxCandy.blue
     }
 
     // MARK: - Footer, states, paging
@@ -545,10 +477,10 @@ public struct VodFeedView: View {
             Button("Retry") {
                 Task { await loadMore(auto: false) }
             }
-            .font(.caption.weight(.semibold))
+            .font(MedxType.title)
         }
         .padding(12)
-        .medxCard()
+        .background(MedxDS.shape(MedxDS.control).fill(MedxDS.wrong.opacity(0.12)))
     }
 
     // MARK: - Data

@@ -25,48 +25,41 @@ public struct StartSessionSheet: View {
     public var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
-                    VStack(spacing: 6) {
-                        MedxSymbolMark("target", hue: MedxCandy.lime, size: 52)
-                            .padding(.bottom, 2)
-
-                        Text(title)
-                            .font(.title3.weight(.semibold))
-                            .multilineTextAlignment(.center)
-
+                VStack(alignment: .leading, spacing: 20) {
+                    // The nav bar already says "Start Sitting" and the module's own name is what the
+                    // student just tapped, so this is only the shape of the sitting. There used to be a
+                    // 52pt lime target glyph over a centred restatement of the title above it.
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("\(questionCount)")
+                            .font(MedxType.display)
                         Text(headerDetail)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
+                            .medxTag()
                     }
-                    .padding(.top, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    VStack(spacing: 12) {
-                        ModeCard(
-                            mode: .revision,
-                            symbol: "bolt.fill",
-                            tint: MedxCandy.mint,
-                            durationText: "60s per question"
-                        ) {
-                            start(.revision)
-                        }
+                    ModeCard(
+                        mode: .revision,
+                        symbol: "bolt.fill",
+                        durationText: "60s per question"
+                    ) {
+                        start(.revision)
+                    }
 
-                        ModeCard(
-                            mode: .exam,
-                            symbol: "hourglass",
-                            tint: MedxCandy.tangerine,
-                            durationText: "\(questionCount) min total"
-                        ) {
-                            start(.exam)
-                        }
+                    ModeCard(
+                        mode: .exam,
+                        symbol: "hourglass",
+                        durationText: "\(questionCount) min total"
+                    ) {
+                        start(.exam)
                     }
                 }
                 .padding(.horizontal, MedxDS.gutter)
+                .padding(.top, 8)
                 .padding(.bottom, 24)
             }
             .scrollBounceBehavior(.basedOnSize)
             .medxPage()
-            .navigationTitle("Start Sitting")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -74,14 +67,13 @@ public struct StartSessionSheet: View {
                 }
             }
         }
-        .presentationDetents([.height(486), .large])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
 
     private var headerDetail: String {
-        var parts: [String] = []
+        var parts = ["questions"]
         if !subtitle.isEmpty { parts.append(subtitle) }
-        parts.append("\(questionCount) questions")
         return parts.joined(separator: " · ")
     }
 
@@ -92,41 +84,42 @@ public struct StartSessionSheet: View {
     }
 }
 
+/// **This is the popup the user asked to keep in glass**, and one of the three places it survives. A
+/// sheet floats over the screen it was raised from, so these two cards have a real page behind them to
+/// bend — the only condition under which glass reads as glass rather than as haze.
 private struct ModeCard: View {
     let mode: SittingMode
     let symbol: String
-    let tint: Color
     let durationText: String
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(alignment: .top, spacing: 14) {
-                MedxSymbolMark(symbol, hue: tint, size: 40)
+                Image(systemName: symbol)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 32)
 
                 VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 8) {
-                        Text(mode.displayName)
-                            .font(.headline)
-                            .foregroundStyle(.primary)
+                    Text(mode.displayName)
+                        .font(MedxType.heading)
+                        .foregroundStyle(.primary)
 
-                        MedxPill(durationText, hue: tint)
-                    }
+                    Text(durationText)
+                        .medxTag()
 
                     Text(mode.description)
-                        .font(.footnote)
+                        .font(MedxType.body)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-
-                MedxDisclosure()
-                    .padding(.top, 4)
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .medxSheetCard(tint: tint)
+            .medxSheetCard()
             .contentShape(MedxDS.shape(MedxDS.card))
         }
         .buttonStyle(MedxPressStyle())
