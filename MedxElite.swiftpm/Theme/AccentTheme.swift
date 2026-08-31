@@ -62,8 +62,8 @@ public extension MedxAccent {
     /// Non-isolated read of the persisted choice.
     ///
     /// Deliberately not routed through `MedxAccentThemeStore` (which is `@MainActor`): plain
-    /// value types tint themselves too — `RunnerQuestionStatus.trackColor(isCurrent:)` is a
-    /// method on an enum, not a view — and they must be able to ask from any context.
+    /// value types tint themselves too — `RunnerQuestionStatus.chipForeground` is a property on an
+    /// enum, not a view — and they must be able to ask from any context.
     /// `UserDefaults` keeps its values in process, so this is a dictionary lookup.
     static var current: MedxAccent {
         MedxAccent(rawValue: UserDefaults.standard.string(forKey: storageKey) ?? "") ?? .blue

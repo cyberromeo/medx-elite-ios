@@ -63,14 +63,14 @@ public struct QuestionOptionButton: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 13)
             .frame(minHeight: 58, alignment: .center)
-            .medxTile(cornerRadius: MedxSurface.tileRadius, accentColor: stateColor, isSelected: isEmphasized)
+            .medxOptionSurface(state: stateColor, emphasized: isEmphasized)
             .opacity(isDimmed ? 0.5 : 1)
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.tileRadius, style: .continuous))
+            .contentShape(MedxDS.shape(MedxDS.control))
         }
-        .buttonStyle(BouncyButtonStyle())
+        .buttonStyle(MedxPressStyle())
         .disabled(isLocked)
-        .animation(.easeOut(duration: 0.16), value: isChosen)
-        .animation(MedxMotion.snap, value: isRevealed)
+        .animation(MedxDS.snap, value: isChosen)
+        .animation(MedxDS.snap, value: isRevealed)
         .accessibilityLabel("Option \(letter)")
         .accessibilityValue(accessibilityState)
         .accessibilityAddTraits(isChosen ? [.isSelected] : [])
@@ -78,22 +78,19 @@ public struct QuestionOptionButton: View {
 
     // MARK: - Pieces
 
-    /// The letter, on its own small surface.
+    /// The letter, in the Figure voice on its own small surface.
     ///
-    /// A stateful row inks it solid — a green A on a correct answer has to survive being glanced
-    /// at — while a neutral one sits one step brighter than the row it is on, so it still reads
-    /// as a badge rather than as part of the fill.
+    /// A stateful row inks it solid — a green A on a correct answer has to survive being glanced at —
+    /// while a neutral one sits one step brighter than the row it is on, so it still reads as a badge
+    /// rather than as part of the fill.
     private var letterBadge: some View {
         Text(letter)
-            .font(.subheadline.weight(.bold))
+            .font(MedxType.lead)
             .foregroundStyle(isFilledBadge ? MedxCandy.onSolid : Color.primary)
             .frame(width: 30, height: 30)
             .background {
-                if isFilledBadge {
-                    Circle().fill(stateColor ?? MedxTheme.accent)
-                }
+                Circle().fill(isFilledBadge ? (stateColor ?? MedxTheme.accent) : MedxDS.sunken)
             }
-            .medxBadgeInk(plain: !isFilledBadge)
     }
 
     /// Only ever drawn when it means something.
@@ -108,11 +105,11 @@ public struct QuestionOptionButton: View {
             if isRevealed, isCorrect {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.title3)
-                    .foregroundStyle(MedxTheme.successGreen)
+                    .foregroundStyle(MedxDS.correct)
             } else if isRevealed, isChosen {
                 Image(systemName: "xmark.circle.fill")
                     .font(.title3)
-                    .foregroundStyle(MedxTheme.destructiveRed)
+                    .foregroundStyle(MedxDS.wrong)
             } else if isChosen {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.title3)
@@ -127,8 +124,8 @@ public struct QuestionOptionButton: View {
     /// The colour that describes this row's current meaning, or nil when it is neutral.
     private var stateColor: Color? {
         if isRevealed {
-            if isCorrect { return MedxTheme.successGreen }
-            if isChosen { return MedxTheme.destructiveRed }
+            if isCorrect { return MedxDS.correct }
+            if isChosen { return MedxDS.wrong }
             return nil
         }
         return isChosen ? MedxTheme.accent : nil
@@ -179,18 +176,26 @@ public enum MedxOptionLetter {
 }
 
 private extension View {
-    /// The badge's own surface, added only where the badge is standing on its own — a stateful
-    /// one already has an opaque circle of its state colour underneath and putting anything over
-    /// that would just mute it.
+    /// An answer row's surface: one fill, and a border **only** when the row means something.
+    ///
+    /// This is the design rule for the whole app applied to the four rows that matter most. A resting
+    /// option is a single opaque fill — no border, no rim, no shadow — because on a black page the step
+    /// from the question's background to `MedxDS.row` is already the separation. A chosen or revealed row
+    /// earns a real 1.5pt border in its outcome colour and a wash of it, which is unmistakable at a
+    /// glance in a way a tinted pane of glass never was.
     @ViewBuilder
-    func medxBadgeInk(plain: Bool) -> some View {
-        if plain {
-            self.medxSurface(
-                Circle(),
-                MedxSurfaceSpec(fill: MedxInk.field)
-            )
-        } else {
+    func medxOptionSurface(state: Color?, emphasized: Bool) -> some View {
+        let shape = MedxDS.shape(MedxDS.control)
+
+        if let state, emphasized {
             self
+                .background(shape.fill(state.opacity(0.16)))
+                .overlay {
+                    shape.strokeBorder(state.opacity(0.85), lineWidth: 1.5)
+                        .allowsHitTesting(false)
+                }
+        } else {
+            self.background(shape.fill(MedxDS.row))
         }
     }
 }

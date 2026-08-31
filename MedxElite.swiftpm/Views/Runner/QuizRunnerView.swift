@@ -96,7 +96,7 @@ public struct QuizRunnerView: View {
         content
             // The page's own wash, turned down: a question stem is the densest text in the app
             // and wants the calmest thing behind it that still gives the glass something to bend.
-            .medxPage(payload.section, intensity: 0)
+            .medxPage()
             .navigationTitle(payload.name)
             .navigationBarTitleDisplayMode(.inline)
             // `RunnerHUD` *is* the chrome now. Two bands of furniture across the top of a phone
@@ -287,7 +287,6 @@ public struct QuizRunnerView: View {
             remainingSeconds: remainingSeconds,
             capacitySeconds: capacitySeconds,
             isPaused: isTimerPaused,
-            section: payload.section,
             isBookmarked: isCurrentBookmarked,
             onClose: {
                 HapticManager.light()
@@ -380,7 +379,7 @@ public struct QuizRunnerView: View {
                             )
                     }
                 }
-                .padding(.horizontal, MedxSurface.gutter)
+                .padding(.horizontal, MedxDS.gutter)
                 .padding(.top, 12)
                 .padding(.bottom, 24)
             }
@@ -399,7 +398,7 @@ public struct QuizRunnerView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             runnerActionBar(question: question, isRevealed: isRevealed)
         }
-        .animation(reduceMotion ? nil : MedxMotion.settle, value: isRevealed)
+        .animation(reduceMotion ? nil : MedxDS.settle, value: isRevealed)
     }
 
     // MARK: - Answers
@@ -844,12 +843,13 @@ enum RunnerLoadState: Equatable {
 
 // MARK: - Question card
 
-/// Split out of the runner so a timer tick — which fires every second — does not force
-/// SwiftUI to re-evaluate the question body as well.
+/// Split out of the runner so a timer tick — which fires every second — does not force SwiftUI to
+/// re-evaluate the question body as well.
 ///
-/// Deliberately just the stem and its figures. The "QUESTION 12" eyebrow that used to head it
-/// was saying what the HUD says two centimetres above, and the section hue it wore is already
-/// on the page behind it — so both are gone and the card is only the thing you have to read.
+/// **No card.** The stem sits directly on the page, full width. It used to be inside a `medxCard`, which
+/// on a black page bought nothing except 32 points of gutter taken away from the longest text in the app
+/// — and a Marrow stem with a figure in it needs every point. The HUD above and the options below are
+/// what frame it.
 struct RunnerQuestionCard: View {
     let question: Question
     let showsUngradedNotice: Bool
@@ -857,11 +857,11 @@ struct RunnerQuestionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if showsUngradedNotice {
-                MedxChip("No official key", tint: MedxTheme.warningOrange)
+                MedxBadge("No official key", tint: MedxDS.warn)
             }
 
-            // Images embedded in the HTML render inline; `question.images` carries the
-            // separately exported figures, so both paths are shown.
+            // Images embedded in the HTML render inline; `question.images` carries the separately
+            // exported figures, so both paths are shown.
             HTMLRichTextView(html: question.displayText, fontSize: 18, weight: .semibold)
 
             if let images = question.images, !images.isEmpty {
@@ -873,8 +873,6 @@ struct RunnerQuestionCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
-        .medxCard()
     }
 }
 
@@ -896,10 +894,10 @@ struct RunnerFigure: View {
                 CachedAsyncImage(url: url, contentMode: .fit)
                     .frame(maxWidth: .infinity)
                     .frame(maxHeight: 280)
-                    .clipShape(RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
+                    .clipShape(MedxDS.shape(MedxDS.control))
                     .overlay(
-                        RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
-                            .strokeBorder(MedxSurface.separator.opacity(0.35), lineWidth: MedxSurface.hairline)
+                        MedxDS.shape(MedxDS.control)
+                            .strokeBorder(MedxDS.line.opacity(0.35), lineWidth: 0.5)
                     )
             }
             .buttonStyle(.plain)
@@ -934,13 +932,13 @@ struct RunnerExplanationCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Label(outcome.title, systemImage: outcome.icon)
-                    .font(.subheadline.weight(.semibold))
+                    .font(MedxType.title)
                     .foregroundStyle(outcome.color)
 
                 Spacer(minLength: 0)
 
                 if outcome != .correct, let correctLabel, !correctLabel.isEmpty {
-                    MedxChip("Answer \(correctLabel)", tint: MedxTheme.successGreen)
+                    MedxBadge("Answer \(correctLabel)", tint: MedxDS.correct)
                 }
             }
 
@@ -948,20 +946,22 @@ struct RunnerExplanationCard: View {
                 HTMLRichTextView(html: explanation, fontSize: 15, weight: .regular, textColor: .secondary)
             } else {
                 Text("No explanation provided for this question.")
-                    .font(.footnote)
+                    .font(MedxType.body)
                     .foregroundStyle(.secondary)
             }
 
             if !reference.isEmpty {
                 Label(reference, systemImage: "book.closed")
-                    .font(.caption)
+                    .font(MedxType.body)
                     .foregroundStyle(.tertiary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .medxCard()
-        .transition(.blurReplace)
+        // The one surface in the runner's content that keeps a fill: it is a different *kind* of thing
+        // from the stem and the options — the reason rather than the question — and the step off the page
+        // is what says so.
+        .background(MedxDS.shape(MedxDS.card).fill(MedxDS.row))
     }
 }
 
@@ -974,24 +974,27 @@ enum RunnerQuestionStatus {
     case wrong
     case timedOut
 
-    func trackColor(isCurrent: Bool) -> Color {
-        if isCurrent { return MedxTheme.accent }
+    /// How this question draws on the answer sheet — the runner's track, and the review after it.
+    ///
+    /// One mapping, in one place, so the HUD's grid and the review's grid cannot disagree about what a
+    /// timed-out question looks like.
+    var sheetCell: MedxSheetCell {
         switch self {
-        case .unanswered: return Color(uiColor: .quaternaryLabel)
-        case .answered: return MedxTheme.accent.opacity(0.55)
-        case .correct: return MedxTheme.successGreen.opacity(0.75)
-        case .wrong: return MedxTheme.destructiveRed.opacity(0.75)
-        case .timedOut: return MedxTheme.warningOrange.opacity(0.75)
+        case .unanswered: return .pending
+        case .answered: return .answered
+        case .correct: return .correct
+        case .wrong: return .wrong
+        case .timedOut: return .missed
         }
     }
 
     var chipFill: Color {
         switch self {
-        case .unanswered: return MedxSurface.fieldFill
+        case .unanswered: return MedxDS.sunken
         case .answered: return MedxTheme.accent.opacity(0.16)
-        case .correct: return MedxTheme.successGreen.opacity(0.16)
-        case .wrong: return MedxTheme.destructiveRed.opacity(0.16)
-        case .timedOut: return MedxTheme.warningOrange.opacity(0.16)
+        case .correct: return MedxDS.correct.opacity(0.16)
+        case .wrong: return MedxDS.wrong.opacity(0.16)
+        case .timedOut: return MedxDS.warn.opacity(0.16)
         }
     }
 
@@ -999,21 +1002,21 @@ enum RunnerQuestionStatus {
         switch self {
         case .unanswered: return .secondary
         case .answered: return MedxTheme.accent
-        case .correct: return MedxTheme.successGreen
-        case .wrong: return MedxTheme.destructiveRed
-        case .timedOut: return MedxTheme.warningOrange
+        case .correct: return MedxDS.correct
+        case .wrong: return MedxDS.wrong
+        case .timedOut: return MedxDS.warn
         }
     }
 
-    /// The hue this state tints its glass with, or `nil` where the state *is* "nothing has
-    /// happened here yet" — an untouched question should be a clear pane, not a coloured one.
+    /// The hue this state tints its glass with, or `nil` where the state *is* "nothing has happened here
+    /// yet" — an untouched question should be a clear pane, not a coloured one.
     var tileHue: Color? {
         switch self {
         case .unanswered: return nil
         case .answered: return MedxTheme.accent
-        case .correct: return MedxTheme.successGreen
-        case .wrong: return MedxTheme.destructiveRed
-        case .timedOut: return MedxTheme.warningOrange
+        case .correct: return MedxDS.correct
+        case .wrong: return MedxDS.wrong
+        case .timedOut: return MedxDS.warn
         }
     }
 
@@ -1070,10 +1073,10 @@ enum RunnerOutcome: Equatable {
 
     var color: Color {
         switch self {
-        case .correct: return MedxTheme.successGreen
-        case .incorrect: return MedxTheme.destructiveRed
-        case .timedOut: return MedxTheme.warningOrange
-        case .unanswered: return MedxTheme.warningOrange
+        case .correct: return MedxDS.correct
+        case .incorrect: return MedxDS.wrong
+        case .timedOut: return MedxDS.warn
+        case .unanswered: return MedxDS.warn
         }
     }
 }
@@ -1136,7 +1139,7 @@ struct QuestionNavigatorSheet: View {
                 }
                 .padding(20)
             }
-            .medxPage(section)
+            .medxPage()
             .navigationTitle(sectionLabel ?? "Questions")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1166,7 +1169,7 @@ struct QuestionNavigatorSheet: View {
                 // Glass, because the navigator is a sheet floating over the sitting — one of the
                 // three places in the app allowed it.
                 .medxSurface(
-                    RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous),
+                    MedxDS.shape(MedxDS.control),
                     MedxSurfaceSpec(
                         material: .glass(clear: false),
                         fill: status.chipFill,
@@ -1177,9 +1180,9 @@ struct QuestionNavigatorSheet: View {
                     )
                 )
                 .opacity(isLocked ? 0.35 : 1)
-                .contentShape(RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
+                .contentShape(MedxDS.shape(MedxDS.control))
         }
-        .buttonStyle(BouncyButtonStyle())
+        .buttonStyle(MedxPressStyle())
         .disabled(isLocked)
         .accessibilityLabel("Question \(index + 1)")
         .accessibilityValue(isCurrent ? "Current, \(status.legendLabel)" : status.legendLabel)
@@ -1211,50 +1214,67 @@ struct MedxSectionHandoverSheet: View {
     let summary: MedxSectionHandover
     let onContinue: () -> Void
 
+    /// The closed block as cells. `MedxSectionHandover` carries a score, an attempted count and a total
+    /// and no per-question detail — the responses stay on the runner — so this says exactly that much:
+    /// right, then wrong, then never reached.
+    private var closedCells: [MedxSheetCell] {
+        let total = max(summary.total, 1)
+        let right = summary.gradable ? min(summary.score, total) : 0
+        let attempted = min(summary.attempted, total)
+        let wrong = max(attempted - right, 0)
+
+        var cells = [MedxSheetCell](repeating: .correct, count: right)
+        cells.append(contentsOf: [MedxSheetCell](repeating: summary.gradable ? .wrong : .answered, count: wrong))
+        cells.append(contentsOf: [MedxSheetCell](repeating: .pending, count: max(total - right - wrong, 0)))
+        return cells
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    MedxPageHeader(
-                        section: .tests,
-                        eyebrow: "\(summary.closedLabel) submitted",
-                        title: summary.nextLabel,
-                        lead: "\(summary.nextCount) questions, \(summary.nextMinutes) minutes. "
-                            + "The block you just submitted is closed for good, and this one's "
-                            + "clock starts when you tap below.",
-                        symbol: "hourglass"
+                    // This is the one screen in the app with no navigation bar and no way back, so it has
+                    // to introduce itself. `MedxPageHeader` was that introduction and was kept alive for
+                    // this single caller; the three voices say the same thing in less furniture.
+                    Text("\(summary.closedLabel) submitted")
+                        .medxTag()
+
+                    Text(summary.nextLabel)
+                        .font(MedxType.display)
+                        .foregroundStyle(.primary)
+
+                    Text("\(summary.nextCount) questions, \(summary.nextMinutes) minutes. "
+                         + "The block you just submitted is closed for good, and this one's clock starts "
+                         + "when you tap below.")
+                        .font(MedxType.body)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    // The block you just closed, as the same grid the HUD was drawing a moment ago.
+                    MedxAnswerSheet(
+                        cells: closedCells,
+                        scale: .sheet,
+                        label: "\(summary.attempted) of \(summary.total) attempted"
                     )
 
-                    MedxMetricsRow {
+                    HStack(alignment: .top, spacing: 10) {
                         if summary.gradable {
-                            MedxMetric(
-                                icon: "checkmark.circle.fill",
-                                value: "\(summary.score)/\(summary.total)",
-                                label: "scored",
-                                color: MedxTheme.successGreen
-                            )
+                            MedxStat("\(summary.score)/\(summary.total)", label: "scored", tint: MedxDS.correct)
                         }
-                        MedxMetric(
-                            icon: "hand.tap.fill",
-                            value: "\(summary.attempted)/\(summary.total)",
-                            label: "attempted",
-                            color: MedxCandy.tangerine
-                        )
-                        MedxMetric(
-                            icon: "square.stack.3d.up.fill",
-                            value: "\(summary.remainingSections)",
-                            label: summary.remainingSections == 1 ? "block left" : "blocks left",
-                            color: MedxCandy.sky
+                        MedxStat("\(summary.attempted)/\(summary.total)", label: "attempted")
+                        MedxStat(
+                            "\(summary.remainingSections)",
+                            label: summary.remainingSections == 1 ? "block left" : "blocks left"
                         )
                     }
 
                     if !summary.gradable {
                         Text("This paper came through without an answer key, so nothing here is scored — only what you attempted is recorded.")
-                            .font(.footnote)
+                            .font(MedxType.body)
                             .foregroundStyle(.secondary)
                     }
                 }
-                .padding(.horizontal, MedxSurface.gutter)
+                .padding(.horizontal, MedxDS.gutter)
                 .padding(.top, 24)
                 .padding(.bottom, 24)
             }
@@ -1264,15 +1284,13 @@ struct MedxSectionHandoverSheet: View {
                 onContinue()
             } label: {
                 Text("Start \(summary.nextLabel)")
-                    .font(.headline.weight(.semibold))
+                    .font(MedxType.heading)
                     .frame(maxWidth: .infinity, minHeight: 50)
             }
-            .medxFilled(MedxCandy.tangerine)
+            .medxFilled(MedxTheme.accent)
             .medxFloatingBar()
         }
-        // A block handover only ever happens in a Marrow grand paper, so the page wears Tests'
-        // tangerine — the same wash the paper was opened under.
-        .medxPage(.tests)
+        .medxPage()
         // Full screen and one way out on purpose. There is nothing behind this worth looking
         // at — the block it would show is closed — and a swipe-to-dismiss would start the next
         // section's clock by accident.
