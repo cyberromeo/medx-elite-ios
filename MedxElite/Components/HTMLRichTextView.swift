@@ -146,10 +146,10 @@ public struct HTMLRichTextView: View {
         CachedAsyncImage(url: url, contentMode: .fit)
             .frame(maxWidth: .infinity)
             .frame(maxHeight: maxImageHeight)
-            .clipShape(MedxDS.shape(MedxDS.control))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
-                MedxDS.shape(MedxDS.control)
-                    .strokeBorder(MedxDS.line.opacity(0.35), lineWidth: 0.5)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(MedxSurface.separator.opacity(0.35), lineWidth: MedxSurface.hairline)
             )
     }
 }
@@ -188,7 +188,7 @@ struct MedxImageViewer: View {
                 .accessibilityHint("Pinch or double-tap to zoom. Swipe down to close.")
         }
         .overlay(alignment: .topTrailing) {
-            MedxCloseButton {
+            MedxCircleButton(icon: "xmark", accessibilityLabel: "Close figure") {
                 HapticManager.light()
                 dismiss()
             }

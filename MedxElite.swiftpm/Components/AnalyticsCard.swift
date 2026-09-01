@@ -69,7 +69,7 @@ public struct AnalyticsCard: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .medxCard(cornerRadius: MedxDS.card)
+        .medxCard(cornerRadius: 20)
     }
 
     private var header: some View {
@@ -85,7 +85,7 @@ public struct AnalyticsCard: View {
                     systemImage: trend > 0 ? "arrow.up.right" : "arrow.down.right"
                 )
                 .font(.caption.weight(.semibold).monospacedDigit())
-                .foregroundStyle(trend > 0 ? MedxDS.correct : MedxDS.warn)
+                .foregroundStyle(trend > 0 ? MedxTheme.successGreen : MedxTheme.warningOrange)
                 .accessibilityLabel(trend > 0 ? "Improving by \(trend) percent" : "Down \(abs(trend)) percent")
             } else if !points.isEmpty {
                 Text("Last \(points.count) sittings")
@@ -150,7 +150,7 @@ public struct AnalyticsCard: View {
         .chartYAxis {
             AxisMarks(position: .leading, values: [0, 50, 100]) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 3]))
-                    .foregroundStyle(MedxDS.line)
+                    .foregroundStyle(MedxSurface.separator)
                 AxisValueLabel {
                     if let intValue = value.as(Int.self) {
                         Text("\(intValue)%")

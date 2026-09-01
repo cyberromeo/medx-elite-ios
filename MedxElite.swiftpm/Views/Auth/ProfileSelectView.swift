@@ -43,7 +43,7 @@ public struct ProfileSelectView: View {
                     .padding(.bottom, 20)
             }
             .frame(maxWidth: .infinity)
-            .medxPage()
+            .background(MedxSurface.groupedBackground.ignoresSafeArea())
             .sheet(item: $selectedProfile) { profile in
                 PasswordPromptView(profile: profile)
             }
@@ -73,7 +73,7 @@ public struct ProfileSelectView: View {
                     .overlay(alignment: .bottomTrailing) {
                         MedxSticker(profile.sticker, size: 20)
                             .padding(3)
-                            .medxSurface(Circle(), .card())
+                            .background(MedxSurface.cardFill, in: Circle())
                             .offset(x: 3, y: 3)
                     }
 
@@ -96,18 +96,18 @@ public struct ProfileSelectView: View {
                 } else if authService.hasSavedPassword(for: profile.id) {
                     Image(systemName: "faceid")
                         .font(.title3)
-                        .foregroundStyle(MedxDS.correct)
+                        .foregroundStyle(MedxTheme.successGreen)
                         .accessibilityLabel("Password saved")
                 } else {
-                    MedxChevron()
+                    MedxDisclosure()
                 }
             }
             .padding(16)
             .frame(minHeight: 76)
             .medxCard()
-            .contentShape(MedxDS.shape(MedxDS.card))
+            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
         }
-        .buttonStyle(MedxPressStyle())
+        .buttonStyle(BouncyButtonStyle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Sign in as \(profile.displayName)")
     }

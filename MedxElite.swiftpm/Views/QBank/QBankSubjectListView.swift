@@ -2,22 +2,22 @@ import SwiftUI
 
 /// Both question banks, one screen.
 ///
-/// ARISE is the batch's own 1,211 modules cut by chapter; Marrow FMGE is 960 lesson-sized modules plus
-/// 3,554 previous-year questions. They are seeded into the same Firestore collection in the same shape
-/// and differ only in the `mw_` prefix on every id, so the picker is a filter over one list rather than
-/// two code paths — and the runner never learns that a second bank exists.
-///
-/// The hero is coverage: one cell per subject, filled once every module in it has been sat. 32,467
-/// questions is not a number anyone can act on, but "four of twenty subjects touched" is.
+/// ARISE is the batch's own 1,211 modules cut by chapter; Marrow FMGE is 960 lesson-sized
+/// modules plus 3,554 previous-year questions. They are seeded into the same Firestore
+/// collection in the same shape and differ only in the `mw_` prefix on every id, so the
+/// segmented control is a filter over one list rather than two code paths — and the runner
+/// never learns that a second bank exists.
 public struct QBankSubjectListView: View {
     @ObservedObject private var authService = AuthService.shared
     @ObservedObject private var activityStore = ActivityStore.shared
     @ObservedObject private var appState = AppState.shared
+    @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
 
     @State private var subjects: [MedxBankSubject] = []
     @State private var attempts: [SittingAttempt] = []
-    /// Module ids that have at least one recorded sitting, and the per-subject tally. Both are derived
-    /// once per load: walking 2,171 modules inside `body` was the single most expensive thing here.
+    /// Module ids that have at least one recorded sitting, and the per-subject tally. Both are
+    /// derived once per load: walking 2,171 modules inside `body` was the single most expensive
+    /// thing on this screen.
     @State private var practisedModuleIds: Set<String> = []
     @State private var practisedBySubject: [String: Int] = [:]
     @State private var bank: MedxBank = .arise
@@ -25,18 +25,33 @@ public struct QBankSubjectListView: View {
     @State private var loadState: MedxLoadState = .loading
     @State private var activeRunnerPayload: RunnerPayload?
 
-    /// The filtered subject list and the bank's totals, folded in `refilter()`. Both were computed
-    /// properties read from `body`, so they re-ran on every keystroke and every unrelated publish.
-    @State private var shownSubjects: [MedxBankSubject] = []
-    @State private var bankTotals = (modules: 0, questions: 0, subjects: 0)
-
     public init() {}
 
     private static let bankKey = "medx.qbank.bank"
 
     private var uid: String? { authService.currentSession?.uid }
 
-    // MARK: - Body
+    private func subjects(in bank: MedxBank) -> [MedxBankSubject] {
+        subjects.filter { $0.bank == bank }
+    }
+
+    private var shownSubjects: [MedxBankSubject] {
+        let inBank = subjects(in: bank)
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return inBank }
+        return inBank.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    }
+
+    private var bankTotals: (modules: Int, questions: Int) {
+        subjects(in: bank).reduce(into: (0, 0)) { totals, subject in
+            totals.0 += subject.moduleCount
+            totals.1 += subject.questionCount
+        }
+    }
+
+    private var allQuestions: Int {
+        subjects.reduce(0) { $0 + $1.questionCount }
+    }
 
     public var body: some View {
         Group {
@@ -45,17 +60,34 @@ public struct QBankSubjectListView: View {
                 ProgressView("Loading both banks…")
                     .controlSize(.large)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .medxPage()
             case .failed(let message):
                 failedState(message: message)
             case .loaded:
-                content
+                if subjects.isEmpty {
+                    ContentUnavailableView(
+                        "No Subjects",
+                        systemImage: "books.vertical",
+                        description: Text("Question-bank subjects will appear here once they are published.")
+                    )
+                } else {
+                    content
+                }
             }
         }
+        .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxScrollEdge()
         .navigationTitle("Question Bank")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    HapticManager.light()
+                    appState.open(route: .customModules)
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .accessibilityLabel("Custom modules")
+
                 Button {
                     HapticManager.light()
                     appState.open(route: .search(nil))
@@ -77,13 +109,6 @@ public struct QBankSubjectListView: View {
             bank = MedxBank(rawValue: UserDefaults.standard.string(forKey: Self.bankKey) ?? "") ?? .arise
             await loadData()
         }
-        .onChange(of: bank) { _, next in
-            UserDefaults.standard.set(next.rawValue, forKey: Self.bankKey)
-            refilter()
-        }
-        .onChange(of: searchText) { _, _ in
-            refilter()
-        }
         .fullScreenCover(item: $activeRunnerPayload) { (payload: RunnerPayload) in
             QuizRunnerView(payload: payload) {
                 Task { await loadData() }
@@ -94,85 +119,73 @@ public struct QBankSubjectListView: View {
     // MARK: - Content
 
     private var content: some View {
-        List {
-            heroSection
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 20) {
+                MedxPageHeader(
+                    section: .qbank,
+                    eyebrow: bank.eyebrow,
+                    lead: "\(allQuestions.formatted()) questions across two banks. "
+                        + "Marrow's ids are prefixed, so a module runs the same either way.",
+                    symbol: bank.symbol
+                )
 
-            Section {
+                MedxSegmented(
+                    section: .qbank,
+                    segments: MedxBank.allCases.map {
+                        MedxSegment(value: $0, label: $0.label, count: subjects(in: $0).count)
+                    },
+                    selection: $bank
+                )
+                .onChange(of: bank) { _, next in
+                    UserDefaults.standard.set(next.rawValue, forKey: Self.bankKey)
+                }
+
+                MedxMetricsRow {
+                    MedxMetric(
+                        icon: "books.vertical.fill",
+                        value: "\(subjects(in: bank).count)",
+                        label: "subjects",
+                        color: MedxTheme.primaryBlue
+                    )
+                    MedxMetric(
+                        icon: "square.grid.2x2.fill",
+                        value: bankTotals.modules.formatted(),
+                        label: "modules",
+                        color: MedxTheme.indigoAccent
+                    )
+                    MedxMetric(
+                        icon: "questionmark.circle.fill",
+                        value: bankTotals.questions.formatted(),
+                        label: "questions",
+                        color: MedxTheme.cyanAccent
+                    )
+                }
+
                 bookmarksRow
-                customModulesRow
-            }
 
-            if shownSubjects.isEmpty {
-                emptyBankSection
-            } else {
-                Section {
-                    ForEach(shownSubjects) { subject in
-                        subjectRow(subject)
+                if shownSubjects.isEmpty {
+                    emptyBankState
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        MedxSectionHeader("Subjects")
+
+                        ForEach(shownSubjects) { subject in
+                            subjectLink(subject)
+                        }
                     }
-                } header: {
-                    MedxHeader("Subjects", count: shownSubjects.count)
                 }
             }
+            .padding(.horizontal, MedxSurface.gutter)
+            .padding(.top, 6)
+            .padding(.bottom, 28)
         }
-        .medxList()
         .refreshable {
             await loadData()
         }
     }
 
-    /// The bank's size, its coverage sheet, and the picker.
-    private var heroSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(bankTotals.questions.formatted())
-                    .font(MedxType.display)
-                    .contentTransition(.numericText())
-
-                Text("\(bank.eyebrow) · \(bankTotals.modules.formatted()) modules")
-                    .medxTag()
-
-                MedxAnswerSheet(cells: coverageCells, scale: .sheet, label: coverageSummary)
-
-                Picker("Bank", selection: $bank) {
-                    ForEach(MedxBank.allCases) { option in
-                        Text(option.label).tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-            }
-            .medxPlainRow()
-        }
-    }
-
-    /// One cell per subject in the bank, in the order the list shows them — so a cell on the sheet and a
-    /// row below it are the same subject, and the sheet is a legend for the list rather than an
-    /// ornament. Filled once every module in that subject has been sat; the accent means started.
-    private var coverageCells: [MedxSheetCell] {
-        let inBank = subjects.filter { $0.bank == bank }
-        guard !inBank.isEmpty else { return [MedxSheetCell](repeating: .pending, count: 24) }
-
-        return inBank.map { subject in
-            let practised = practisedBySubject[subject.id] ?? 0
-            if practised == 0 { return .pending }
-            return practised >= subject.moduleCount ? .correct : .answered
-        }
-    }
-
-    private var coverageSummary: String {
-        let cells = coverageCells
-        let done = cells.filter { $0 == .correct }.count
-        let started = cells.filter { $0 == .answered }.count
-        return "\(done) subjects finished, \(started) started, of \(cells.count)"
-    }
-
-    // MARK: - Rows
-
-    private func subjectRow(_ subject: MedxBankSubject) -> some View {
-        let practised = practisedBySubject[subject.id] ?? 0
-        let fraction = subject.moduleCount > 0 ? Double(practised) / Double(subject.moduleCount) : 0
-
-        return NavigationLink {
+    private func subjectLink(_ subject: MedxBankSubject) -> some View {
+        NavigationLink {
             QBankChapterView(
                 subject: subject,
                 practisedModuleIds: practisedModuleIds,
@@ -186,22 +199,9 @@ public struct QBankSubjectListView: View {
                 )
             }
         } label: {
-            MedxRow(
-                lead: subject.moduleCount.formatted(),
-                title: subject.name,
-                detail: "\(subject.questionCount.formatted()) questions"
-            ) {
-                if practised > 0 {
-                    MedxAnswerSheet(
-                        fraction: fraction,
-                        label: "\(practised) of \(subject.moduleCount) modules sat"
-                    )
-                } else {
-                    EmptyView()
-                }
-            }
+            subjectRow(subject)
         }
-        .medxListRow()
+        .buttonStyle(.plain)
         // Long press to go straight at the subject without walking its chapter tree first.
         .contextMenu {
             Button {
@@ -217,6 +217,50 @@ public struct QBankSubjectListView: View {
                 Label("Build a custom module", systemImage: "slider.horizontal.3")
             }
         }
+    }
+
+    private func subjectRow(_ subject: MedxBankSubject) -> some View {
+        let practised = practisedBySubject[subject.id] ?? 0
+        let fraction = subject.moduleCount > 0
+            ? Double(practised) / Double(subject.moduleCount)
+            : 0
+
+        return HStack(spacing: 14) {
+            MedxSymbolMark(MedxSubjectArt.symbol(for: subject.name), hue: MedxSection.qbank.fill, size: 40)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(subject.name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                Text("\(subject.moduleCount) modules · \(subject.questionCount.formatted()) questions")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if practised > 0 {
+                    HStack(spacing: 6) {
+                        ProgressView(value: fraction)
+                            .tint(MedxTheme.successGreen)
+                            .frame(maxWidth: 92)
+                        Text("\(practised) done")
+                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(MedxTheme.successGreen)
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            MedxDisclosure()
+        }
+        .padding(14)
+        .frame(minHeight: 68)
+        .medxCard()
+        .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(subject.name)
         .accessibilityValue("\(subject.bank.label), \(subject.moduleCount) modules, \(practised) practised")
     }
 
@@ -224,49 +268,52 @@ public struct QBankSubjectListView: View {
         NavigationLink {
             BookmarkedQuestionsView(uid: uid)
         } label: {
-            MedxRow(title: "Bookmarked questions", detail: "Questions you kept") {
-                let count = activityStore.bookmarks(for: uid).count
-                if count > 0 {
-                    MedxBadge("\(count)")
-                } else {
-                    EmptyView()
-                }
-            }
-        }
-        .medxListRow()
-    }
+            HStack(spacing: 14) {
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(MedxTheme.primaryPurple)
+                    .frame(width: 34, height: 34)
+                    .background(MedxTheme.primaryPurple.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
 
-    /// Moved out of the toolbar, where it was an unlabelled slider glyph next to two others. A row with
-    /// the words on it is discoverable; three abstract icons in a navigation bar are a guessing game.
-    private var customModulesRow: some View {
-        Button {
-            HapticManager.light()
-            appState.open(route: .customModules)
-        } label: {
-            MedxRow(title: "Custom modules", detail: "Papers either of you saved")
+                Text("Bookmarked questions")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Spacer(minLength: 0)
+
+                Text("\(activityStore.bookmarks(for: uid).count)")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+
+                MedxDisclosure()
+            }
+            .padding(14)
+            .medxCard()
+            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
         }
         .buttonStyle(.plain)
-        .medxListRow()
+        .accessibilityLabel("Bookmarked questions")
+        .accessibilityValue("\(activityStore.bookmarks(for: uid).count) saved")
     }
 
     // MARK: - States
 
-    /// Reached when a bank came back empty. Marrow is the one that can: it is a single seeded document,
-    /// and if it has not been written the segment should say so rather than looking like a failed fetch.
-    private var emptyBankSection: some View {
-        Section {
-            ContentUnavailableView {
-                Label(
-                    searchText.isEmpty ? "\(bank.label) is not seeded yet" : "No Matches",
-                    systemImage: searchText.isEmpty ? "tray" : "magnifyingglass"
-                )
-            } description: {
-                Text(searchText.isEmpty
-                     ? "Nothing has been published to this bank. The other one is unaffected."
-                     : "No subject matches “\(searchText)”.")
-            }
-            .medxPlainRow()
+    /// Reached when a bank came back empty. Marrow is the one that can: it is a single seeded
+    /// document, and if it has not been written the segment should say so rather than looking
+    /// like a failed fetch.
+    private var emptyBankState: some View {
+        ContentUnavailableView {
+            Label(
+                searchText.isEmpty ? "\(bank.label) is not seeded yet" : "No Matches",
+                systemImage: searchText.isEmpty ? "tray" : "magnifyingglass"
+            )
+        } description: {
+            Text(searchText.isEmpty
+                 ? "Nothing has been published to this bank. The other one is unaffected."
+                 : "No subject matches “\(searchText)”.")
         }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 24)
     }
 
     private func failedState(message: String) -> some View {
@@ -283,7 +330,6 @@ public struct QBankSubjectListView: View {
             .medxFilledButton()
             .buttonBorderShape(.capsule)
         }
-        .medxPage()
     }
 
     // MARK: - Data
@@ -302,32 +348,18 @@ public struct QBankSubjectListView: View {
             subjects = loadedSubjects
             attempts = loadedAttempts
             recomputePractised()
-            refilter()
             loadState = .loaded
 
-            // The subject tree is the only place the module list exists, so this is where Spotlight and
-            // the index's progress denominator get their numbers.
+            // The subject tree is the only place the module list exists, so this is where
+            // Spotlight and the index's progress denominator get their numbers. Both now cover
+            // both banks: the index keys on `MedxBankSubject.id` as a string, and Spotlight only
+            // ever wanted the names.
             MedxQuestionIndexStore.shared.noteExpectations(subjects: loadedSubjects)
             Task { await MedxSpotlightIndexer.shared.indexModules(loadedSubjects) }
         } catch {
             loadState = subjects.isEmpty
                 ? .failed("Check your connection and try again.")
                 : .loaded
-        }
-    }
-
-    /// Filter by bank, then by query, then total what is left. The one place any of that happens.
-    private func refilter() {
-        let inBank = subjects.filter { $0.bank == bank }
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        shownSubjects = query.isEmpty
-            ? inBank
-            : inBank.filter { $0.name.localizedCaseInsensitiveContains(query) }
-
-        bankTotals = inBank.reduce(into: (modules: 0, questions: 0, subjects: 0)) { totals, subject in
-            totals.modules += subject.moduleCount
-            totals.questions += subject.questionCount
-            totals.subjects += 1
         }
     }
 

@@ -61,11 +61,10 @@ public struct FlashcardsSubjectListView: View {
                     }
                 }
             }
-            .medxPage()
+            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxScrollEdge()
         }
         .navigationTitle("Cards")
-        // Large, and the only "Cards" on the screen — there used to be an inline title and a
-        // an in-content header repeating it.
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -95,21 +94,34 @@ public struct FlashcardsSubjectListView: View {
     private func content(layout: FlashcardLayout) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                // The one screen that keeps a card grid, and it earns it: these decks are pure artwork,
-                // so a thumbnail says more about a subject than any row could. Everywhere else in the app
-                // an image is decoration and a row is the honest layout.
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(totalCards.formatted())
-                        .font(MedxType.display)
-                        .contentTransition(.numericText())
-                    Text("cards across \(subjects.count) subjects · nothing is scored")
-                        .medxTag()
+                MedxPageHeader(
+                    section: .cards,
+                    lead: "Image decks, tapped through one at a time. Nothing here is scored — "
+                        + "these are the pictures you either recognise or you do not."
+                )
+
+                MedxMetricsRow {
+                    MedxMetric(
+                        icon: "rectangle.stack.fill",
+                        value: totalCards.formatted(),
+                        label: "cards",
+                        color: MedxCandy.butter
+                    )
+                    MedxMetric(
+                        icon: "books.vertical.fill",
+                        value: "\(subjects.count)",
+                        label: "subjects",
+                        color: MedxCandy.sky
+                    )
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
 
                 if filteredSubjects.isEmpty {
                     ContentUnavailableView {
-                        Label("No Matches", systemImage: "magnifyingglass")
+                        Label {
+                            Text("No Matches")
+                        } icon: {
+                            MedxSticker("search", size: 40)
+                        }
                     } description: {
                         Text("No subject matches “\(searchText)”.")
                     }
@@ -119,7 +131,7 @@ public struct FlashcardsSubjectListView: View {
                     subjectGrid(layout: layout)
                 }
             }
-            .padding(.horizontal, MedxDS.gutter)
+            .padding(.horizontal, MedxSurface.gutter)
             .padding(.top, 6)
             .padding(.bottom, 28)
         }
@@ -157,7 +169,7 @@ public struct FlashcardsSubjectListView: View {
                         if let preview = previewURL(for: subject, layout: layout) {
                             CachedAsyncImage(url: preview, contentMode: .fill, maxPixelSize: 700)
                         } else {
-                            MedxDS.sunken
+                            MedxSurface.tileFill
                                 .overlay(
                                     MedxSticker(
                                         MedxSubjectArt.sticker(for: subject.name),
@@ -179,10 +191,10 @@ public struct FlashcardsSubjectListView: View {
             }
             .clipShape(
                 UnevenRoundedRectangle(
-                    topLeadingRadius: MedxDS.card,
+                    topLeadingRadius: MedxSurface.cardRadius,
                     bottomLeadingRadius: 0,
                     bottomTrailingRadius: 0,
-                    topTrailingRadius: MedxDS.card,
+                    topTrailingRadius: MedxSurface.cardRadius,
                     style: .continuous
                 )
             )

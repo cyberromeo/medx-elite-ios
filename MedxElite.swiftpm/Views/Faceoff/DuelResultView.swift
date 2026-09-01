@@ -36,7 +36,7 @@ struct DuelResultView: View {
                     statsGrid
                     review
                 }
-                .padding(.horizontal, MedxDS.gutter)
+                .padding(.horizontal, MedxSurface.gutter)
                 .padding(.top, 12)
                 .padding(.bottom, 24)
             }
@@ -49,8 +49,10 @@ struct DuelResultView: View {
                     .font(.body.weight(.semibold))
                     .frame(maxWidth: .infinity, minHeight: 50)
             }
-            .medxFilled(MedxTheme.accent)
-            .medxFloatingBar()
+            .medxFilled(MedxSection.duel.fill)
+            .padding(.horizontal, MedxSurface.gutter)
+            .padding(.vertical, 10)
+            .medxBar(topDivider: true)
         }
         .onAppear {
             if winner == nil { HapticManager.selection() } else if iWon { HapticManager.success() }
@@ -69,7 +71,7 @@ struct DuelResultView: View {
                         .font(.caption2.weight(.bold))
                         .textCase(.uppercase)
                         .tracking(0.7)
-                        .foregroundStyle(MedxTheme.accent)
+                        .foregroundStyle(MedxSection.duel.onSoft)
 
                     Text(headlineText)
                         .font(.title2.weight(.bold))
@@ -100,7 +102,7 @@ struct DuelResultView: View {
 
     private var statsGrid: some View {
         VStack(alignment: .leading, spacing: 10) {
-            MedxHeader("Side by side")
+            MedxSectionHeader("Side by side")
 
             VStack(spacing: 8) {
                 statRow(
@@ -146,7 +148,7 @@ struct DuelResultView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(MedxDS.shape(MedxDS.control).fill(MedxDS.row))
+        .medxTile()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(label)
         .accessibilityValue("\(room.myProfile?.displayName ?? "you") \(mine), "
@@ -157,7 +159,7 @@ struct DuelResultView: View {
 
     private var review: some View {
         VStack(alignment: .leading, spacing: 10) {
-            MedxHeader("Round by round")
+            MedxSectionHeader("Round by round")
 
             VStack(spacing: 6) {
                 ForEach(log, id: \.qIndex) { row in
@@ -211,7 +213,7 @@ struct DuelResultView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(MedxDS.shape(MedxDS.control).fill(MedxDS.row))
+        .medxTile()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Question \(row.qIndex + 1)")
         .accessibilityValue("you \(mine?.points ?? 0), them \(theirs?.points ?? 0)")
@@ -224,13 +226,13 @@ struct DuelResultView: View {
         let tint: Color
         if answer?.correct == true {
             symbol = "checkmark.circle.fill"
-            tint = MedxDS.correct
+            tint = MedxTheme.successGreen
         } else if answer?.timedOut ?? true {
             symbol = "clock.badge.xmark"
             tint = .secondary
         } else {
             symbol = "xmark.circle.fill"
-            tint = MedxDS.wrong
+            tint = MedxTheme.destructiveRed
         }
         return Image(systemName: symbol)
             .font(.caption.weight(.bold))

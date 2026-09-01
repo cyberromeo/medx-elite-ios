@@ -16,13 +16,9 @@ public struct CountdownWidgetView: View {
     private var title: String { stats.examName }
 
     public var body: some View {
-        // **One tick a minute, not one a second.**
-        //
-        // The headline is a number of days. A 1 Hz schedule redrew this card 86,400 times a day so that
-        // a seconds digit — which nobody reads on a countdown measured in months — could advance, and
-        // it did it on the screen the app opens on. `.periodic` at 60s keeps the hours-and-minutes
-        // readout honest to within a minute, which is as precise as a readout in that unit can be.
-        TimelineView(.periodic(from: Date(), by: 60.0)) { context in
+        // One second is the smallest unit shown, so that is the tick rate. `TimelineView`
+        // keeps the redraw scoped to this card instead of the whole Home screen.
+        TimelineView(.periodic(from: Date(), by: 1.0)) { context in
             let remaining = TimeRemaining(until: targetDate, from: context.date)
 
             VStack(alignment: .leading, spacing: 14) {
@@ -30,7 +26,7 @@ public struct CountdownWidgetView: View {
 
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text("\(remaining.days)")
-                        .font(MedxType.figure(44, weight: .bold))
+                        .font(MedxFont.display(44))
                         .monospacedDigit()
                         .contentTransition(.numericText())
                         .foregroundStyle(.primary)
@@ -45,14 +41,14 @@ public struct CountdownWidgetView: View {
                 }
                 .animation(.snappy, value: remaining.days)
 
-                MedxAnswerSheet(
-                    fraction: remaining.elapsedFraction,
-                    scale: .sheet,
-                    label: "\(Int(remaining.elapsedFraction * 100)) percent of the run elapsed"
-                )
+                ProgressView(value: remaining.elapsedFraction)
+                    .tint(MedxTheme.primaryPink)
+                    .accessibilityHidden(true)
             }
+            .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            .medxCard(cornerRadius: 20)
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(title) countdown")
             .accessibilityValue("\(remaining.days) days, \(remaining.hours) hours remaining")
@@ -90,9 +86,6 @@ public struct CountdownWidgetView: View {
         }
     }
 
-    /// Hours and minutes. **No seconds** — the card ticks once a minute now, so a seconds digit would
-    /// sit frozen on a stale value between ticks, which is worse than not showing one. A countdown
-    /// measured in months does not have a seconds hand.
     private func clock(remaining: TimeRemaining) -> some View {
         HStack(spacing: 4) {
             unit(String(format: "%02d", remaining.hours), label: "hr")
@@ -100,6 +93,10 @@ public struct CountdownWidgetView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.tertiary)
             unit(String(format: "%02d", remaining.minutes), label: "min")
+            Text(":")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.tertiary)
+            unit(String(format: "%02d", remaining.seconds), label: "sec")
         }
     }
 
@@ -156,8 +153,6 @@ struct MedxExamDateSheet: View {
                     Text("The Home Screen and Lock Screen widgets use this too.")
                 }
             }
-            .scrollContentBackground(.hidden)
-            .medxPage()
             .navigationTitle("Exam countdown")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

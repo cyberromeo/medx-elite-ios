@@ -126,11 +126,23 @@ public enum MedxSubjectArt {
     }
 
     private static let fallbackPool = ["books", "bulb", "memo", "crystal", "atom", "sparkles"]
+    private static let fallbackSymbols = [
+        "book.closed.fill", "lightbulb.fill", "text.book.closed.fill",
+        "sparkles", "atom", "square.stack.3d.up.fill",
+    ]
 
     public static func sticker(for subject: String?) -> String {
         let label = subject ?? ""
         if let hit = match(label) { return hit.sticker }
         return fallbackPool[Int(fallbackIndex(label) % UInt32(fallbackPool.count))]
+    }
+
+    /// The SF Symbol for a subject, on the same table and the same fallback hash — so the
+    /// symbol and the sticker for one subject always agree about which rule matched.
+    public static func symbol(for subject: String?) -> String {
+        let label = subject ?? ""
+        if let hit = match(label) { return hit.symbol }
+        return fallbackSymbols[Int(fallbackIndex(label) % UInt32(fallbackSymbols.count))]
     }
 
     /// First rule in table order that matches, and it stops there — the table is walked once
@@ -148,5 +160,44 @@ public enum MedxSubjectArt {
             hash = hash &* 31 &+ (scalar.value & 0xFFFF)
         }
         return hash
+    }
+}
+
+// MARK: - Symbol mark
+
+/// An SF Symbol in a rounded, hue-washed square — the app's standard row and card icon.
+///
+/// This is the shape iOS itself uses wherever a list needs to be scannable by icon: Settings,
+/// Shortcuts, Mail's mailbox list. It replaced a 3D sticker in every one of those positions
+/// because a symbol inherits the label's weight, respects Dynamic Type, and can be told what
+/// it means; the stickers stayed only where the picture *is* the content.
+public struct MedxSymbolMark: View {
+    private let symbol: String
+    private let hue: Color
+    private let size: CGFloat
+    private let filled: Bool
+
+    /// `filled` washes the square in the hue and inks the glyph in `onSoft`; otherwise the
+    /// glyph alone carries the colour, which is what a dense list wants.
+    public init(_ symbol: String, hue: Color, size: CGFloat = 36, filled: Bool = true) {
+        self.symbol = symbol
+        self.hue = hue
+        self.size = size
+        self.filled = filled
+    }
+
+    public var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: size * 0.44, weight: .semibold))
+            .foregroundStyle(filled ? MedxCandy.onSoft(hue) : hue)
+            .symbolRenderingMode(.hierarchical)
+            .frame(width: size, height: size)
+            .background {
+                if filled {
+                    RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                        .fill(hue.opacity(0.16))
+                }
+            }
+            .accessibilityHidden(true)
     }
 }

@@ -1,13 +1,7 @@
 import SwiftUI
 
-/// The classes inside one subject.
-///
-/// A `List` rather than a `LazyVStack`, and that is the whole point: swipe a row to save it
-/// offline, swipe the other way to play or clear its progress. Those are the platform's own
-/// gestures — full-swipe, rubber-band, and "Actions available" under VoiceOver — and none of it
-/// is hand-rolled. Because the gesture is there, the row no longer carries a permanent download
-/// button; that control only reappears while a download is actually in flight, where it is a
-/// progress readout rather than a second way to start one.
+/// The classes inside one subject. Play on tap, download from the trailing control, and
+/// long-press for the quality menu without opening the player.
 public struct VideoSubjectView: View {
     public let subjectGroup: VideoSubjectGroup
 
@@ -32,16 +26,19 @@ public struct VideoSubjectView: View {
     }
 
     public var body: some View {
+        // A `List` rather than a `LazyVStack`, for the swipe actions: left to save a class offline,
+        // right to play it. `medxCardRow` hands the cell's background and insets back to the row, so
+        // each one still draws the same card it drew inside the stack.
         List {
             Section {
                 summaryRow
-                    .medxPlainRow(vertical: 2)
+                    .medxCardRow(vertical: 4)
             }
 
             Section {
                 ForEach(Array(subjectGroup.videos.enumerated()), id: \.element.id) { index, video in
                     videoRow(video, index: index)
-                        .medxPlainRow(vertical: 5)
+                        .medxCardRow()
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             downloadSwipeAction(video)
                         }
@@ -53,17 +50,50 @@ public struct VideoSubjectView: View {
                 Text("Swipe a class left to save it offline, right to play it. Long-press for the quality menu.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .padding(.top, 6)
+                    .listRowInsets(
+                        EdgeInsets(
+                            top: 10,
+                            leading: MedxSurface.gutter,
+                            bottom: 24,
+                            trailing: MedxSurface.gutter
+                        )
+                    )
             }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .medxPage()
+        .medxCardList()
         .navigationTitle(subjectGroup.name)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                bulkDownloadMenu
+                Menu {
+                    if pendingDownloads.isEmpty {
+                        Section("Every class is saved offline") {
+                            Button(role: .destructive) {
+                                HapticManager.warning()
+                                for video in subjectGroup.videos {
+                                    downloads.remove(video.id)
+                                }
+                            } label: {
+                                Label("Delete these downloads", systemImage: "trash")
+                            }
+                        }
+                    } else {
+                        Section("Save \(pendingDownloads.count) classes offline") {
+                            ForEach(DownloadQuality.allCases) { quality in
+                                Button {
+                                    HapticManager.light()
+                                    downloads.startAll(pendingDownloads, quality: quality)
+                                } label: {
+                                    Label(quality.label, systemImage: quality.icon)
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: offlineCount > 0 ? "arrow.down.circle.fill" : "arrow.down.circle")
+                        .font(.system(size: 17, weight: .semibold))
+                }
+                .accessibilityLabel("Download all classes")
             }
         }
         .fullScreenCover(item: $activeVideo) { video in
@@ -71,10 +101,21 @@ public struct VideoSubjectView: View {
         }
     }
 
-    // MARK: - Swipe actions
+    private var summaryRow: some View {
+        HStack(spacing: 8) {
+            MedxChip("\(subjectGroup.totalClasses) classes", icon: "play.fill", tint: MedxTheme.primaryBlue)
+            MedxChip(subjectGroup.formattedDuration, icon: "clock.fill", tint: MedxTheme.primaryPurple)
+            if offlineCount > 0 {
+                MedxChip("\(offlineCount) offline", icon: "arrow.down.circle.fill", tint: MedxTheme.successGreen)
+            }
+            Spacer(minLength: 0)
+        }
+    }
 
-    /// Trailing swipe: the one thing you most often want from a class you are not watching yet.
-    /// Full swipe commits it, exactly as full-swiping a mail archives it.
+    // MARK: - Swipe
+
+    /// Trailing swipe: save it, or — where it is already saved — delete it. Same two actions the
+    /// long-press menu offers, one gesture closer.
     @ViewBuilder
     private func downloadSwipeAction(_ video: RecordedVideo) -> some View {
         if downloads.items[video.id]?.state == .completed {
@@ -91,7 +132,7 @@ public struct VideoSubjectView: View {
             } label: {
                 Label("Save", systemImage: "arrow.down.circle")
             }
-            .tint(MedxDS.correct)
+            .tint(MedxTheme.successGreen)
         }
     }
 
@@ -118,208 +159,121 @@ public struct VideoSubjectView: View {
             } label: {
                 Label("Clear", systemImage: "clock.badge.xmark")
             }
-            .tint(MedxDS.warn)
+            .tint(MedxTheme.warningOrange)
         }
     }
-
-    // MARK: - Chrome
-
-    private var bulkDownloadMenu: some View {
-        Menu {
-            if pendingDownloads.isEmpty {
-                Section("Every class is saved offline") {
-                    Button(role: .destructive) {
-                        HapticManager.warning()
-                        for video in subjectGroup.videos {
-                            downloads.remove(video.id)
-                        }
-                    } label: {
-                        Label("Delete these downloads", systemImage: "trash")
-                    }
-                }
-            } else {
-                Section("Save \(pendingDownloads.count) classes offline") {
-                    ForEach(DownloadQuality.allCases) { quality in
-                        Button {
-                            HapticManager.light()
-                            downloads.startAll(pendingDownloads, quality: quality)
-                        } label: {
-                            Label(quality.label, systemImage: quality.icon)
-                        }
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: offlineCount > 0 ? "arrow.down.circle.fill" : "arrow.down.circle")
-                .font(.system(size: 17, weight: .semibold))
-        }
-        .accessibilityLabel("Download all classes")
-    }
-
-    /// Three hue-coded chips became one figure and one tag line. Nothing here is status, so nothing
-    /// here is coloured.
-    private var summaryRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("\(subjectGroup.totalClasses)")
-                .font(MedxType.display)
-                .contentTransition(.numericText())
-            Text(offlineCount > 0
-                 ? "classes · \(subjectGroup.formattedDuration) · \(offlineCount) offline"
-                 : "classes · \(subjectGroup.formattedDuration)")
-                .medxTag()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    // MARK: - Row
 
     private func videoRow(_ video: RecordedVideo, index: Int) -> some View {
         let history = activityStore.entry(for: video.id, uid: uid)
-        let inFlight = downloads.items[video.id].flatMap { $0.state == .completed ? nil : $0 }
+        let isDownloaded = downloads.items[video.id]?.state == .completed
 
-        return HStack(spacing: 12) {
+        return HStack(spacing: 8) {
             Button {
                 HapticManager.light()
                 activeVideo = video
             } label: {
-                rowLabel(video, index: index, history: history)
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(MedxTheme.accent.opacity(0.12))
+                            .frame(width: 40, height: 40)
+                        Text("\(index + 1)")
+                            .font(.subheadline.weight(.bold).monospacedDigit())
+                            .foregroundStyle(MedxTheme.accent)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(video.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(2)
+
+                        HStack(spacing: 8) {
+                            if let faculty = video.faculty, !faculty.isEmpty {
+                                Text(faculty)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+
+                            if let seconds = video.durationSeconds, seconds > 0 {
+                                Text(video.formattedDuration)
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if isDownloaded {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(MedxTheme.successGreen)
+                                    .accessibilityLabel("Available offline")
+                            }
+                        }
+
+                        if let history, history.progress > 0 {
+                            HStack(spacing: 6) {
+                                ProgressView(value: history.progress)
+                                    .tint(history.isCompleted ? MedxTheme.successGreen : MedxTheme.accent)
+                                    .frame(width: 64)
+                                Text(history.isCompleted
+                                     ? "Watched"
+                                     : "Resume at \(history.formattedResumeTime) · \(Int(history.progress * 100))%")
+                                    .font(.caption2)
+                                    .foregroundStyle(history.isCompleted ? MedxTheme.successGreen : .secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Play \(video.title)")
 
-            // Only while something is actually downloading: then it is the progress readout and
-            // the pause control. Otherwise the swipe and the long-press menu are the affordance.
-            if inFlight != nil {
-                VideoDownloadButton(video: video)
-            }
+            // A `Menu` nested inside a `Button` label never receives taps, so the download
+            // control lives beside the play button rather than inside it.
+            VideoDownloadButton(video: video)
         }
+        .padding(12)
+        .frame(minHeight: 64)
+        .medxCard()
         .contextMenu {
-            rowContextMenu(video, history: history)
-        }
-    }
-
-    private func rowLabel(
-        _ video: RecordedVideo,
-        index: Int,
-        history: WatchHistoryEntry?
-    ) -> some View {
-        HStack(spacing: 14) {
-            Text("\(index + 1)")
-                .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(MedxTheme.accent)
-                .medxInkCircle(diameter: 40, tint: MedxTheme.accent.opacity(0.18))
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(video.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(2)
-
-                metaLine(video)
-
-                if let history, history.progress > 0 {
-                    progressLine(history)
-                }
-            }
-
-            Spacer(minLength: 0)
-        }
-        .contentShape(Rectangle())
-    }
-
-    private func metaLine(_ video: RecordedVideo) -> some View {
-        HStack(spacing: 8) {
-            if let faculty = video.faculty, !faculty.isEmpty {
-                Text(faculty)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            if let seconds = video.durationSeconds, seconds > 0 {
-                Text(video.formattedDuration)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-
-            if downloads.items[video.id]?.state == .completed {
-                Image(systemName: "arrow.down.circle.fill")
-                    .font(.caption2)
-                    .foregroundStyle(MedxDS.correct)
-                    .accessibilityLabel("Available offline")
-            }
-        }
-    }
-
-    private func progressLine(_ history: WatchHistoryEntry) -> some View {
-        HStack(spacing: 6) {
-            ProgressView(value: history.progress)
-                .tint(history.isCompleted ? MedxDS.correct : MedxTheme.accent)
-                .frame(width: 64)
-
-            Text(history.isCompleted
-                 ? "Watched"
-                 : "Resume at \(history.formattedResumeTime) · \(Int(history.progress * 100))%")
-                .font(.caption2)
-                .foregroundStyle(history.isCompleted ? MedxDS.correct : .secondary)
-                .lineLimit(1)
-        }
-    }
-
-    @ViewBuilder
-    private func rowContextMenu(_ video: RecordedVideo, history: WatchHistoryEntry?) -> some View {
-        Button {
-            HapticManager.light()
-            activeVideo = video
-        } label: {
-            Label((history?.resumePosition ?? 0) > 0 ? "Resume" : "Play", systemImage: "play.circle")
-        }
-
-        if downloads.items[video.id]?.state == .completed {
-            Button(role: .destructive) {
-                HapticManager.warning()
-                downloads.remove(video.id)
+            Button {
+                HapticManager.light()
+                activeVideo = video
             } label: {
-                Label("Delete download", systemImage: "trash")
+                Label((history?.resumePosition ?? 0) > 0 ? "Resume" : "Play", systemImage: "play.circle")
             }
-        } else {
-            ForEach(DownloadQuality.allCases) { quality in
-                Button {
-                    HapticManager.light()
-                    downloads.start(video, quality: quality)
+
+            if isDownloaded {
+                Button(role: .destructive) {
+                    HapticManager.warning()
+                    downloads.remove(video.id)
                 } label: {
-                    Label("Save · \(quality.label)", systemImage: quality.icon)
+                    Label("Delete download", systemImage: "trash")
+                }
+            } else {
+                ForEach(DownloadQuality.allCases) { quality in
+                    Button {
+                        HapticManager.light()
+                        downloads.start(video, quality: quality)
+                    } label: {
+                        Label("Save · \(quality.label)", systemImage: quality.icon)
+                    }
+                }
+            }
+
+            if let history {
+                Button(role: .destructive) {
+                    activityStore.removeWatchHistory(history, uid: uid)
+                } label: {
+                    Label("Clear watch progress", systemImage: "clock.badge.xmark")
                 }
             }
         }
-
-        if let history {
-            Button(role: .destructive) {
-                activityStore.removeWatchHistory(history, uid: uid)
-            } label: {
-                Label("Clear watch progress", systemImage: "clock.badge.xmark")
-            }
-        }
-    }
-}
-
-public extension View {
-    /// A `List` row that keeps the app's own card geometry: no separator, no system fill, and
-    /// the page's gutter rather than the list's inset. This is what lets a screen take the
-    /// platform's swipe actions without giving up the aurora behind it.
-    func medxPlainRow(vertical: CGFloat = 5) -> some View {
-        self
-            .listRowInsets(
-                EdgeInsets(
-                    top: vertical,
-                    leading: MedxDS.gutter,
-                    bottom: vertical,
-                    trailing: MedxDS.gutter
-                )
-            )
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
     }
 }

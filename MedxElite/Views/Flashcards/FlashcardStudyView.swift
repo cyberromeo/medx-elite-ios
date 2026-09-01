@@ -49,11 +49,11 @@ public struct FlashcardStudyView: View {
                         grid(layout: layout)
                     }
                 }
-                .padding(.horizontal, MedxDS.gutter)
+                .padding(.horizontal, MedxSurface.gutter)
                 .padding(.top, 6)
                 .padding(.bottom, 32)
             }
-            .background(MedxDS.page)
+            .background(MedxSurface.groupedBackground)
         }
         .navigationTitle(subject.name)
         .navigationBarTitleDisplayMode(.large)
@@ -103,7 +103,7 @@ public struct FlashcardStudyView: View {
                     cardTile(card, number: index + 1, layout: layout)
                 }
                 .buttonStyle(.plain)
-                .contentShape(MedxDS.shape(MedxDS.control))
+                .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .accessibilityLabel("Flashcard \(index + 1), \(card.name)")
                 .accessibilityHint("Opens the full-screen viewer")
             }
@@ -161,7 +161,7 @@ public struct FlashcardStudyView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
         }
-        .medxCard(cornerRadius: MedxDS.control)
+        .medxCard(cornerRadius: 14)
     }
 }
 

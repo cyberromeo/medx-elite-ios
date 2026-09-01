@@ -158,7 +158,7 @@ public struct ModuleBuilderSheet: View {
                                 .padding(.vertical, 40)
                         }
                     }
-                    .padding(.horizontal, MedxDS.gutter)
+                    .padding(.horizontal, MedxSurface.gutter)
                     .padding(.top, 12)
                     .padding(.bottom, 20)
                 }
@@ -170,7 +170,7 @@ public struct ModuleBuilderSheet: View {
 
                 saveBar
             }
-            .medxPage()
+            .background(MedxSurface.groupedBackground.ignoresSafeArea())
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -200,23 +200,23 @@ public struct ModuleBuilderSheet: View {
                 Label("Shuffle", systemImage: "shuffle")
                     .font(.subheadline.weight(.semibold))
             }
-            .tint(MedxTheme.accent)
+            .tint(MedxSection.custom.fill)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Cap")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
 
-                Picker("Length", selection: Binding(
-                    get: { draft.limit ?? 0 },
-                    set: { draft.limit = $0 > 0 ? $0 : nil }
-                )) {
-                    ForEach(Self.caps, id: \.self) { cap in
-                        Text(cap == 0 ? "All" : "\(cap)").tag(cap)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                MedxSegmented(
+                    section: .custom,
+                    segments: Self.caps.map {
+                        MedxSegment(value: $0, label: $0 == 0 ? "All" : "\($0)")
+                    },
+                    selection: Binding(
+                        get: { draft.limit ?? 0 },
+                        set: { draft.limit = $0 > 0 ? $0 : nil }
+                    )
+                )
             }
         }
         .padding(14)
@@ -240,10 +240,10 @@ public struct ModuleBuilderSheet: View {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 8, weight: .black))
                             }
-                            .foregroundStyle(MedxTheme.accent)
+                            .foregroundStyle(MedxSection.custom.onSoft)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 5)
-                            .background(MedxTheme.accent.opacity(0.16), in: Capsule())
+                            .background(MedxSection.custom.soft, in: Capsule())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Remove \(source.name)")
@@ -299,10 +299,10 @@ public struct ModuleBuilderSheet: View {
                          : (query.isEmpty ? "select all" : "select \(visibleIds.count) matches"))
                         .font(.caption.weight(.bold))
                 }
-                .foregroundStyle(MedxTheme.accent)
+                .foregroundStyle(MedxSection.custom.onSoft)
                 .padding(.horizontal, 10)
                 .frame(minHeight: 30)
-                .background(MedxTheme.accent.opacity(0.16), in: Capsule())
+                .background(MedxSection.custom.soft, in: Capsule())
             }
             .buttonStyle(.plain)
             .disabled(visibleIds.isEmpty)
@@ -352,9 +352,11 @@ public struct ModuleBuilderSheet: View {
                 .font(.body.weight(.semibold))
                 .frame(maxWidth: .infinity, minHeight: 50)
         }
-        .medxFilled(MedxTheme.accent)
+        .medxFilled(MedxSection.custom.fill)
         .disabled(draft.sources.isEmpty)
-        .medxFloatingBar()
+        .padding(.horizontal, MedxSurface.gutter)
+        .padding(.vertical, 10)
+        .medxBar(topDivider: true)
     }
 
     // MARK: - Subject block
@@ -390,11 +392,11 @@ public struct ModuleBuilderSheet: View {
                         Text(here > 0 ? "\(here)/\(mine.count)" : "all")
                             .font(.caption2.weight(.bold).monospacedDigit())
                     }
-                    .foregroundStyle(allHere ? MedxTheme.accent : .secondary)
+                    .foregroundStyle(allHere ? MedxSection.custom.onSoft : .secondary)
                     .padding(.horizontal, 8)
                     .frame(minHeight: 30)
                     .background(
-                        Capsule().fill(allHere ? MedxTheme.accent.opacity(0.16) : MedxDS.sunken)
+                        Capsule().fill(allHere ? MedxSection.custom.soft : MedxSurface.fieldFill)
                     )
                 }
                 .buttonStyle(.plain)
@@ -421,14 +423,15 @@ public struct ModuleBuilderSheet: View {
         isOpen: Bool
     ) -> some View {
         HStack(spacing: 10) {
-            
+            MedxSymbolMark(MedxSubjectArt.symbol(for: subject.name), hue: MedxSection.qbank.fill, size: 32)
+
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 5) {
                     Text(subject.name)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
-                    MedxBadge(subject.bank.label)
+                    MedxPill(subject.bank.label, hue: subject.bank == .marrow ? MedxCandy.butter : MedxCandy.lime)
                 }
                 // Under a search the row only holds the matches, so it says so — otherwise the
                 // "all" pill beside a subject listing 2 of 38 modules reads as all 38.
@@ -468,7 +471,7 @@ public struct ModuleBuilderSheet: View {
                 if on > 0 {
                     Text("\(on)/\(chapter.modules.count)")
                         .font(.caption2.weight(.bold).monospacedDigit())
-                        .foregroundStyle(MedxTheme.accent)
+                        .foregroundStyle(MedxSection.custom.onSoft)
                 }
 
                 Button(allOn ? "clear" : "all") {
@@ -476,7 +479,7 @@ public struct ModuleBuilderSheet: View {
                 }
                 .font(.caption2.weight(.bold))
                 .buttonStyle(.plain)
-                .foregroundStyle(allOn ? MedxTheme.accent : .secondary)
+                .foregroundStyle(allOn ? MedxSection.custom.onSoft : .secondary)
                 .accessibilityLabel("\(allOn ? "Clear" : "Select") every module in \(chapter.name)")
             }
 
@@ -499,7 +502,7 @@ public struct ModuleBuilderSheet: View {
             HStack(spacing: 10) {
                 Image(systemName: isOn ? "checkmark.square.fill" : "square")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(isOn ? MedxTheme.accent : Color.secondary)
+                    .foregroundStyle(isOn ? MedxSection.custom.onSoft : Color.secondary)
 
                 Text(module.name)
                     .font(.footnote)
@@ -516,8 +519,8 @@ public struct ModuleBuilderSheet: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
             .frame(minHeight: 40)
-            .medxOptionSurface(state: isOn ? MedxTheme.accent : nil, emphasized: isOn)
-            .contentShape(MedxDS.shape(MedxDS.control))
+            .medxTile(accentColor: MedxSection.custom.fill, isSelected: isOn)
+            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.tileRadius, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(module.name)

@@ -70,8 +70,6 @@ public struct MedxCustomModuleSheet: View {
                 shapeSection
                 availabilitySection
             }
-            .scrollContentBackground(.hidden)
-            .medxPage()
             .navigationTitle("Custom module")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -166,7 +164,7 @@ public struct MedxCustomModuleSheet: View {
                     Spacer()
                     Text("\(availableCount.formatted())")
                         .font(.body.monospacedDigit())
-                        .foregroundStyle(availableCount >= length ? MedxDS.correct : MedxDS.warn)
+                        .foregroundStyle(availableCount >= length ? MedxTheme.successGreen : MedxTheme.warningOrange)
                         .contentTransition(.numericText())
                 }
                 .frame(minHeight: 44)
@@ -205,7 +203,9 @@ public struct MedxCustomModuleSheet: View {
         .buttonBorderShape(.capsule)
         .tint(MedxTheme.accent)
         .disabled(isLoading || isBuilding)
-        .medxFloatingBar()
+        .padding(.horizontal, MedxSurface.gutter)
+        .padding(.vertical, 10)
+        .medxBar(topDivider: true)
     }
 
     // MARK: - Building
@@ -408,8 +408,6 @@ struct MedxSubjectMultiPicker: View {
             }
         }
         .animation(.snappy(duration: 0.18), value: selection)
-        .scrollContentBackground(.hidden)
-        .medxPage()
         .navigationTitle("Subjects")
         .navigationBarTitleDisplayMode(.inline)
     }

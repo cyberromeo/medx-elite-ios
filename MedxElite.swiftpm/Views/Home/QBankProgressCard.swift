@@ -66,32 +66,60 @@ public struct QBankProgressCard: View {
                 .accessibilityLabel("Open the question bank")
             }
 
-            // A ring with a percentage inside it next to the same coverage as a figure was the same
-            // number three ways. The sheet says it once, and says *how much* of the bank is left in a
-            // way a percentage cannot.
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(current.unique.formatted())
-                        .font(MedxType.display)
-                        .contentTransition(.numericText())
-                    Text("of \(totalQuestions.formatted()) attempted")
-                        .medxTag()
-                    Spacer(minLength: 0)
-                }
-
-                MedxAnswerSheet(
-                    fraction: coverage,
-                    scale: .sheet,
-                    label: "\(Int((coverage * 100).rounded())) percent of the bank seen"
+            HStack(spacing: 20) {
+                ProgressRingView(
+                    progress: coverage,
+                    strokeWidth: 8,
+                    size: 88,
+                    tint: .accentColor,
+                    centerContent: AnyView(
+                        VStack(spacing: 0) {
+                            Text("\(Int((coverage * 100).rounded()))%")
+                                .font(.headline.weight(.bold).monospacedDigit())
+                            Text("seen")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    )
                 )
 
-                HStack(alignment: .top, spacing: 10) {
-                    MedxStat(current.answered > 0 ? "\(accuracy)%" : "—", label: "accuracy",
-                             tint: current.answered > 0 ? MedxDS.correct : nil)
-                    MedxStat("\(current.sittings)", label: "sittings")
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(alignment: .lastTextBaseline, spacing: 4) {
+                            Text(current.unique.formatted())
+                                .font(.title3.weight(.semibold).monospacedDigit())
+                            Text("of \(totalQuestions.formatted())")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        Text("questions attempted")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack(spacing: 18) {
+                        figure(value: current.answered > 0 ? "\(accuracy)%" : "—", label: "accuracy")
+                        figure(value: "\(current.sittings)", label: "sittings")
+                    }
                 }
+
+                Spacer(minLength: 0)
             }
         }
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .medxCard(cornerRadius: 20)
+    }
+
+    private func figure(value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(value)
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(value) \(label)")
     }
 }

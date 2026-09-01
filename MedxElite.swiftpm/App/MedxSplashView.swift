@@ -19,7 +19,7 @@ public struct MedxSplashView: View {
 
     public var body: some View {
         ZStack {
-            MedxDS.page
+            Color(uiColor: .systemGroupedBackground)
                 .ignoresSafeArea()
 
             VStack(spacing: 26) {
@@ -34,7 +34,7 @@ public struct MedxSplashView: View {
                     Text("ARISE · MARROW · FACEOFF")
                         .font(.caption2.weight(.bold))
                         .tracking(1.4)
-                        .foregroundStyle(MedxTheme.accent)
+                        .foregroundStyle(MedxSection.home.onSoft)
                 }
                 .opacity(wordmarkVisible ? 1 : 0)
                 .offset(y: wordmarkVisible ? 0 : 10)

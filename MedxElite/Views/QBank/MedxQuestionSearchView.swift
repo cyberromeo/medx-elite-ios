@@ -46,7 +46,8 @@ public struct MedxQuestionSearchView: View {
     public var body: some View {
         NavigationStack {
             content
-                .medxPage()
+                .background(MedxSurface.groupedBackground.ignoresSafeArea())
+                .medxScrollEdge()
                 .navigationTitle("Search questions")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
@@ -81,7 +82,7 @@ public struct MedxQuestionSearchView: View {
                     resultsSection
                 }
             }
-            .padding(.horizontal, MedxDS.gutter)
+            .padding(.horizontal, MedxSurface.gutter)
             .padding(.top, 10)
             .padding(.bottom, 30)
         }
@@ -90,16 +91,10 @@ public struct MedxQuestionSearchView: View {
 
     private var resultsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            MedxHeader(
-                results.count == 1 ? "match" : "matches",
-                count: results.count
+            MedxSectionHeader(
+                results.count == 1 ? "1 match" : "\(results.count) matches",
+                subtitle: results.count >= 300 ? "Showing the first 300" : nil
             )
-
-            if results.count >= 300 {
-                Text("Showing the first 300. Narrow the query to see the rest.")
-                    .font(MedxType.body)
-                    .foregroundStyle(.secondary)
-            }
 
             ForEach(results) { entry in
                 NavigationLink {
@@ -140,9 +135,9 @@ public struct MedxQuestionSearchView: View {
             HStack(spacing: 6) {
                 // Both banks have an Anatomy, a Pathology and a Medicine, so the subject name
                 // alone does not say where a hit came from.
-                MedxBadge(entry.bank.label)
+                MedxChip(entry.bank.label, tint: entry.bank == .marrow ? MedxCandy.violet : MedxCandy.lime)
 
-                MedxBadge(entry.subject)
+                MedxChip(entry.subject, tint: MedxTheme.accent)
 
                 Text(entry.moduleName)
                     .font(.caption)
@@ -164,7 +159,7 @@ public struct MedxQuestionSearchView: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .medxCard()
-        .contentShape(MedxDS.shape(MedxDS.card))
+        .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
@@ -175,17 +170,17 @@ public struct MedxQuestionSearchView: View {
         if index.isBookmarked(entry, history: history) {
             Image(systemName: "bookmark.fill")
                 .font(.caption2)
-                .foregroundStyle(MedxDS.warn)
+                .foregroundStyle(MedxTheme.warningOrange)
                 .accessibilityLabel("Bookmarked")
         } else if index.isWrong(entry, history: history) {
             Image(systemName: "xmark.circle.fill")
                 .font(.caption2)
-                .foregroundStyle(MedxDS.wrong)
+                .foregroundStyle(MedxTheme.destructiveRed)
                 .accessibilityLabel("Answered wrong before")
         } else if index.isAttempted(entry, history: history) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.caption2)
-                .foregroundStyle(MedxDS.correct)
+                .foregroundStyle(MedxTheme.successGreen)
                 .accessibilityLabel("Attempted")
         }
     }
@@ -303,7 +298,7 @@ public struct MedxQuestionSearchView: View {
         .foregroundStyle(isOn ? Color.white : Color.primary)
         .padding(.horizontal, 11)
         .padding(.vertical, 7)
-        .background(isOn ? MedxTheme.accent : MedxDS.sunken, in: Capsule())
+        .background(isOn ? MedxTheme.accent : MedxSurface.fieldFill, in: Capsule())
         .contentShape(Capsule())
     }
 
@@ -314,7 +309,7 @@ public struct MedxQuestionSearchView: View {
             HStack(spacing: 10) {
                 Image(systemName: index.isBuilding ? "arrow.down.circle" : "exclamationmark.circle")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(MedxDS.warn)
+                    .foregroundStyle(MedxTheme.warningOrange)
                     .symbolEffect(.pulse, isActive: index.isBuilding)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -537,9 +532,9 @@ struct MedxSearchResultDetailView: View {
                     }
                 }
             }
-            .padding(MedxDS.gutter)
+            .padding(MedxSurface.gutter)
         }
-        .medxPage()
+        .background(MedxSurface.groupedBackground.ignoresSafeArea())
         .navigationTitle(entry.subject)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -561,10 +556,10 @@ struct MedxSearchResultDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                MedxBadge(entry.bank.label)
-                MedxBadge(entry.subject)
+                MedxChip(entry.bank.label, tint: entry.bank == .marrow ? MedxCandy.violet : MedxCandy.lime)
+                MedxChip(entry.subject, tint: MedxTheme.accent)
                 if !entry.chapter.isEmpty {
-                    MedxBadge(entry.chapter)
+                    MedxChip(entry.chapter, tint: .secondary)
                 }
                 Spacer(minLength: 0)
             }
@@ -600,19 +595,19 @@ struct MedxSearchResultDetailView: View {
                             .font(.footnote.weight(.bold).monospacedDigit())
                             .foregroundStyle(isCorrect ? Color.white : Color.primary)
                             .frame(width: 26, height: 26)
-                            .background(isCorrect ? MedxDS.correct : MedxDS.sunken, in: Circle())
+                            .background(isCorrect ? MedxTheme.successGreen : MedxSurface.fieldFill, in: Circle())
 
                         HTMLRichTextView(html: option.text, fontSize: 15, weight: .regular)
                             .frame(maxWidth: .infinity, alignment: .leading)
 
                         if isCorrect {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(MedxDS.correct)
+                                .foregroundStyle(MedxTheme.successGreen)
                         }
                     }
                     .padding(13)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .medxOptionSurface(state: isCorrect ? MedxDS.correct : nil, emphasized: isCorrect)
+                    .medxTile(accentColor: isCorrect ? MedxTheme.successGreen : nil, isSelected: isCorrect)
                 }
             }
 
@@ -620,7 +615,7 @@ struct MedxSearchResultDetailView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Explanation", systemImage: "lightbulb.fill")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(MedxDS.warn)
+                        .foregroundStyle(MedxTheme.warningOrange)
                     HTMLRichTextView(html: explanation, fontSize: 15, weight: .regular, textColor: .secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -27,7 +27,12 @@ public struct CustomModulesView: View {
     public var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                MedxCaption("Modules from either bank, shuffled together · shared between you")
+                MedxPageHeader(
+                    section: .custom,
+                    lead: "Pick any modules from either bank, shuffle them together, cap the "
+                        + "length. It runs exactly like a QBank sitting — and whatever either of "
+                        + "you saves shows up here for both."
+                )
 
                 newButton
 
@@ -52,21 +57,20 @@ public struct CustomModulesView: View {
                 }
 
                 if let warning = store.lastDeleteWarning {
-                    noteRow(warning, icon: "icloud.slash", tint: MedxDS.warn)
+                    noteRow(warning, icon: "icloud.slash", tint: MedxTheme.warningOrange)
                 }
 
                 if !store.modules.isEmpty {
                     syncFooter
                 }
             }
-            .padding(.horizontal, MedxDS.gutter)
+            .padding(.horizontal, MedxSurface.gutter)
             .padding(.top, 6)
             .padding(.bottom, 28)
         }
-        .medxPage()
+        .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxScrollEdge()
         .navigationTitle("Custom modules")
-        // Large, and the only place the words appear — there used to be an inline title and a
-        // an in-content header repeating them.
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await store.reload(uid: uid) }
         .task { await store.loadIfNeeded(uid: uid) }
@@ -143,7 +147,7 @@ public struct CustomModulesView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 48)
         }
-        .medxFilled(MedxTheme.accent)
+        .medxFilled(MedxSection.custom.fill)
         .disabled(uid == nil)
     }
 
@@ -171,7 +175,7 @@ public struct CustomModulesView: View {
                 ? "Firestore would not take these, so they live on this device only. Everything still works — they just will not appear on the other one."
                 : "Mirrored to medx_custom_modules, so both of you see the same list on every device.",
             icon: store.remoteWorks == false ? "icloud.slash" : "checkmark.icloud",
-            tint: store.remoteWorks == false ? MedxDS.warn : .secondary
+            tint: store.remoteWorks == false ? MedxTheme.warningOrange : .secondary
         )
     }
 
@@ -253,7 +257,8 @@ struct CustomModuleCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                
+                MedxSymbolMark(MedxSection.custom.symbol, hue: MedxSection.custom.fill, size: 36)
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(module.name)
                         .font(.subheadline.weight(.semibold))
@@ -269,7 +274,7 @@ struct CustomModuleCard: View {
                 if module.synced == false {
                     Image(systemName: "icloud.slash")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(MedxDS.warn)
+                        .foregroundStyle(MedxTheme.warningOrange)
                         .accessibilityLabel("On this device only")
                 }
             }
@@ -306,13 +311,13 @@ struct CustomModuleCard: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 if let author = module.author {
-                    MedxBadge(author.displayName)
+                    MedxPill(author.displayName, hue: author.duelFill, weight: .solid, icon: "person.fill")
                 }
                 ForEach(module.sources.prefix(Self.previewChips)) { source in
-                    MedxBadge(source.name)
+                    MedxPill(source.name, hue: source.bank == .marrow ? MedxCandy.butter : MedxCandy.lime)
                 }
                 if module.sources.count > Self.previewChips {
-                    MedxBadge("+\(module.sources.count - Self.previewChips)")
+                    MedxPill("+\(module.sources.count - Self.previewChips)", weight: .outline)
                 }
             }
         }
@@ -334,7 +339,7 @@ struct CustomModuleCard: View {
                 .frame(minWidth: 66, minHeight: 34)
                 .padding(.horizontal, 6)
             }
-            .medxFilled(MedxTheme.accent)
+            .medxFilled(MedxSection.custom.fill)
 
             Button {
                 HapticManager.light()
@@ -385,12 +390,13 @@ struct MedxCustomRunSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    MedxCaption(
-                        "\(module.effectiveCount.formatted()) questions · "
-                            + (module.sources.count == 1
-                               ? module.sources[0].subject
-                               : "\(module.sources.count) modules across "
-                                   + "\(Set(module.sources.map(\.subject)).count) subjects")
+                    MedxPageHeader(
+                        section: .custom,
+                        eyebrow: "\(module.effectiveCount.formatted()) questions",
+                        lead: module.sources.count == 1
+                            ? module.sources[0].subject
+                            : "\(module.sources.count) modules across "
+                                + "\(Set(module.sources.map(\.subject)).count) subjects"
                     )
 
                     mode(
@@ -416,11 +422,11 @@ struct MedxCustomRunSheet: View {
                         .padding(.horizontal, 4)
                     }
                 }
-                .padding(.horizontal, MedxDS.gutter)
+                .padding(.horizontal, MedxSurface.gutter)
                 .padding(.top, 12)
                 .padding(.bottom, 28)
             }
-            .medxPage()
+            .background(MedxSurface.groupedBackground.ignoresSafeArea())
             .navigationTitle(module.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -445,9 +451,9 @@ struct MedxCustomRunSheet: View {
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: icon)
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(MedxTheme.accent)
+                    .foregroundStyle(MedxSection.custom.onSoft)
                     .frame(width: 42, height: 42)
-                    .background(MedxTheme.accent.opacity(0.16), in: MedxDS.shape(MedxDS.control))
+                    .background(MedxSection.custom.soft, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
@@ -465,9 +471,9 @@ struct MedxCustomRunSheet: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .medxCard()
-            .contentShape(MedxDS.shape(MedxDS.card))
+            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
         }
-        .buttonStyle(MedxPressStyle())
+        .buttonStyle(BouncyButtonStyle())
         .disabled(isBuilding)
         .accessibilityLabel(title)
         .accessibilityHint(blurb)
