@@ -195,6 +195,9 @@ public struct MainTabView: View {
                 sidebarAction("VOD feed", icon: "antenna.radiowaves.left.and.right") {
                     appState.open(route: .vodFeed)
                 }
+                sidebarAction("Import to Classes", icon: "tray.and.arrow.down") {
+                    appState.open(route: .importVod)
+                }
                 sidebarAction("Batch papers", icon: "flag.pattern.checkered") {
                     appState.open(route: .batchPapers)
                 }

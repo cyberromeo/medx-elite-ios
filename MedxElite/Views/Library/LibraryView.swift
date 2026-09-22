@@ -54,6 +54,7 @@ public struct LibraryView: View {
             switch destination {
             case .flashcards: FlashcardsSubjectListView()
             case .vodFeed: VodFeedView()
+            case .importVod: VodImportView()
             case .batchPapers: BatchPapersView()
             }
         }
@@ -85,6 +86,15 @@ public struct LibraryView: View {
                 hue: MedxCandy.blue,
                 badge: vod.unseenCount > 0 ? "\(vod.unseenCount) new" : nil
             ) { appState.open(route: .vodFeed) },
+
+            LibraryTileModel(
+                id: "importVod",
+                title: "Import to Classes",
+                detail: "File a bucket recording into a subject",
+                symbol: "tray.and.arrow.down.fill",
+                hue: MedxCandy.violet,
+                badge: nil
+            ) { appState.open(route: .importVod) },
 
             LibraryTileModel(
                 id: "faceoff",

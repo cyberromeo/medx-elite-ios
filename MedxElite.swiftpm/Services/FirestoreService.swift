@@ -360,6 +360,55 @@ public actor FirestoreService {
         return videos
     }
 
+    /// The folder → subject tree the curated library is organised by.
+    ///
+    /// Read whole and never filtered: it is a handful of documents, and the importer needs the
+    /// whole tree at once to offer a destination. Mirrors the PWA's `listStructure` folder half —
+    /// the *derived* folders (the ones implied by existing `medx_videos` docs) are computed in
+    /// `MedxVideoLibraryStore`, not here, so this stays a plain collection read.
+    public func fetchVideoFolders(idToken: String) async throws -> [MedxVideoFolder] {
+        try await fetchCollection(collection: "medx_video_folders", idToken: idToken, useCache: false)
+    }
+
+    /// Bucket recordings whose `folder` field matches exactly — the one indexed query that reaches
+    /// the whole ~2,900-document bucket rather than only the pages loaded so far.
+    ///
+    /// Mirrors the PWA's `fetchVodByFolderKey`. Uses the raw equality query and hand-builds
+    /// `MedxVodItem`s the same way `fetchVodPage` does.
+    public func fetchVodByFolder(key: String, idToken: String) async throws -> [MedxVodItem] {
+        let documents = try await runRawQuery(
+            collection: "medx_vod",
+            whereField: "folder",
+            equals: key.trimmingCharacters(in: .whitespacesAndNewlines),
+            idToken: idToken
+        )
+        return documents.compactMap { doc in
+            guard let raw = doc["fields"] as? [String: Any] else { return nil }
+            let fallbackId = (doc["name"] as? String)?.split(separator: "/").last.map(String.init) ?? ""
+            return MedxVodItem(fields: Self.normalizeFirestoreMap(raw), fallbackId: fallbackId)
+        }
+    }
+
+    /// Files one bucket recording into the curated `medx_videos` library.
+    ///
+    /// The document id *is* `record["id"]` (`vodToClass` set both to `classIdFor(vod.id)`), because
+    /// the player resolves `/watch/arise/:id` by matching the field, and the id prefix is what stops
+    /// an import ever colliding with an original ARISE class. A full (non-merge) write, then the
+    /// Classes cache is dropped so the new class shows up on the next read.
+    public func importVodToClass(record: [String: Any], idToken: String) async throws {
+        guard let docId = record["id"] as? String, !docId.isEmpty else {
+            throw URLError(.badURL)
+        }
+        try await writeDocument(
+            collection: "medx_videos",
+            docId: docId,
+            fields: record,
+            merge: false,
+            idToken: idToken
+        )
+        await cache.remove(forKey: "col_medx_videos")
+    }
+
     public func fetchUserAttempts(uid: String, idToken: String) async throws -> [SittingAttempt] {
         let attempts: [SittingAttempt] = try await runQuery(
             collection: "medx_attempts",

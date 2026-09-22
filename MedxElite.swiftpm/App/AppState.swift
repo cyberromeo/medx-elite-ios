@@ -73,6 +73,8 @@ public enum MedxRoute: Hashable, Sendable {
     case classes
     /// The raw `medx_vod` bucket feed.
     case vodFeed
+    /// The bucket → Classes importer.
+    case importVod
     /// The four ARISE batch papers.
     case batchPapers
     /// Question search, optionally pre-filled.
@@ -100,8 +102,8 @@ public enum MedxRoute: Hashable, Sendable {
         case .qbank, .search, .quickSitting, .bookmarks, .module: return .qbank
         case .tests: return .tests
         case .classes: return .videos
-        case .library, .flashcards, .vodFeed, .batchPapers, .downloads, .customModules, .faceoff,
-             .faceoffRoom:
+        case .library, .flashcards, .vodFeed, .importVod, .batchPapers, .downloads, .customModules,
+             .faceoff, .faceoffRoom:
             return .library
         case .settings: return nil
         }
@@ -184,6 +186,8 @@ public final class AppState: ObservableObject {
             push(.flashcards)
         case .vodFeed:
             push(.vodFeed)
+        case .importVod:
+            push(.importVod)
         case .batchPapers:
             push(.batchPapers)
         case .search(let seed):
@@ -234,6 +238,7 @@ public final class AppState: ObservableObject {
 public enum MedxLibraryDestination: Hashable, Sendable {
     case flashcards
     case vodFeed
+    case importVod
     case batchPapers
 }
 

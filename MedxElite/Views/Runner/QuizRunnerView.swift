@@ -47,6 +47,7 @@ public struct QuizRunnerView: View {
     @ObservedObject private var authService = AuthService.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     private let topAnchor = "runner.top"
@@ -282,12 +283,11 @@ public struct QuizRunnerView: View {
             number: currentIndex + 1,
             total: questions.count,
             blockLabel: isSectioned ? "Block \(sectionIndex + 1)/\(sections.count)" : nil,
-            statuses: sectionStatuses,
-            currentIndex: sectionRelativeIndex,
             remainingSeconds: remainingSeconds,
             capacitySeconds: capacitySeconds,
             isPaused: isTimerPaused,
             isBookmarked: isCurrentBookmarked,
+            showsInlineCounter: sizeClass == .regular,
             onClose: {
                 HapticManager.light()
                 if loadState == .ready, !responses.isEmpty {
@@ -308,22 +308,7 @@ public struct QuizRunnerView: View {
         )
     }
 
-    /// The track shows the *block* being sat, not the whole paper. In a 3 × 50 grand paper the
-    /// other hundred questions are either closed for good or not open yet, so colouring them
-    /// would be reporting on something you cannot reach.
-    private var sectionStatuses: [RunnerQuestionStatus] {
-        guard statuses.count == questions.count else { return statuses }
-        let lower = min(activeSection.start, statuses.count)
-        let upper = min(activeSection.end, statuses.count)
-        guard lower < upper else { return statuses }
-        return Array(statuses[lower..<upper])
-    }
-
-    private var sectionRelativeIndex: Int {
-        max(currentIndex - activeSection.start, 0)
-    }
-
-    /// What the clock was wound to, so the ring can draw a fraction rather than a bare number.
+    /// What the clock was wound to, so the bar can draw a fraction rather than a bare number.
     /// The block's own duration in exam mode; the fixed sixty seconds a revision question gets
     /// otherwise.
     private var capacitySeconds: Int {
@@ -392,6 +377,8 @@ public struct QuizRunnerView: View {
                 }
             }
         }
+        // The faint dot grid from the mockup, behind the question and under both bars.
+        .background { RunnerDotField() }
         .safeAreaInset(edge: .top, spacing: 0) {
             hud
         }
@@ -437,35 +424,25 @@ public struct QuizRunnerView: View {
     // MARK: - Bottom action bar
 
     private func runnerActionBar(question: Question, isRevealed: Bool) -> some View {
-        let canGo = canAdvance(isRevealed: isRevealed)
-        let showSkip = payload.mode == .exam
-            && responses[question.id]?.chosenId == nil
-            && !isLastQuestion
-
-        return RunnerActionBar(
-            advanceLabel: advanceLabel,
+        RunnerActionBar(
+            number: currentIndex + 1,
+            total: questions.count,
             isLastQuestion: isLastQuestion,
             canGoBack: currentIndex > activeSection.start,
-            canAdvance: canGo,
-            showSkip: showSkip,
+            canAdvance: canAdvance(isRevealed: isRevealed),
             onBack: {
                 goBack()
             },
-            onSkip: {
+            onNavigator: {
+                guard loadState == .ready else { return }
                 HapticManager.light()
-                nextQuestion()
+                showNavigator = true
             },
             onAdvance: {
                 HapticManager.medium()
                 if isLastQuestion { submitSection() } else { nextQuestion() }
             }
         )
-    }
-
-    private var advanceLabel: String {
-        guard isLastQuestion else { return "Next" }
-        if isSectioned && !isFinalSection { return "Submit section" }
-        return "Finish"
     }
 
     /// Swipe left / right between questions. `simultaneousGesture` so the vertical scroll

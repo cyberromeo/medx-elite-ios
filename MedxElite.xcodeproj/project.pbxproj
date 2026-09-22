@@ -104,6 +104,8 @@
 		9B00115E2A00000100000001 /* MedxPageHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00115D2A00000100000001 /* MedxPageHeader.swift */; };
 		9B0011602A00000100000001 /* ProgressRingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00115F2A00000100000001 /* ProgressRingView.swift */; };
 		9B0011622A00000100000001 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011612A00000100000001 /* Typography.swift */; };
+		9B0011642A00000100000001 /* MedxVideoLibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011632A00000100000001 /* MedxVideoLibraryStore.swift */; };
+		9B0011662A00000100000001 /* VodImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011652A00000100000001 /* VodImportView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -222,6 +224,8 @@
 		9B00115D2A00000100000001 /* MedxPageHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxPageHeader.swift; sourceTree = "<group>"; };
 		9B00115F2A00000100000001 /* ProgressRingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressRingView.swift; sourceTree = "<group>"; };
 		9B0011612A00000100000001 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
+		9B0011632A00000100000001 /* MedxVideoLibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxVideoLibraryStore.swift; sourceTree = "<group>"; };
+		9B0011652A00000100000001 /* VodImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Videos/VodImportView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -311,6 +315,7 @@
 				9B00113F2A00000100000001 /* MedxFirestoreDuelTransport.swift */,
 				9B0011472A00000100000001 /* MedxActivityChrome.swift */,
 				9B00114A2A00000100000001 /* MedxSharedIntents.swift */,
+				9B0011632A00000100000001 /* MedxVideoLibraryStore.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -385,6 +390,7 @@
 				9B0011432A00000100000001 /* DuelRoomView.swift */,
 				9B0011452A00000100000001 /* DuelResultView.swift */,
 				9B0011512A00000100000001 /* RunnerChrome.swift */,
+				9B0011652A00000100000001 /* VodImportView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -608,6 +614,8 @@
 				9B00115E2A00000100000001 /* MedxPageHeader.swift in Sources */,
 				9B0011602A00000100000001 /* ProgressRingView.swift in Sources */,
 				9B0011622A00000100000001 /* Typography.swift in Sources */,
+				9B0011642A00000100000001 /* MedxVideoLibraryStore.swift in Sources */,
+				9B0011662A00000100000001 /* VodImportView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

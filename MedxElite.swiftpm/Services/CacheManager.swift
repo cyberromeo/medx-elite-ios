@@ -44,6 +44,17 @@ public actor CacheManager {
         try? fileManager.createDirectory(at: cacheDir, withIntermediateDirectories: true)
     }
 
+    /// Drops one cached entry, in both memory and on disk.
+    ///
+    /// The one write that needs this is a VOD import: it adds a document to `medx_videos`, and
+    /// the Classes tab reads that collection through the cache — so without dropping `col_medx_videos`
+    /// the freshly filed class would not appear until the cache aged out or the app relaunched.
+    public func remove(forKey key: String) {
+        memoryCache.removeObject(forKey: key as NSString)
+        let fileUrl = cacheDir.appendingPathComponent(sanitizedKey(key))
+        try? fileManager.removeItem(at: fileUrl)
+    }
+
     /// Total bytes the cached JSON payloads currently occupy on disk.
     public func diskSize() -> Int64 {
         guard let contents = try? fileManager.contentsOfDirectory(
