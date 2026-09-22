@@ -51,20 +51,31 @@ struct RunnerDotField: View {
 
 // MARK: - A glass circle button
 
-/// A round control in the runner chrome. Glass on iOS 26 via the SDK's own button styles; an ink
-/// circle on iOS 17. `prominent` fills the glass with `tint` — the blue Next button.
+/// A control in the runner chrome. Glass on iOS 26 via the SDK's own button styles; an ink
+/// fallback on iOS 17. `prominent` fills the glass with `tint` — the blue Next button.
+///
+/// `shape` picks the border: the bottom action bar's ← · → stay full circles, but the top HUD
+/// controls (close, bookmark) are the smaller **rounded rectangles** the mockup asks for —
+/// `RoundedRectangle(cornerRadius: 15)` glass, a normal-sized button rather than a big circle.
 struct RunnerCircleButton: View {
+    enum Shape { case circle, roundedRect }
+
     let systemName: String
     var prominent: Bool = false
     var tint: Color? = nil
     var foreground: Color = .primary
     var diameter: CGFloat = 52
+    var shape: Shape = .circle
     var bounceOn: Bool = false
     let action: () -> Void
 
+    /// The rounded-rect radius from the mockup. `.glass` adds its own padding, so the visible
+    /// pane sits a little proud of this square glyph frame.
+    private var cornerRadius: CGFloat { 15.004 }
+
     private var glyph: some View {
         Image(systemName: systemName)
-            .font(.system(size: diameter * 0.34, weight: .bold))
+            .font(.system(size: diameter * 0.4, weight: .semibold))
             .symbolEffect(.bounce, value: bounceOn)
             .frame(width: diameter, height: diameter)
     }
@@ -75,30 +86,59 @@ struct RunnerCircleButton: View {
             // Exactly one button style per branch — layering `.glass` then `.glassProminent`
             // would leave the innermost (`.glass`) winning, so the prominent Next never filled.
             if prominent {
-                Button(action: action) { glyph.foregroundStyle(foreground) }
-                    .buttonStyle(.glassProminent)
-                    .tint(tint ?? MedxTheme.accent)
-                    .buttonBorderShape(.circle)
+                borderShaped(
+                    Button(action: action) { glyph.foregroundStyle(foreground) }
+                        .buttonStyle(.glassProminent)
+                        .tint(tint ?? MedxTheme.accent)
+                )
             } else {
-                Button(action: action) { glyph.foregroundStyle(foreground) }
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.circle)
+                borderShaped(
+                    Button(action: action) { glyph.foregroundStyle(foreground) }
+                        .buttonStyle(.glass)
+                )
             }
         } else if prominent {
-            // iOS 17 fallback: a solid tinted circle, white glyph — the prominent look without glass.
-            Button(action: action) {
-                glyph
-                    .foregroundStyle(.white)
-                    .medxInkCircle(diameter: diameter, tint: tint ?? MedxTheme.accent)
-            }
-            .buttonStyle(MedxPressStyle())
+            // iOS 17 fallback: a solid tinted surface, white glyph — the prominent look without glass.
+            Button(action: action) { inkGlyph(tint: tint ?? MedxTheme.accent, foreground: .white) }
+                .buttonStyle(MedxPressStyle())
         } else {
-            Button(action: action) {
-                glyph
-                    .foregroundStyle(foreground)
-                    .medxGlassCircle(diameter: diameter)
-            }
-            .buttonStyle(MedxPressStyle())
+            Button(action: action) { inkGlyph(tint: nil, foreground: foreground) }
+                .buttonStyle(MedxPressStyle())
+        }
+    }
+
+    /// The rounded-rectangle radius from the mockup vs. a full circle, applied to whichever
+    /// glass button style the branch above chose.
+    @available(iOS 26.0, *)
+    @ViewBuilder
+    private func borderShaped<V: View>(_ button: V) -> some View {
+        switch shape {
+        case .circle:
+            button.buttonBorderShape(.circle)
+        case .roundedRect:
+            button.buttonBorderShape(.roundedRectangle(radius: cornerRadius))
+        }
+    }
+
+    /// iOS 17 surface under the glyph: the same circle or rounded rectangle the glass draws on 26,
+    /// as an opaque ink pane.
+    @ViewBuilder
+    private func inkGlyph(tint: Color?, foreground: Color) -> some View {
+        switch shape {
+        case .circle:
+            glyph.foregroundStyle(foreground).medxInkCircle(diameter: diameter, tint: tint)
+        case .roundedRect:
+            glyph
+                .foregroundStyle(foreground)
+                .medxSurface(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
+                    MedxSurfaceSpec(
+                        fill: tint ?? MedxDS.sunken,
+                        strokeHue: tint,
+                        strokeOpacity: 0.45
+                    )
+                )
+                .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
     }
 }
@@ -215,7 +255,8 @@ struct RunnerHUD: View {
                 RunnerCircleButton(
                     systemName: "xmark",
                     foreground: .secondary,
-                    diameter: 46,
+                    diameter: 32,
+                    shape: .roundedRect,
                     action: onClose
                 )
                 .accessibilityLabel("Close sitting")
@@ -230,7 +271,8 @@ struct RunnerHUD: View {
                     systemName: isBookmarked ? "bookmark.fill" : "bookmark",
                     tint: isBookmarked ? MedxDS.warn : nil,
                     foreground: isBookmarked ? MedxDS.warn : .secondary,
-                    diameter: 46,
+                    diameter: 32,
+                    shape: .roundedRect,
                     bounceOn: isBookmarked,
                     action: onBookmark
                 )
@@ -297,6 +339,9 @@ struct RunnerActionBar: View {
     let isLastQuestion: Bool
     let canGoBack: Bool
     let canAdvance: Bool
+    /// The centre `3/50` counter. Dropped on iPad, where the HUD already carries it at the
+    /// top-right — one question number on screen, not two.
+    let showsCounter: Bool
     let onBack: () -> Void
     let onNavigator: () -> Void
     let onAdvance: () -> Void
@@ -317,9 +362,10 @@ struct RunnerActionBar: View {
 
             Spacer(minLength: 8)
 
-            RunnerCounter(number: number, total: total, onTap: onNavigator)
-
-            Spacer(minLength: 8)
+            if showsCounter {
+                RunnerCounter(number: number, total: total, onTap: onNavigator)
+                Spacer(minLength: 8)
+            }
 
             RunnerCircleButton(
                 systemName: isLastQuestion ? "checkmark" : "chevron.right",

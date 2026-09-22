@@ -357,10 +357,12 @@ public struct QuizRunnerView: View {
 
                     if isRevealed {
                         RunnerExplanationCard(question: question, response: response)
-                            // Arrives from under the options rather than fading in on top of
-                            // them, so the eye follows the answer down into the reason for it.
+                            // Fades up into the space the layout opens below the options, settling
+                            // from its own top edge. The old `.move(edge: .top)` slid the card *down
+                            // from above*, straight over the answer rows — the overlap the reveal
+                            // was never meant to have.
                             .transition(
-                                .move(edge: .top).combined(with: .opacity)
+                                .opacity.combined(with: .scale(scale: 0.97, anchor: .top))
                             )
                     }
                 }
@@ -430,6 +432,8 @@ public struct QuizRunnerView: View {
             isLastQuestion: isLastQuestion,
             canGoBack: currentIndex > activeSection.start,
             canAdvance: canAdvance(isRevealed: isRevealed),
+            // The HUD's inline counter is the iPad's; the centre one here is the phone's.
+            showsCounter: sizeClass != .regular,
             onBack: {
                 goBack()
             },

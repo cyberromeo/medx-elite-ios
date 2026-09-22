@@ -12,15 +12,14 @@ import SwiftUI
 // where whose turn it is matters — and a navigation bar is not it.
 
 public struct MedxMonogram: View {
-    private let letter: String
     private let hue: Color
     private let diameter: CGFloat
     private let action: () -> Void
 
-    /// `nil` profile happens on the first frame after launch, before the session resolves. A dash
-    /// rather than a placeholder glyph, so the button does not change *shape* a moment later.
+    /// The hue tracks the signed-in profile's accent; `nil` (the first frame after launch,
+    /// before the session resolves) falls back to secondary, and the glyph — a `person` — is the
+    /// same either way, so the button never changes *shape* a moment later.
     public init(profile: Profile?, diameter: CGFloat = 32, action: @escaping () -> Void) {
-        self.letter = profile?.initials.first.map(String.init) ?? "–"
         self.hue = profile?.accentColor ?? .secondary
         self.diameter = diameter
         self.action = action
@@ -31,8 +30,8 @@ public struct MedxMonogram: View {
             HapticManager.light()
             action()
         } label: {
-            Text(letter)
-                .font(MedxType.figure(diameter * 0.45, weight: .bold))
+            Image(systemName: "person.fill")
+                .font(.system(size: diameter * 0.5, weight: .semibold))
                 .foregroundStyle(hue)
                 .frame(width: diameter, height: diameter)
                 .background(Circle().fill(MedxDS.sunken))

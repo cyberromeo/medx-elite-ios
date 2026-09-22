@@ -161,10 +161,38 @@ public struct MainTabView: View {
         } detail: {
             NavigationStack {
                 destination(for: appState.selectedTab)
+                    // With the sidebar collapsed there is no way left to change section — the
+                    // sidebar was the only tab switcher. A segmented bar rides the top of the
+                    // detail column so the five destinations stay one tap apart. It hides itself
+                    // the moment the sidebar is back, so the switcher is never shown twice.
+                    .toolbar {
+                        if columnVisibility == .detailOnly {
+                            ToolbarItem(placement: .principal) {
+                                iPadTabSwitcher
+                            }
+                        }
+                    }
             }
             .id(appState.selectedTab)
         }
         .navigationSplitViewStyle(.balanced)
+    }
+
+    /// The top tab bar for a collapsed sidebar: the five destinations as a segmented control,
+    /// bound to the same selection the sidebar drives.
+    private var iPadTabSwitcher: some View {
+        Picker("Section", selection: $appState.selectedTab) {
+            ForEach(TabItem.allCases) { tab in
+                Label(
+                    tab.rawValue,
+                    systemImage: appState.selectedTab == tab ? tab.selectedIcon : tab.icon
+                )
+                .labelStyle(.iconOnly)
+                .tag(tab)
+            }
+        }
+        .pickerStyle(.segmented)
+        .frame(minWidth: 320)
     }
 
     private var sidebar: some View {
