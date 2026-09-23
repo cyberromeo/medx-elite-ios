@@ -137,6 +137,8 @@ struct RunnerTimeBar: View {
 struct RunnerCounter: View {
     let number: Int
     let total: Int
+    /// Matched to the neighbouring circles' diameter so the row is one uniform height.
+    var height: CGFloat = 44
     let onTap: () -> Void
 
     var body: some View {
@@ -152,7 +154,7 @@ struct RunnerCounter: View {
             }
             .fixedSize()
             .padding(.horizontal, 16)
-            .frame(minHeight: 40)
+            .frame(height: height)
             .contentShape(Capsule(style: .continuous))
             .modifier(RunnerCapsuleGlass())
         }
@@ -195,9 +197,9 @@ struct RunnerHUD: View {
     let onNavigator: () -> Void
     let onBookmark: () -> Void
 
-    /// Circle diameter for the ✕ / bookmark, a touch larger on iPad. Matches the app's other
-    /// circular controls rather than the oversized glass-metric sizes.
-    private var circleDiameter: CGFloat { isPad ? 48 : 44 }
+    /// One height for the whole row — the ✕ / bookmark circles' diameter *and* the timer/counter
+    /// capsules' height — so the HUD reads as a single uniform band. A touch taller on iPad.
+    private var elementHeight: CGFloat { isPad ? 50 : 44 }
 
     private var fraction: Double {
         guard capacitySeconds > 0 else { return 0 }
@@ -210,39 +212,40 @@ struct RunnerHUD: View {
             // reference's layout. The controls sit on their own row below it.
             RunnerTimeBar(fraction: fraction, isPaused: isPaused)
 
-            MedxGlassGroup(spacing: 14) {
-                HStack(spacing: 12) {
-                    RunnerCircleButton(
-                        systemName: "xmark",
-                        foreground: .secondary,
-                        diameter: circleDiameter,
-                        action: onClose
-                    )
-                    .accessibilityLabel("Close sitting")
+            // No `MedxGlassGroup` here on purpose: the `GlassEffectContainer` it wraps the row in
+            // was swallowing the ✕'s taps (the bottom action bar, which is *not* in a container,
+            // never had the problem). Each control keeps its own glass; they just no longer morph.
+            HStack(spacing: 10) {
+                RunnerCircleButton(
+                    systemName: "xmark",
+                    foreground: .secondary,
+                    diameter: elementHeight,
+                    action: onClose
+                )
+                .accessibilityLabel("Close sitting")
 
-                    Spacer(minLength: 8)
+                Spacer(minLength: 8)
 
-                    if let blockLabel {
-                        MedxBadge(blockLabel).fixedSize()
-                    }
+                if let blockLabel {
+                    MedxBadge(blockLabel).fixedSize()
+                }
 
-                    RunnerCircleButton(
-                        systemName: isBookmarked ? "bookmark.fill" : "bookmark",
-                        tint: isBookmarked ? MedxDS.warn : nil,
-                        foreground: isBookmarked ? MedxDS.warn : .secondary,
-                        diameter: circleDiameter,
-                        bounceOn: isBookmarked,
-                        action: onBookmark
-                    )
-                    .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark question")
+                RunnerCircleButton(
+                    systemName: isBookmarked ? "bookmark.fill" : "bookmark",
+                    tint: isBookmarked ? MedxDS.warn : nil,
+                    foreground: isBookmarked ? MedxDS.warn : .secondary,
+                    diameter: elementHeight,
+                    bounceOn: isBookmarked,
+                    action: onBookmark
+                )
+                .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark question")
 
-                    RunnerTimerBadge(remainingSeconds: remainingSeconds, isPaused: isPaused)
+                RunnerTimerBadge(remainingSeconds: remainingSeconds, isPaused: isPaused, height: elementHeight)
+                    .fixedSize()
+
+                if showsInlineCounter {
+                    RunnerCounter(number: number, total: total, height: elementHeight, onTap: onNavigator)
                         .fixedSize()
-
-                    if showsInlineCounter {
-                        RunnerCounter(number: number, total: total, onTap: onNavigator)
-                            .fixedSize()
-                    }
                 }
             }
         }
@@ -259,6 +262,8 @@ struct RunnerHUD: View {
 struct RunnerTimerBadge: View {
     let remainingSeconds: Int
     let isPaused: Bool
+    /// Matched to the neighbouring circles' diameter so the HUD row is one uniform height.
+    var height: CGFloat = 44
 
     private var isLow: Bool { !isPaused && remainingSeconds <= 10 }
 
@@ -278,7 +283,7 @@ struct RunnerTimerBadge: View {
             .foregroundStyle(tint)
             .contentTransition(.numericText(countsDown: true))
             .padding(.horizontal, 14)
-            .frame(minHeight: 40)
+            .frame(height: height)
             .modifier(RunnerCapsuleGlass())
             .accessibilityElement()
             .accessibilityLabel(isPaused ? "Answer revealed, timer paused" : "Time remaining \(clock)")
@@ -352,7 +357,7 @@ struct RunnerActionBar: View {
                 backButton
                 Spacer(minLength: 8)
                 if showsCounter {
-                    RunnerCounter(number: number, total: total, onTap: onNavigator)
+                    RunnerCounter(number: number, total: total, height: arrowDiameter, onTap: onNavigator)
                     Spacer(minLength: 8)
                 }
                 nextButton
