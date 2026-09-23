@@ -2,24 +2,25 @@ import SwiftUI
 
 // MARK: - Runner chrome
 //
-// The sitting screen, redesigned to the reference mockup: a black canvas with a faint dotted grid,
-// and native Liquid Glass controls floating over the question. This is the one screen glass is
-// actually *for* — chrome floating over content that is already there.
+// The sitting screen, redesigned to the reference: a black canvas with a faint dotted grid, and
+// Liquid Glass controls floating over the question. This is the one screen glass is actually
+// *for* — chrome floating over content that is already there.
 //
-//   * `RunnerHUD` at the top: a circular close button, a blue **time-remaining** bar, a circular
-//     bookmark, and the countdown pill. On iPad the question counter also rides at the top-right.
-//   * `RunnerActionBar` at the bottom: `←  ·  3/50  ·  →`. The counter opens the navigator; the
-//     blue circle advances (and becomes the finish/submit action on the last question).
+//   * `RunnerHUD` at the top: a full-width **time-remaining** bar (green, red for the last 20%)
+//     just under the status bar, then a row of a circular close button, a circular bookmark, and
+//     the countdown pill. On iPad the question counter also rides at the top-right.
+//   * `RunnerActionBar` at the bottom: `←  ·  3/50  ·  →` on iPhone; on iPad both arrows group in
+//     the right corner. The blue circle advances (and becomes finish/submit on the last question).
 //
-// The buttons use the iOS 26 SDK's own Liquid Glass button styles — `.buttonStyle(.glass)` for the
-// neutral circles and `.buttonStyle(.glassProminent)` with a blue `.tint` for the primary Next —
-// rather than a hand-rolled material, with an ink fallback on iOS 17. The glass goes on the
-// `Button`, never on its label: an interactive glass effect inside a label eats the touch and the
-// button stops firing.
+// The circles are built like `MedxCircleButton` — the app's proven circular control — with a plain
+// `Button`, an explicit circular frame and a `contentShape(Circle())` so the whole circle takes the
+// tap. That last part matters: `.buttonStyle(.glass)` hit-tested only the bare glyph and its
+// *interactive* glass swallowed the touch, which is what left the ✕ dead. Neutral circles wear
+// non-interactive glass (`medxGlassCircle`); the primary Next is a solid tinted fill.
 //
 // The progress track that used to live here (`MedxAnswerSheet` at `track` scale) is gone from the
 // HUD; the OMR grid still draws in the question navigator and the post-sitting review. What the top
-// bar shows now is time, exactly as the mockup annotates it: the block's clock in exam mode, the
+// bar shows now is time, exactly as the reference annotates it: the block's clock in exam mode, the
 // per-question 60s in revision.
 
 // MARK: - Dotted canvas
@@ -51,101 +52,42 @@ struct RunnerDotField: View {
 
 // MARK: - A glass button
 
-/// A round control in the runner chrome, on the iOS 26 SDK's glass button styles at Apple's own
-/// HIG control metrics — `controlSize` is the size lever, so the buttons come out the native
-/// size, not a cramped glyph. `prominent` fills the glass with `tint` (the blue Next); every
-/// runner button is a circle now, so the chrome reads as one family.
+/// A round control in the runner chrome, built on the **same structure as `MedxCircleButton`** —
+/// the app's proven circular control on every other page: a plain `Button`, an explicit circular
+/// frame, and a `contentShape(Circle())` so the whole circle is the tap target. That last part is
+/// why this exists instead of `.buttonStyle(.glass)` — the glass button style hit-tested only the
+/// bare glyph and its interactive glass swallowed the touch, which is what left the ✕ dead.
+///
+/// Neutral buttons wear non-interactive Liquid Glass (`medxGlassCircle`); `prominent` is a solid
+/// tinted fill (`medxInkCircle`) — the blue Next, drawn opaque exactly as the reference shows it.
 struct RunnerCircleButton: View {
     let systemName: String
     var prominent: Bool = false
     var tint: Color? = nil
     var foreground: Color = .primary
-    var controlSize: ControlSize = .regular
-    var circle: Bool = false
+    /// Visible circle *and* hit target. Kept at HIG-comfortable sizes, not the oversized ones the
+    /// glass control metrics were producing.
+    var diameter: CGFloat = 44
     var bounceOn: Bool = false
     let action: () -> Void
 
-    /// Glyph point size per control size — chosen so the SF Symbol reads at a comfortable weight
-    /// inside the glass Apple lays around it.
-    private var iconPointSize: CGFloat {
-        switch controlSize {
-        case .mini, .small: return 15
-        case .regular: return 17
-        case .large: return 21
-        case .extraLarge: return 26
-        @unknown default: return 17
-        }
-    }
-
-    /// iOS 17 has no glass control metrics to lean on, so the ink fallback sizes its own circle.
-    private var fallbackDiameter: CGFloat {
-        switch controlSize {
-        case .mini, .small: return 44
-        case .regular: return 48
-        case .large: return 54
-        case .extraLarge: return 64
-        @unknown default: return 48
-        }
-    }
-
     private var glyph: some View {
         Image(systemName: systemName)
-            .font(.system(size: iconPointSize, weight: .semibold))
+            .font(.system(size: max(15, diameter * 0.36), weight: .semibold))
             .symbolEffect(.bounce, value: bounceOn)
     }
 
-    @ViewBuilder
     var body: some View {
-        if #available(iOS 26.0, *) {
-            // Inline rather than in an `@available` helper: `.agents/availability_audit.py`
-            // stands in for the compiler here and only recognises an `if #available` block as a
-            // guard. Exactly one button style per branch — layering `.glass` then
-            // `.glassProminent` would leave the innermost (`.glass`) winning.
-            if prominent {
-                shaped(
-                    Button(action: action) { glyph.foregroundStyle(foreground) }
-                        .buttonStyle(.glassProminent)
-                        .tint(tint ?? MedxTheme.accent)
-                )
-                .controlSize(controlSize)
-            } else {
-                shaped(
-                    Button(action: action) { glyph.foregroundStyle(foreground) }
-                        .buttonStyle(.glass)
-                )
-                .controlSize(controlSize)
-            }
-        } else {
-            inkButton
-        }
-    }
-
-    /// A full circle only where asked; otherwise the glass style's own default rounded shape.
-    /// `.buttonBorderShape` is iOS 17 API, so this needs no availability island of its own.
-    @ViewBuilder
-    private func shaped<V: View>(_ button: V) -> some View {
-        if circle {
-            button.buttonBorderShape(.circle)
-        } else {
-            button
-        }
-    }
-
-    /// iOS 17 fallback: an opaque ink pane in the same shape the glass draws on 26.
-    private var inkButton: some View {
         Button(action: action) {
-            glyph
-                .foregroundStyle(prominent ? .white : foreground)
-                .frame(width: fallbackDiameter, height: fallbackDiameter)
-                .background {
-                    if circle {
-                        Circle().fill(prominent ? (tint ?? MedxTheme.accent) : MedxDS.sunken)
-                    } else {
-                        RoundedRectangle(cornerRadius: 15, style: .continuous)
-                            .fill(prominent ? (tint ?? MedxTheme.accent) : MedxDS.sunken)
-                    }
-                }
-                .contentShape(Circle())
+            if prominent {
+                glyph
+                    .foregroundStyle(.white)
+                    .medxInkCircle(diameter: diameter, tint: tint ?? MedxTheme.accent)
+            } else {
+                glyph
+                    .foregroundStyle(foreground)
+                    .medxGlassCircle(diameter: diameter)
+            }
         }
         .buttonStyle(MedxPressStyle())
     }
@@ -253,7 +195,9 @@ struct RunnerHUD: View {
     let onNavigator: () -> Void
     let onBookmark: () -> Void
 
-    private var circleSize: ControlSize { isPad ? .extraLarge : .large }
+    /// Circle diameter for the ✕ / bookmark, a touch larger on iPad. Matches the app's other
+    /// circular controls rather than the oversized glass-metric sizes.
+    private var circleDiameter: CGFloat { isPad ? 48 : 44 }
 
     private var fraction: Double {
         guard capacitySeconds > 0 else { return 0 }
@@ -271,8 +215,7 @@ struct RunnerHUD: View {
                     RunnerCircleButton(
                         systemName: "xmark",
                         foreground: .secondary,
-                        controlSize: circleSize,
-                        circle: true,
+                        diameter: circleDiameter,
                         action: onClose
                     )
                     .accessibilityLabel("Close sitting")
@@ -287,8 +230,7 @@ struct RunnerHUD: View {
                         systemName: isBookmarked ? "bookmark.fill" : "bookmark",
                         tint: isBookmarked ? MedxDS.warn : nil,
                         foreground: isBookmarked ? MedxDS.warn : .secondary,
-                        controlSize: circleSize,
-                        circle: true,
+                        diameter: circleDiameter,
                         bounceOn: isBookmarked,
                         action: onBookmark
                     )
@@ -368,14 +310,15 @@ struct RunnerActionBar: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var controlSize: ControlSize { isPad ? .extraLarge : .large }
+    /// The action bar's arrows are the primary controls, so a touch larger than the HUD circles,
+    /// and larger again on iPad — but nowhere near the oversized glass-metric sizes.
+    private var arrowDiameter: CGFloat { isPad ? 60 : 54 }
 
     private var backButton: some View {
         RunnerCircleButton(
             systemName: "chevron.left",
             foreground: canGoBack ? .primary : .secondary,
-            controlSize: controlSize,
-            circle: true,
+            diameter: arrowDiameter,
             action: onBack
         )
         .disabled(!canGoBack)
@@ -389,8 +332,7 @@ struct RunnerActionBar: View {
             prominent: true,
             tint: isLastQuestion ? MedxDS.correct : MedxTheme.accent,
             foreground: .white,
-            controlSize: controlSize,
-            circle: true,
+            diameter: arrowDiameter,
             bounceOn: isLastQuestion,
             action: onAdvance
         )
