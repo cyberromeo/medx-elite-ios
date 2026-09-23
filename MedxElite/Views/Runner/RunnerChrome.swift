@@ -60,14 +60,21 @@ struct RunnerDotField: View {
 ///
 /// Neutral buttons wear non-interactive Liquid Glass (`medxGlassCircle`); `prominent` is a solid
 /// tinted fill (`medxInkCircle`) — the blue Next, drawn opaque exactly as the reference shows it.
+///
+/// `hitExpansion` grows the tap target *past* the visible circle without changing the layout: the
+/// padding enlarges the hittable `Rectangle`, the matching negative padding collapses the footprint
+/// back. The ✕ uses it because, sitting in the top-left corner behind a screen protector, taps that
+/// landed a few points outside the 44pt circle were being missed even though the button was live.
 struct RunnerCircleButton: View {
     let systemName: String
     var prominent: Bool = false
     var tint: Color? = nil
     var foreground: Color = .primary
-    /// Visible circle *and* hit target. Kept at HIG-comfortable sizes, not the oversized ones the
-    /// glass control metrics were producing.
+    /// Visible circle *and* base hit target. Kept at HIG-comfortable sizes, not the oversized ones
+    /// the glass control metrics were producing.
     var diameter: CGFloat = 44
+    /// Extra tappable margin on every side, beyond the visible circle, with no layout cost.
+    var hitExpansion: CGFloat = 0
     var bounceOn: Bool = false
     let action: () -> Void
 
@@ -90,6 +97,24 @@ struct RunnerCircleButton: View {
             }
         }
         .buttonStyle(MedxPressStyle())
+        .modifier(HitExpansion(amount: hitExpansion))
+    }
+}
+
+/// Enlarges a control's tap target by `amount` on every side without disturbing surrounding layout:
+/// pad out, make that whole rectangle the content shape, then pad back in by the same amount.
+private struct HitExpansion: ViewModifier {
+    let amount: CGFloat
+
+    func body(content: Content) -> some View {
+        if amount > 0 {
+            content
+                .padding(amount)
+                .contentShape(Rectangle())
+                .padding(-amount)
+        } else {
+            content
+        }
     }
 }
 
@@ -220,6 +245,7 @@ struct RunnerHUD: View {
                     systemName: "xmark",
                     foreground: .secondary,
                     diameter: elementHeight,
+                    hitExpansion: 16,
                     action: onClose
                 )
                 .accessibilityLabel("Close sitting")

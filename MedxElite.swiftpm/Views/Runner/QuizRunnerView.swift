@@ -1153,7 +1153,7 @@ struct QuestionNavigatorSheet: View {
                 }
                 .padding(20)
             }
-            .medxPage()
+            .scrollContentBackground(.hidden)
             .navigationTitle(sectionLabel ?? "Questions")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1180,12 +1180,13 @@ struct QuestionNavigatorSheet: View {
                 .font(.subheadline.weight(.bold).monospacedDigit())
                 .foregroundStyle(isCurrent ? MedxTheme.accent : status.chipForeground)
                 .frame(minWidth: 46, minHeight: 46)
-                // Glass, because the navigator is a sheet floating over the sitting — one of the
-                // three places in the app allowed it.
+                // Plain ink tiles now: the sheet itself is the glass, and glass-on-glass tiles
+                // would sample the pane behind them and turn to mush. Colour still carries the
+                // outcome — the fill and the border do the work the material used to.
                 .medxSurface(
                     MedxDS.shape(MedxDS.control),
                     MedxSurfaceSpec(
-                        material: .glass(clear: false),
+                        material: .ink,
                         fill: status.chipFill,
                         tint: hue,
                         strokeHue: hue,

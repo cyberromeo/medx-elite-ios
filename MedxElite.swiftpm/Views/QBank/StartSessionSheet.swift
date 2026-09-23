@@ -59,7 +59,9 @@ public struct StartSessionSheet: View {
                 .padding(.bottom, 24)
             }
             .scrollBounceBehavior(.basedOnSize)
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            // No opaque page fill: a partial sheet is Liquid Glass on iOS 26, and painting over it
+            // was hiding that. The mode cards stay as normal content on top of the glass.
+            .scrollContentBackground(.hidden)
             .navigationTitle("Start Sitting")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
