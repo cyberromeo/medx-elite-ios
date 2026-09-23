@@ -150,7 +150,6 @@ struct RunnerCircleButton: View {
         .buttonStyle(MedxPressStyle())
     }
 }
-}
 
 // MARK: - Time bar
 
