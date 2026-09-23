@@ -246,11 +246,15 @@ struct RunnerHUD: View {
     let isBookmarked: Bool
     /// iPad: the question counter also rides at the top-right of the HUD.
     let showsInlineCounter: Bool
+    /// iPad sizes the chrome up — the close/bookmark circles go `.large` rather than `.regular`.
+    let isPad: Bool
     let onClose: () -> Void
     let onNavigator: () -> Void
     let onBookmark: () -> Void
 
     private var isLow: Bool { !isPaused && remainingSeconds <= 10 }
+
+    private var circleSize: ControlSize { isPad ? .large : .regular }
 
     private var fraction: Double {
         guard capacitySeconds > 0 else { return 0 }
@@ -263,6 +267,8 @@ struct RunnerHUD: View {
                 RunnerCircleButton(
                     systemName: "xmark",
                     foreground: .secondary,
+                    controlSize: circleSize,
+                    circle: true,
                     action: onClose
                 )
                 .accessibilityLabel("Close sitting")
@@ -277,6 +283,8 @@ struct RunnerHUD: View {
                     systemName: isBookmarked ? "bookmark.fill" : "bookmark",
                     tint: isBookmarked ? MedxDS.warn : nil,
                     foreground: isBookmarked ? MedxDS.warn : .secondary,
+                    controlSize: circleSize,
+                    circle: true,
                     bounceOn: isBookmarked,
                     action: onBookmark
                 )
@@ -332,8 +340,9 @@ struct RunnerTimerBadge: View {
 
 // MARK: - Action bar
 
-/// `←  ·  3/50  ·  →`, over the question. Back and the counter are neutral; Next is the one blue,
-/// prominent thing on the screen, and it becomes the finish/submit action on the last question.
+/// The bottom controls, built on the same circular glass structure as the prominent Next: on
+/// iPhone `←  ·  3/50  ·  →` across the width; on iPad both arrows sit together in the right
+/// corner (the counter is the HUD's job there) and step up to the `.extraLarge` glass size.
 ///
 /// No Skip button and no text label, matching the mockup: in exam mode the arrow always advances
 /// (skipping is just tapping it), and in revision it stays disabled until the answer is revealed.
@@ -346,44 +355,61 @@ struct RunnerActionBar: View {
     /// The centre `3/50` counter. Dropped on iPad, where the HUD already carries it at the
     /// top-right — one question number on screen, not two.
     let showsCounter: Bool
+    /// iPad groups the arrows on the right and sizes them up to `.extraLarge`.
+    let isPad: Bool
     let onBack: () -> Void
     let onNavigator: () -> Void
     let onAdvance: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var controlSize: ControlSize { isPad ? .extraLarge : .large }
+
+    private var backButton: some View {
+        RunnerCircleButton(
+            systemName: "chevron.left",
+            foreground: canGoBack ? .primary : .secondary,
+            controlSize: controlSize,
+            circle: true,
+            action: onBack
+        )
+        .disabled(!canGoBack)
+        .opacity(canGoBack ? 1 : 0.45)
+        .accessibilityLabel("Previous question")
+    }
+
+    private var nextButton: some View {
+        RunnerCircleButton(
+            systemName: isLastQuestion ? "checkmark" : "chevron.right",
+            prominent: true,
+            tint: isLastQuestion ? MedxDS.correct : MedxTheme.accent,
+            foreground: .white,
+            controlSize: controlSize,
+            circle: true,
+            bounceOn: isLastQuestion,
+            action: onAdvance
+        )
+        .disabled(!canAdvance)
+        .opacity(canAdvance ? 1 : 0.45)
+        .accessibilityLabel(isLastQuestion ? "Finish" : "Next question")
+    }
+
     var body: some View {
         HStack(spacing: 12) {
-            RunnerCircleButton(
-                systemName: "chevron.left",
-                foreground: canGoBack ? .primary : .secondary,
-                controlSize: .large,
-                action: onBack
-            )
-            .disabled(!canGoBack)
-            .opacity(canGoBack ? 1 : 0.45)
-            .accessibilityLabel("Previous question")
-
-            Spacer(minLength: 8)
-
-            if showsCounter {
-                RunnerCounter(number: number, total: total, onTap: onNavigator)
+            if isPad {
+                // Both arrows in the right corner, Previous immediately left of Next.
                 Spacer(minLength: 8)
+                backButton
+                nextButton
+            } else {
+                backButton
+                Spacer(minLength: 8)
+                if showsCounter {
+                    RunnerCounter(number: number, total: total, onTap: onNavigator)
+                    Spacer(minLength: 8)
+                }
+                nextButton
             }
-
-            RunnerCircleButton(
-                systemName: isLastQuestion ? "checkmark" : "chevron.right",
-                prominent: true,
-                tint: isLastQuestion ? MedxDS.correct : MedxTheme.accent,
-                foreground: .white,
-                controlSize: .large,
-                circle: true,
-                bounceOn: isLastQuestion,
-                action: onAdvance
-            )
-            .disabled(!canAdvance)
-            .opacity(canAdvance ? 1 : 0.45)
-            .accessibilityLabel(isLastQuestion ? "Finish" : "Next question")
         }
         .padding(.horizontal, MedxGlass.floatInset)
         .padding(.top, 4)

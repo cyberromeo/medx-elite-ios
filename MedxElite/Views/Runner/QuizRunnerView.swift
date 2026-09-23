@@ -288,6 +288,7 @@ public struct QuizRunnerView: View {
             isPaused: isTimerPaused,
             isBookmarked: isCurrentBookmarked,
             showsInlineCounter: sizeClass == .regular,
+            isPad: sizeClass == .regular,
             onClose: {
                 HapticManager.light()
                 if loadState == .ready, !responses.isEmpty {
@@ -435,6 +436,7 @@ public struct QuizRunnerView: View {
             canAdvance: canAdvance(isRevealed: isRevealed),
             // The HUD's inline counter is the iPad's; the centre one here is the phone's.
             showsCounter: sizeClass != .regular,
+            isPad: sizeClass == .regular,
             onBack: {
                 goBack()
             },

@@ -21,6 +21,9 @@ public struct MainTabView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var columnVisibility: NavigationSplitViewVisibility = .doubleColumn
     @State private var isBuildingRevision = false
+    /// Which library destination the iPad sidebar has open, if any. `nil` means a main tab is
+    /// showing. Unused on iPhone and on the iOS 17 iPad fallback.
+    @State private var padLibrarySelection: MedxPadLibraryTab?
 
     public init() {}
 
@@ -155,10 +158,10 @@ public struct MainTabView: View {
     /// across the top that toggles into a sidebar — the Files / Photos arrangement — and falls
     /// back to the older two-column split on iOS 17.
     ///
-    /// The five destinations become a `.sidebarAdaptable` `TabView`. On a regular width iPadOS 26
-    /// draws that as the top-centre glass tab bar with its own sidebar toggle. Everything the old
-    /// hand-built sidebar's "Library" section listed already lives inside the Library tab, so the
-    /// five tabs are the whole switcher.
+    /// The five destinations are the primary tabs (the floating top bar); every library action
+    /// rides a `TabSection`, so expanding the sidebar lists the whole library the way iPadOS
+    /// lists a sidebar's secondary destinations. Selection is a `MedxPadSelection` so the two
+    /// kinds of tab share one binding; the main half stays wired to `appState.selectedTab`.
     ///
     /// The `TabView` is inline rather than in an `@available` helper: `.agents/availability_audit.py`
     /// only recognises an `if #available` block as a guard for the iOS 18 `Tab` / `.sidebarAdaptable`
@@ -166,22 +169,71 @@ public struct MainTabView: View {
     @ViewBuilder
     private var iPadLayout: some View {
         if #available(iOS 18.0, *) {
-            TabView(selection: $appState.selectedTab) {
+            TabView(selection: padSelection) {
                 ForEach(TabItem.allCases) { tab in
                     Tab(
                         tab.rawValue,
                         systemImage: appState.selectedTab == tab ? tab.selectedIcon : tab.icon,
-                        value: tab
+                        value: MedxPadSelection.main(tab)
                     ) {
                         NavigationStack {
                             destination(for: tab)
                         }
                     }
                 }
+
+                TabSection("Library") {
+                    ForEach(MedxPadLibraryTab.allCases) { lib in
+                        Tab(lib.title, systemImage: lib.icon, value: MedxPadSelection.library(lib)) {
+                            NavigationStack {
+                                libraryDestination(lib)
+                            }
+                        }
+                    }
+                }
             }
             .tabViewStyle(.sidebarAdaptable)
+            // A deep link that flips the main tab must pull the sidebar back out of a library
+            // destination; selecting a library item leaves `selectedTab` untouched, so this only
+            // fires for genuine main-tab changes.
+            .onChange(of: appState.selectedTab) { _, _ in padLibrarySelection = nil }
         } else {
             splitLayout
+        }
+    }
+
+    /// Bridges the unified `MedxPadSelection` to the app's `selectedTab` plus a local record of
+    /// which library destination (if any) is open. A library tab leaves `selectedTab` alone so
+    /// returning to a main tab restores exactly where it was.
+    private var padSelection: Binding<MedxPadSelection> {
+        Binding(
+            get: { padLibrarySelection.map(MedxPadSelection.library) ?? .main(appState.selectedTab) },
+            set: { newValue in
+                switch newValue {
+                case .main(let tab):
+                    padLibrarySelection = nil
+                    appState.selectedTab = tab
+                case .library(let lib):
+                    padLibrarySelection = lib
+                }
+            }
+        )
+    }
+
+    /// The detail view behind each library sidebar tab.
+    @ViewBuilder
+    private func libraryDestination(_ tab: MedxPadLibraryTab) -> some View {
+        switch tab {
+        case .flashcards: FlashcardsSubjectListView()
+        case .vodFeed: VodFeedView()
+        case .importVod: VodImportView()
+        case .faceoff: FaceoffLobbyView()
+        case .batchPapers: BatchPapersView()
+        case .customModules: CustomModulesView()
+        case .search: MedxQuestionSearchView()
+        case .bookmarks: BookmarkedQuestionsView(uid: uid)
+        case .downloads: DownloadsView()
+        case .activityLog: MedxActivityLogHost(uid: uid)
         }
     }
 
@@ -382,6 +434,54 @@ public struct MainTabView: View {
                 questions: Array(questions.prefix(40))
             )
         )
+    }
+}
+
+// MARK: - iPad selection
+
+/// One selection type for the iPad `.sidebarAdaptable` `TabView`: a primary destination (the
+/// floating top bar) or a library destination (the sidebar's own section).
+enum MedxPadSelection: Hashable {
+    case main(TabItem)
+    case library(MedxPadLibraryTab)
+}
+
+/// The library destinations listed in the iPad sidebar. These are the browsable ones — the
+/// transient builders (Quick sitting) and the profile-owned Settings stay off the list, reachable
+/// from the Library tab and the profile button respectively.
+enum MedxPadLibraryTab: String, CaseIterable, Identifiable, Hashable {
+    case flashcards, vodFeed, importVod, faceoff, batchPapers, customModules, search, bookmarks, downloads, activityLog
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .flashcards: return "Flashcards"
+        case .vodFeed: return "VOD feed"
+        case .importVod: return "Import to Classes"
+        case .faceoff: return "Faceoff"
+        case .batchPapers: return "Batch papers"
+        case .customModules: return "Custom modules"
+        case .search: return "Search"
+        case .bookmarks: return "Bookmarks"
+        case .downloads: return "Downloads"
+        case .activityLog: return "Activity log"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .flashcards: return "rectangle.stack"
+        case .vodFeed: return "antenna.radiowaves.left.and.right"
+        case .importVod: return "tray.and.arrow.down"
+        case .faceoff: return "bolt.horizontal"
+        case .batchPapers: return "flag.pattern.checkered"
+        case .customModules: return "slider.horizontal.3"
+        case .search: return "magnifyingglass"
+        case .bookmarks: return "bookmark"
+        case .downloads: return "arrow.down.circle"
+        case .activityLog: return "list.bullet.rectangle.portrait"
+        }
     }
 }
 

@@ -70,23 +70,31 @@ public struct MedxSettingsMonogram: View {
 
 // MARK: - Home profile button
 //
-// Home gets its own profile control rather than the shared `MedxSettingsMonogram`. Dropped into a
-// navigation bar on iOS 26, a toolbar button takes the bar's *default* glass container, and that
-// default is a **capsule** — a pill drawn around a round glyph, which is what looked wrong on
-// Home. Forcing `.buttonBorderShape(.circle)` puts the glass back to a clean circle: the same
-// account-button shape iOS itself uses top-right of Settings and Music.
+// Home (and the Tests tab) get their own profile control rather than the shared
+// `MedxSettingsMonogram`. Two things it fixes:
 //
-// Scoped to Home on purpose — the other five toolbars keep the shared monogram.
+//   * **Single glass container.** A toolbar already lays its items on one pane of glass, so
+//     adding the button's *own* `.buttonStyle(.glass)` stacked a second container behind the
+//     icon — the "two glass containers" bug. Dropping the explicit style leaves the toolbar's
+//     single pane, and `.buttonBorderShape(.circle)` reshapes that pane from its default capsule
+//     to a circle.
+//   * **The real face.** It shows the signed-in profile's photo when one is set, and the demo
+//     `person` glyph only as the fallback.
 
 public struct HomeProfileButton: View {
     @ObservedObject private var authService = AuthService.shared
+    @ObservedObject private var avatars = AvatarStore.shared
     @State private var showSettings = false
 
     public init() {}
 
-    /// The signed-in profile's accent, or a neutral grey on the first frame before the session
-    /// resolves. The glyph is the same either way, so the control never changes shape a beat later.
     private var hue: Color { authService.currentProfile?.accentColor ?? .secondary }
+
+    /// The signed-in profile's photo, if one has been chosen.
+    private var photo: UIImage? {
+        guard let id = authService.currentProfile?.id else { return nil }
+        return avatars.images[id]
+    }
 
     public var body: some View {
         control.sheet(isPresented: $showSettings) { SettingsView() }
@@ -95,29 +103,40 @@ public struct HomeProfileButton: View {
     @ViewBuilder
     private var control: some View {
         if #available(iOS 26.0, *) {
-            Button(action: open) {
-                Image(systemName: "person.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(hue)
-            }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .accessibilityLabel("Profile and settings")
-            .accessibilityHint("Opens account, bookmarks, history and app settings")
+            // No explicit `.buttonStyle(.glass)` — see the note above; the toolbar owns the one
+            // container. `.buttonBorderShape(.circle)` turns its default capsule into a circle.
+            Button(action: open) { face }
+                .buttonBorderShape(.circle)
+                .accessibilityLabel("Profile and settings")
+                .accessibilityHint("Opens account, bookmarks, history and app settings")
         } else {
-            // iOS 17: the sunken-circle monogram look, no glass to reshape.
+            // iOS 17: no toolbar glass to reshape, so the circle is drawn here.
             Button(action: open) {
-                Image(systemName: "person.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(hue)
+                face
                     .frame(width: 32, height: 32)
                     .background(Circle().fill(MedxDS.sunken))
+                    .clipShape(Circle())
                     .frame(width: 44, height: 44)
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Profile and settings")
             .accessibilityHint("Opens account, bookmarks, history and app settings")
+        }
+    }
+
+    @ViewBuilder
+    private var face: some View {
+        if let photo {
+            Image(uiImage: photo)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 30, height: 30)
+                .clipShape(Circle())
+        } else {
+            Image(systemName: "person.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(hue)
         }
     }
 

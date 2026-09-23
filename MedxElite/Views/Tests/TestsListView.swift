@@ -60,7 +60,7 @@ public struct TestsListView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                MedxSettingsMonogram()
+                HomeProfileButton()
             }
         }
         .searchable(
