@@ -67,3 +67,62 @@ public struct MedxSettingsMonogram: View {
         }
     }
 }
+
+// MARK: - Home profile button
+//
+// Home gets its own profile control rather than the shared `MedxSettingsMonogram`. Dropped into a
+// navigation bar on iOS 26, a toolbar button takes the bar's *default* glass container, and that
+// default is a **capsule** — a pill drawn around a round glyph, which is what looked wrong on
+// Home. Forcing `.buttonBorderShape(.circle)` puts the glass back to a clean circle: the same
+// account-button shape iOS itself uses top-right of Settings and Music.
+//
+// Scoped to Home on purpose — the other five toolbars keep the shared monogram.
+
+public struct HomeProfileButton: View {
+    @ObservedObject private var authService = AuthService.shared
+    @State private var showSettings = false
+
+    public init() {}
+
+    /// The signed-in profile's accent, or a neutral grey on the first frame before the session
+    /// resolves. The glyph is the same either way, so the control never changes shape a beat later.
+    private var hue: Color { authService.currentProfile?.accentColor ?? .secondary }
+
+    public var body: some View {
+        control.sheet(isPresented: $showSettings) { SettingsView() }
+    }
+
+    @ViewBuilder
+    private var control: some View {
+        if #available(iOS 26.0, *) {
+            Button(action: open) {
+                Image(systemName: "person.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(hue)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .accessibilityLabel("Profile and settings")
+            .accessibilityHint("Opens account, bookmarks, history and app settings")
+        } else {
+            // iOS 17: the sunken-circle monogram look, no glass to reshape.
+            Button(action: open) {
+                Image(systemName: "person.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(hue)
+                    .frame(width: 32, height: 32)
+                    .background(Circle().fill(MedxDS.sunken))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Profile and settings")
+            .accessibilityHint("Opens account, bookmarks, history and app settings")
+        }
+    }
+
+    private func open() {
+        HapticManager.light()
+        showSettings = true
+    }
+}

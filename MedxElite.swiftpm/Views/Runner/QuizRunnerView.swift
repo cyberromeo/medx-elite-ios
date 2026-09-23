@@ -371,6 +371,7 @@ public struct QuizRunnerView: View {
                 .padding(.bottom, 24)
             }
             .scrollIndicators(.hidden)
+            .medxScrollEdge()
             .scrollDismissesKeyboard(.immediately)
             .simultaneousGesture(horizontalQuestionGesture)
             .onChange(of: currentIndex) { _, _ in

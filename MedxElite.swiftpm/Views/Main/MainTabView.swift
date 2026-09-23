@@ -120,7 +120,7 @@ public struct MainTabView: View {
     @ViewBuilder
     private var layout: some View {
         if sizeClass == .regular {
-            splitLayout
+            iPadLayout
         } else {
             tabLayout
         }
@@ -151,10 +151,48 @@ public struct MainTabView: View {
 
     // MARK: - iPad
 
+    /// iPad follows Apple's own adaptive layout on iOS 18+: a floating Liquid Glass tab bar
+    /// across the top that toggles into a sidebar — the Files / Photos arrangement — and falls
+    /// back to the older two-column split on iOS 17.
+    ///
+    /// The five destinations become a `.sidebarAdaptable` `TabView`. On a regular width iPadOS 26
+    /// draws that as the top-centre glass tab bar with its own sidebar toggle. Everything the old
+    /// hand-built sidebar's "Library" section listed already lives inside the Library tab, so the
+    /// five tabs are the whole switcher.
+    ///
+    /// The `TabView` is inline rather than in an `@available` helper: `.agents/availability_audit.py`
+    /// only recognises an `if #available` block as a guard for the iOS 18 `Tab` / `.sidebarAdaptable`
+    /// APIs.
+    @ViewBuilder
+    private var iPadLayout: some View {
+        if #available(iOS 18.0, *) {
+            TabView(selection: $appState.selectedTab) {
+                ForEach(TabItem.allCases) { tab in
+                    Tab(
+                        tab.rawValue,
+                        systemImage: appState.selectedTab == tab ? tab.selectedIcon : tab.icon,
+                        value: tab
+                    ) {
+                        NavigationStack {
+                            destination(for: tab)
+                        }
+                    }
+                }
+            }
+            .tabViewStyle(.sidebarAdaptable)
+        } else {
+            splitLayout
+        }
+    }
+
+    // MARK: - iPad (iOS 17 fallback)
+
     /// Two columns on a regular width: the five destinations plus the library actions in a
     /// sidebar, the destination itself in the detail column. The detail stack is keyed on the
     /// selection so switching sections starts at that section's root rather than restoring a
     /// stale push from the previous one.
+    ///
+    /// Only reached on iOS 17 now — iOS 18+ iPads get the adaptive tab bar above.
     private var splitLayout: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebar
