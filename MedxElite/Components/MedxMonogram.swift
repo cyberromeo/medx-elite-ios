@@ -84,11 +84,14 @@ public struct MedxSettingsMonogram: View {
 public struct HomeProfileButton: View {
     @ObservedObject private var authService = AuthService.shared
     @ObservedObject private var avatars = AvatarStore.shared
+    @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
     @State private var showSettings = false
 
     public init() {}
 
-    private var hue: Color { authService.currentProfile?.accentColor ?? .secondary }
+    /// The demo glyph wears the app's accent, and `MedxAccentThemeStore` is observed so it
+    /// repaints the moment the accent changes in Settings.
+    private var hue: Color { MedxTheme.accent }
 
     /// The signed-in profile's photo, if one has been chosen.
     private var photo: UIImage? {

@@ -51,35 +51,40 @@ struct RunnerDotField: View {
 
 // MARK: - A glass button
 
-/// A control in the runner chrome, using the iOS 26 SDK's own glass button styles at their
-/// **default** shape — the rounded "squircle" Apple showcases — rather than a hand-set corner
-/// radius. `controlSize` is the only size lever, so the buttons come out the native size instead
-/// of a forced diameter. Two escapes from the default: `prominent` fills the glass with `tint`
-/// (the blue Next), and `circle` forces a full circle (the one round FAB in the mockup).
+/// A round control in the runner chrome, on the iOS 26 SDK's glass button styles at Apple's own
+/// HIG control metrics — `controlSize` is the size lever, so the buttons come out the native
+/// size, not a cramped glyph. `prominent` fills the glass with `tint` (the blue Next); every
+/// runner button is a circle now, so the chrome reads as one family.
 struct RunnerCircleButton: View {
     let systemName: String
     var prominent: Bool = false
     var tint: Color? = nil
     var foreground: Color = .primary
     var controlSize: ControlSize = .regular
-    /// Force a full circle rather than the default rounded rectangle. The prominent Next/Finish
-    /// action is the only caller — the round blue arrow the mockup draws.
     var circle: Bool = false
     var bounceOn: Bool = false
     let action: () -> Void
 
+    /// Glyph point size per control size — chosen so the SF Symbol reads at a comfortable weight
+    /// inside the glass Apple lays around it.
     private var iconPointSize: CGFloat {
         switch controlSize {
-        case .large, .extraLarge: return 20
-        default: return 15
+        case .mini, .small: return 15
+        case .regular: return 17
+        case .large: return 21
+        case .extraLarge: return 26
+        @unknown default: return 17
         }
     }
 
-    /// iOS 17 has no glass button metrics to lean on, so the fallback sizes itself.
+    /// iOS 17 has no glass control metrics to lean on, so the ink fallback sizes its own circle.
     private var fallbackDiameter: CGFloat {
         switch controlSize {
-        case .large, .extraLarge: return 54
-        default: return 40
+        case .mini, .small: return 44
+        case .regular: return 48
+        case .large: return 54
+        case .extraLarge: return 64
+        @unknown default: return 48
         }
     }
 
@@ -115,9 +120,8 @@ struct RunnerCircleButton: View {
         }
     }
 
-    /// A full circle only where asked; otherwise the glass style's own default rounded shape,
-    /// which is the point of this pass — no more hand-set corner radius. `.buttonBorderShape` is
-    /// iOS 17 API, so this needs no availability island of its own.
+    /// A full circle only where asked; otherwise the glass style's own default rounded shape.
+    /// `.buttonBorderShape` is iOS 17 API, so this needs no availability island of its own.
     @ViewBuilder
     private func shaped<V: View>(_ button: V) -> some View {
         if circle {
@@ -141,32 +145,29 @@ struct RunnerCircleButton: View {
                             .fill(prominent ? (tint ?? MedxTheme.accent) : MedxDS.sunken)
                     }
                 }
-                .contentShape(
-                    circle
-                        ? AnyShape(Circle())
-                        : AnyShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-                )
+                .contentShape(Circle())
         }
         .buttonStyle(MedxPressStyle())
     }
 }
+}
 
 // MARK: - Time bar
 
-/// The blue bar that drains as the clock does. Not glass — it is a filled track, so it reads as the
-/// one solid element between the floating controls, exactly as the mockup draws it. Takes the same
-/// red cast the panel used to in the last ten seconds.
+/// The progress bar that spans the top of the runner, just under the status bar. Not glass — a
+/// filled track, the one solid element above the floating controls, exactly as the reference
+/// draws it. **Green** while there is time; it flips to **red** for the final 20%. Non-interactive,
+/// so it never eats a tap meant for the close button sitting under its left end.
 struct RunnerTimeBar: View {
     let fraction: Double
-    let isLow: Bool
     let isPaused: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var tint: Color {
-        if isPaused { return MedxDS.correct }
-        return isLow ? MedxDS.wrong : MedxTheme.accent
-    }
+    /// Red for the final fifth of the clock; green above it. Paused (revision, answer revealed)
+    /// reads as a full green bar.
+    private var isCritical: Bool { !isPaused && fraction <= 0.2 }
+    private var tint: Color { isCritical ? MedxDS.wrong : MedxDS.correct }
 
     var body: some View {
         GeometryReader { geo in
@@ -179,8 +180,9 @@ struct RunnerTimeBar: View {
             }
         }
         .frame(height: 7)
+        .allowsHitTesting(false)
         .animation(reduceMotion ? nil : .linear(duration: 0.9), value: fraction)
-        .animation(reduceMotion ? nil : MedxDS.snap, value: isLow)
+        .animation(reduceMotion ? nil : MedxDS.snap, value: isCritical)
         .accessibilityElement()
         .accessibilityLabel("Time remaining")
         .accessibilityValue("\(Int((isPaused ? 1 : fraction) * 100)) percent")
@@ -252,9 +254,7 @@ struct RunnerHUD: View {
     let onNavigator: () -> Void
     let onBookmark: () -> Void
 
-    private var isLow: Bool { !isPaused && remainingSeconds <= 10 }
-
-    private var circleSize: ControlSize { isPad ? .large : .regular }
+    private var circleSize: ControlSize { isPad ? .extraLarge : .large }
 
     private var fraction: Double {
         guard capacitySeconds > 0 else { return 0 }
@@ -262,40 +262,46 @@ struct RunnerHUD: View {
     }
 
     var body: some View {
-        MedxGlassGroup(spacing: 14) {
-            HStack(spacing: 12) {
-                RunnerCircleButton(
-                    systemName: "xmark",
-                    foreground: .secondary,
-                    controlSize: circleSize,
-                    circle: true,
-                    action: onClose
-                )
-                .accessibilityLabel("Close sitting")
+        VStack(spacing: 10) {
+            // The progress bar rides the very top, full width, just under the status bar — the
+            // reference's layout. The controls sit on their own row below it.
+            RunnerTimeBar(fraction: fraction, isPaused: isPaused)
 
-                RunnerTimeBar(fraction: fraction, isLow: isLow, isPaused: isPaused)
+            MedxGlassGroup(spacing: 14) {
+                HStack(spacing: 12) {
+                    RunnerCircleButton(
+                        systemName: "xmark",
+                        foreground: .secondary,
+                        controlSize: circleSize,
+                        circle: true,
+                        action: onClose
+                    )
+                    .accessibilityLabel("Close sitting")
 
-                if let blockLabel {
-                    MedxBadge(blockLabel).fixedSize()
-                }
+                    Spacer(minLength: 8)
 
-                RunnerCircleButton(
-                    systemName: isBookmarked ? "bookmark.fill" : "bookmark",
-                    tint: isBookmarked ? MedxDS.warn : nil,
-                    foreground: isBookmarked ? MedxDS.warn : .secondary,
-                    controlSize: circleSize,
-                    circle: true,
-                    bounceOn: isBookmarked,
-                    action: onBookmark
-                )
-                .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark question")
+                    if let blockLabel {
+                        MedxBadge(blockLabel).fixedSize()
+                    }
 
-                RunnerTimerBadge(remainingSeconds: remainingSeconds, isPaused: isPaused)
-                    .fixedSize()
+                    RunnerCircleButton(
+                        systemName: isBookmarked ? "bookmark.fill" : "bookmark",
+                        tint: isBookmarked ? MedxDS.warn : nil,
+                        foreground: isBookmarked ? MedxDS.warn : .secondary,
+                        controlSize: circleSize,
+                        circle: true,
+                        bounceOn: isBookmarked,
+                        action: onBookmark
+                    )
+                    .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark question")
 
-                if showsInlineCounter {
-                    RunnerCounter(number: number, total: total, onTap: onNavigator)
+                    RunnerTimerBadge(remainingSeconds: remainingSeconds, isPaused: isPaused)
                         .fixedSize()
+
+                    if showsInlineCounter {
+                        RunnerCounter(number: number, total: total, onTap: onNavigator)
+                            .fixedSize()
+                    }
                 }
             }
         }

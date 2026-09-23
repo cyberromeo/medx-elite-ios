@@ -21,6 +21,9 @@ public struct QuizRunnerView: View {
     @State private var statuses: [RunnerQuestionStatus] = []
     @State private var remainingSeconds = 0
     @State private var completedSeconds = 0
+    /// One-shot guards so the halfway and final-fifth haptics each fire once per armed clock.
+    @State private var firedHaptic50 = false
+    @State private var firedHaptic20 = false
     @State private var loadState: RunnerLoadState = .loading
     @State private var isFinished = false
     @State private var showExitAlert = false
@@ -583,9 +586,33 @@ public struct QuizRunnerView: View {
         guard loadState == .ready, !isFinished, handover == nil, !isTimerPaused else { return }
         if remainingSeconds > 0 {
             remainingSeconds -= 1
+            fireTimeHaptics()
         } else {
             handleTimeout()
         }
+    }
+
+    /// A small button-tap haptic as the clock passes the halfway mark, and again entering the
+    /// final fifth — the two thresholds the reference calls out, both kept light (the tick you
+    /// feel holding an iOS button). Guarded so each fires once per armed clock.
+    private func fireTimeHaptics() {
+        let capacity = capacitySeconds
+        guard capacity > 0 else { return }
+        let fraction = Double(remainingSeconds) / Double(capacity)
+        if !firedHaptic50, fraction <= 0.5 {
+            firedHaptic50 = true
+            HapticManager.light()
+        }
+        if !firedHaptic20, fraction <= 0.2 {
+            firedHaptic20 = true
+            HapticManager.light()
+        }
+    }
+
+    /// Re-arm the halfway / final-fifth haptics for a freshly wound clock.
+    private func armTimeHaptics() {
+        firedHaptic50 = false
+        firedHaptic20 = false
     }
 
     private func goBack() {
@@ -624,6 +651,7 @@ public struct QuizRunnerView: View {
         guard payload.mode == .revision else { return }
         if let question = currentQuestion, responses[question.id] != nil { return }
         remainingSeconds = 60
+        armTimeHaptics()
     }
 
     private func finishSitting() {
@@ -685,6 +713,7 @@ public struct QuizRunnerView: View {
         handover = nil
         sectionStartedAt = Date()
         remainingSeconds = activeSection.seconds
+        armTimeHaptics()
         lastPushedAnswered = -1
         refreshStatuses()
     }
@@ -786,6 +815,7 @@ public struct QuizRunnerView: View {
             startedAt = Date()
             sectionStartedAt = Date()
             remainingSeconds = payload.mode == .exam ? sections[0].seconds : 60
+            armTimeHaptics()
             loadState = .ready
             refreshStatuses()
 
