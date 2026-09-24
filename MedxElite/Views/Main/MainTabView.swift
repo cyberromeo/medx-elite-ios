@@ -195,6 +195,9 @@ public struct MainTabView: View {
                         }
                     }
                 }
+                // Sidebar only — the shortcuts are secondary destinations and have no business
+                // crowding the minimized top tab bar, which stays the five primary tabs.
+                .defaultVisibility(.hidden, for: .tabBar)
             }
             .tabViewStyle(.sidebarAdaptable)
             // A deep link that flips the main tab must pull the sidebar back out of a shortcut
