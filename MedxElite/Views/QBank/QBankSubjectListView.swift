@@ -96,7 +96,7 @@ public struct QBankSubjectListView: View {
                 }
                 .accessibilityLabel("Search all questions")
 
-                MedxSettingsMonogram()
+                MedxProfileButton()
             }
         }
         .searchable(

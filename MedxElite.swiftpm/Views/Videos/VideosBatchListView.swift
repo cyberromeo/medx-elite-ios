@@ -69,7 +69,7 @@ public struct VideosBatchListView: View {
             }
 
             ToolbarItem(placement: .topBarTrailing) {
-                MedxSettingsMonogram()
+                MedxProfileButton()
             }
         }
         .searchable(

@@ -170,7 +170,11 @@ public struct MainTabView: View {
     private var iPadLayout: some View {
         if #available(iOS 18.0, *) {
             TabView(selection: padSelection) {
-                ForEach(TabItem.allCases) { tab in
+                // Library is *not* a top tab on iPad: its grid is redundant with the "Library"
+                // sidebar section below, and having both was the duplicate "Library" the user saw.
+                // The four remaining destinations are the primary tabs; everything the Library tab
+                // launched lives in the section.
+                ForEach(iPadMainTabs) { tab in
                     Tab(
                         tab.rawValue,
                         systemImage: appState.selectedTab == tab ? tab.selectedIcon : tab.icon,
@@ -202,12 +206,22 @@ public struct MainTabView: View {
         }
     }
 
+    /// The iPad's primary tabs: every destination except Library, whose contents ride the sidebar
+    /// section instead.
+    private var iPadMainTabs: [TabItem] { TabItem.allCases.filter { $0 != .library } }
+
     /// Bridges the unified `MedxPadSelection` to the app's `selectedTab` plus a local record of
     /// which library destination (if any) is open. A library tab leaves `selectedTab` alone so
     /// returning to a main tab restores exactly where it was.
     private var padSelection: Binding<MedxPadSelection> {
         Binding(
-            get: { padLibrarySelection.map(MedxPadSelection.library) ?? .main(appState.selectedTab) },
+            get: {
+                if let lib = padLibrarySelection { return .library(lib) }
+                // Library is not a top tab here, so a stray `.library` (carried from the phone or a
+                // deep link) shows Home rather than selecting a tab that does not exist.
+                let tab: TabItem = appState.selectedTab == .library ? .home : appState.selectedTab
+                return .main(tab)
+            },
             set: { newValue in
                 switch newValue {
                 case .main(let tab):

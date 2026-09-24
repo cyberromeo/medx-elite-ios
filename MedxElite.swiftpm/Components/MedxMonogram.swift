@@ -68,10 +68,11 @@ public struct MedxSettingsMonogram: View {
     }
 }
 
-// MARK: - Home profile button
+// MARK: - Profile button
 //
-// Home (and the Tests tab) get their own profile control rather than the shared
-// `MedxSettingsMonogram`. Two things it fixes:
+// The app-wide profile / settings control, in every tab's toolbar so it reads identically on
+// every screen (it replaced `MedxSettingsMonogram`, which differed from this one). Two things it
+// fixes:
 //
 //   * **Single glass container.** A toolbar already lays its items on one pane of glass, so
 //     adding the button's *own* `.buttonStyle(.glass)` stacked a second container behind the
@@ -79,9 +80,9 @@ public struct MedxSettingsMonogram: View {
 //     single pane, and `.buttonBorderShape(.circle)` reshapes that pane from its default capsule
 //     to a circle.
 //   * **The real face.** It shows the signed-in profile's photo when one is set, and the demo
-//     `person` glyph only as the fallback.
+//     `person` glyph (in the app accent) only as the fallback.
 
-public struct HomeProfileButton: View {
+public struct MedxProfileButton: View {
     @ObservedObject private var authService = AuthService.shared
     @ObservedObject private var avatars = AvatarStore.shared
     @ObservedObject private var medxTheme = MedxAccentThemeStore.shared

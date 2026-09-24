@@ -47,7 +47,7 @@ public struct LibraryView: View {
         .navigationTitle("Library")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                MedxSettingsMonogram()
+                MedxProfileButton()
             }
         }
         .navigationDestination(item: $appState.libraryDestination) { destination in

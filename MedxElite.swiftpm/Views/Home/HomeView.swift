@@ -81,7 +81,7 @@ public struct HomeView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                HomeProfileButton()
+                MedxProfileButton()
             }
         }
         .refreshable {
