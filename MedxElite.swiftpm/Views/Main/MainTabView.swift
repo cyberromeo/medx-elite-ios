@@ -154,68 +154,57 @@ public struct MainTabView: View {
 
     // MARK: - iPad
 
-    /// iPad follows Apple's own adaptive layout on iOS 18+: a floating Liquid Glass tab bar
-    /// across the top that toggles into a sidebar — the Files / Photos arrangement — and falls
-    /// back to the older two-column split on iOS 17.
-    ///
-    /// The five destinations are the primary tabs (the floating top bar); every library action
-    /// rides a `TabSection`, so expanding the sidebar lists the whole library the way iPadOS
-    /// lists a sidebar's secondary destinations. Selection is a `MedxPadSelection` so the two
-    /// kinds of tab share one binding; the main half stays wired to `appState.selectedTab`.
-    ///
-    /// The `TabView` is inline rather than in an `@available` helper: `.agents/availability_audit.py`
-    /// only recognises an `if #available` block as a guard for the iOS 18 `Tab` / `.sidebarAdaptable`
-    /// APIs.
-    @ViewBuilder
+    /// iPad uses a `NavigationSplitView` — a collapsible sidebar plus a detail column, the Mail /
+    /// Notes / Files pattern. The sidebar lists the five destinations under "Study" and the library
+    /// tools under "Shortcuts"; picking any of them shows it in the detail column. There is *no*
+    /// floating tab bar: `.sidebarAdaptable` kept dragging the shortcuts into the collapsed top
+    /// bar, so the sidebar owns the whole switcher and nothing leaks. Selection is one
+    /// `MedxPadSelection` for both kinds of row. Works on iOS 16+, no availability branch.
     private var iPadLayout: some View {
-        if #available(iOS 18.0, *) {
-            TabView(selection: padSelection) {
-                // All five destinations are primary tabs, Library included — tapping it opens the
-                // Library grid, as on iPhone. Its individual tools also ride the sidebar as a
-                // separate "Shortcuts" section below; the section is deliberately *not* titled
-                // "Library" so it doesn't read as a second Library.
-                ForEach(TabItem.allCases) { tab in
-                    Tab(
-                        tab.rawValue,
-                        systemImage: appState.selectedTab == tab ? tab.selectedIcon : tab.icon,
-                        value: MedxPadSelection.main(tab)
-                    ) {
-                        NavigationStack {
-                            destination(for: tab)
-                        }
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            List(selection: sidebarSelection) {
+                Section("Study") {
+                    ForEach(TabItem.allCases) { tab in
+                        Label(
+                            tab.rawValue,
+                            systemImage: isMainSelected(tab) ? tab.selectedIcon : tab.icon
+                        )
+                        .symbolEffect(.bounce, value: isMainSelected(tab))
+                        .tag(MedxPadSelection.main(tab))
                     }
                 }
 
-                TabSection("Shortcuts") {
+                Section("Shortcuts") {
                     ForEach(MedxPadLibraryTab.allCases) { lib in
-                        Tab(lib.title, systemImage: lib.icon, value: MedxPadSelection.library(lib)) {
-                            NavigationStack {
-                                libraryDestination(lib)
-                            }
-                        }
+                        Label(lib.title, systemImage: lib.icon)
+                            .tag(MedxPadSelection.library(lib))
                     }
                 }
-                // Sidebar only — the shortcuts are secondary destinations and have no business
-                // crowding the minimized top tab bar, which stays the five primary tabs.
-                .defaultVisibility(.hidden, for: .tabBar)
             }
-            .tabViewStyle(.sidebarAdaptable)
-            // A deep link that flips the main tab must pull the sidebar back out of a shortcut
-            // destination; selecting a shortcut leaves `selectedTab` untouched, so this only
-            // fires for genuine main-tab changes.
-            .onChange(of: appState.selectedTab) { _, _ in padLibrarySelection = nil }
-        } else {
-            splitLayout
+            .listStyle(.sidebar)
+            .navigationTitle("MedX Elite")
+        } detail: {
+            NavigationStack {
+                iPadDetail
+            }
+            .id(padDetailID)
         }
+        .navigationSplitViewStyle(.balanced)
     }
 
-    /// Bridges the unified `MedxPadSelection` to the app's `selectedTab` plus a local record of
-    /// which shortcut destination (if any) is open. A shortcut leaves `selectedTab` alone so
-    /// returning to a main tab restores exactly where it was.
-    private var padSelection: Binding<MedxPadSelection> {
+    /// True when `tab` is the selected main destination and no shortcut is overriding it.
+    private func isMainSelected(_ tab: TabItem) -> Bool {
+        padLibrarySelection == nil && appState.selectedTab == tab
+    }
+
+    /// The sidebar's selection, bridged to `selectedTab` plus the shortcut record. A `nil` from a
+    /// deselect is ignored so the detail column never goes blank; a shortcut leaves `selectedTab`
+    /// alone so returning to a main tab restores where it was.
+    private var sidebarSelection: Binding<MedxPadSelection?> {
         Binding(
             get: { padLibrarySelection.map(MedxPadSelection.library) ?? .main(appState.selectedTab) },
             set: { newValue in
+                guard let newValue else { return }
                 switch newValue {
                 case .main(let tab):
                     padLibrarySelection = nil
@@ -225,6 +214,22 @@ public struct MainTabView: View {
                 }
             }
         )
+    }
+
+    /// The detail column: a selected shortcut wins, otherwise the current main destination.
+    @ViewBuilder
+    private var iPadDetail: some View {
+        if let lib = padLibrarySelection {
+            libraryDestination(lib)
+        } else {
+            destination(for: appState.selectedTab)
+        }
+    }
+
+    /// Resets the detail's navigation stack when the selection changes, so a new pick starts at
+    /// that destination's root.
+    private var padDetailID: String {
+        padLibrarySelection.map(\.rawValue) ?? appState.selectedTab.rawValue
     }
 
     /// The detail view behind each library sidebar tab.
@@ -242,135 +247,6 @@ public struct MainTabView: View {
         case .downloads: DownloadsView()
         case .activityLog: MedxActivityLogHost(uid: uid)
         }
-    }
-
-    // MARK: - iPad (iOS 17 fallback)
-
-    /// Two columns on a regular width: the five destinations plus the library actions in a
-    /// sidebar, the destination itself in the detail column. The detail stack is keyed on the
-    /// selection so switching sections starts at that section's root rather than restoring a
-    /// stale push from the previous one.
-    ///
-    /// Only reached on iOS 17 now — iOS 18+ iPads get the adaptive tab bar above.
-    private var splitLayout: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            sidebar
-        } detail: {
-            NavigationStack {
-                destination(for: appState.selectedTab)
-                    // With the sidebar collapsed there is no way left to change section — the
-                    // sidebar was the only tab switcher. A segmented bar rides the top of the
-                    // detail column so the five destinations stay one tap apart. It hides itself
-                    // the moment the sidebar is back, so the switcher is never shown twice.
-                    .toolbar {
-                        if columnVisibility == .detailOnly {
-                            ToolbarItem(placement: .principal) {
-                                iPadTabSwitcher
-                            }
-                        }
-                    }
-            }
-            .id(appState.selectedTab)
-        }
-        .navigationSplitViewStyle(.balanced)
-    }
-
-    /// The top tab bar for a collapsed sidebar: the five destinations as a segmented control,
-    /// bound to the same selection the sidebar drives.
-    private var iPadTabSwitcher: some View {
-        Picker("Section", selection: $appState.selectedTab) {
-            ForEach(TabItem.allCases) { tab in
-                Label(
-                    tab.rawValue,
-                    systemImage: appState.selectedTab == tab ? tab.selectedIcon : tab.icon
-                )
-                .labelStyle(.iconOnly)
-                .tag(tab)
-            }
-        }
-        .pickerStyle(.segmented)
-        .frame(minWidth: 320)
-    }
-
-    private var sidebar: some View {
-        List(selection: sidebarSelection) {
-            Section {
-                ForEach(TabItem.allCases) { tab in
-                    Label(
-                        tab.rawValue,
-                        systemImage: appState.selectedTab == tab ? tab.selectedIcon : tab.icon
-                    )
-                    .symbolEffect(.bounce, value: appState.selectedTab == tab)
-                    .tag(tab)
-                }
-            } header: {
-                Text("Study")
-            }
-
-            Section("Play") {
-                sidebarAction("Faceoff", icon: "bolt.horizontal") {
-                    appState.open(route: .faceoff)
-                }
-            }
-
-            Section("Library") {
-                sidebarAction("Flashcards", icon: "rectangle.stack") {
-                    appState.open(route: .flashcards)
-                }
-                sidebarAction("VOD feed", icon: "antenna.radiowaves.left.and.right") {
-                    appState.open(route: .vodFeed)
-                }
-                sidebarAction("Import to Classes", icon: "tray.and.arrow.down") {
-                    appState.open(route: .importVod)
-                }
-                sidebarAction("Batch papers", icon: "flag.pattern.checkered") {
-                    appState.open(route: .batchPapers)
-                }
-                sidebarAction("Custom modules", icon: "slider.horizontal.3") {
-                    appState.open(route: .customModules)
-                }
-                sidebarAction("Search questions", icon: "magnifyingglass") {
-                    appState.open(route: .search(nil))
-                }
-                sidebarAction("Bookmarks", icon: "bookmark") {
-                    appState.showBookmarks = true
-                }
-                sidebarAction("Downloads", icon: "arrow.down.circle") {
-                    appState.showDownloads = true
-                }
-            }
-
-            Section {
-                sidebarAction("Settings", icon: "gearshape") {
-                    appState.showSettings = true
-                }
-            }
-        }
-        .listStyle(.sidebar)
-        .navigationTitle("MedX Elite")
-    }
-
-    private func sidebarAction(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button {
-            HapticManager.light()
-            action()
-        } label: {
-            Label(title, systemImage: icon)
-                .foregroundStyle(.primary)
-                .frame(minHeight: 34)
-        }
-    }
-
-    /// `List` wants an optional selection; a nil arriving from a deselect is ignored so the
-    /// detail column never goes blank.
-    private var sidebarSelection: Binding<TabItem?> {
-        Binding(
-            get: { appState.selectedTab },
-            set: { newValue in
-                guard let newValue else { return }
-                appState.selectedTab = newValue
-            }
-        )
     }
 
     @ViewBuilder
@@ -446,16 +322,16 @@ public struct MainTabView: View {
 
 // MARK: - iPad selection
 
-/// One selection type for the iPad `.sidebarAdaptable` `TabView`: a primary destination (the
-/// floating top bar) or a library destination (the sidebar's own section).
+/// One selection type for the iPad sidebar: a primary destination (the "Study" section) or a
+/// library destination (the "Shortcuts" section). Both drive the same detail column.
 enum MedxPadSelection: Hashable {
     case main(TabItem)
     case library(MedxPadLibraryTab)
 }
 
-/// The library destinations listed in the iPad sidebar. These are the browsable ones — the
-/// transient builders (Quick sitting) and the profile-owned Settings stay off the list, reachable
-/// from the Library tab and the profile button respectively.
+/// The library destinations listed under "Shortcuts" in the iPad sidebar. These are the browsable
+/// ones — the transient builders (Quick sitting) and the profile-owned Settings stay off the list,
+/// reachable from the Library tab and the profile button respectively.
 enum MedxPadLibraryTab: String, CaseIterable, Identifiable, Hashable {
     case flashcards, vodFeed, importVod, faceoff, batchPapers, customModules, search, bookmarks, downloads, activityLog
 
