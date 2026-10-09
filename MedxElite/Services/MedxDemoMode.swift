@@ -227,7 +227,7 @@ enum MedxDemoQuestions {
             stem: "A 24-year-old woman develops high fever, hypotension, a diffuse erythematous rash and later desquamation of the palms during menstruation while using a tampon. The toxin most likely responsible is:",
             options: ["TSST-1", "Exfoliative toxin A", "Panton-Valentine leukocidin", "Streptolysin O"],
             correct: 0,
-            explanation: "<p><b>Toxic shock syndrome toxin-1 (TSST-1)</b> of <i>Staphylococcus aureus</i> is a superantigen. It cross-links MHC class II with the T-cell receptor outside the peptide groove, causing massive cytokine release. Menstrual TSS is classically linked to tampon use.</p>"
+            explanation: "<p><b>Toxic shock syndrome toxin-1 (TSST-1)</b> of <i>Staphylococcus aureus</i> is a <b>superantigen</b>. It cross-links <b>MHC class II</b> with the T-cell receptor outside the peptide groove, causing <b>massive cytokine release</b> and shock. Menstrual TSS is classically linked to <b>tampon use</b>.</p>"
         ),
         MedxDemoMCQ(
             subject: "Microbiology",

@@ -373,6 +373,7 @@ public struct QuizRunnerView: View {
 
                     if isRevealed {
                         RunnerExplanationCard(question: question, response: response)
+                            .id("medx.explanation")
                             // Fades up into the space the layout opens below the options, settling
                             // from its own top edge. The old `.move(edge: .top)` slid the card *down
                             // from above*, straight over the answer rows — the overlap the reveal
@@ -395,6 +396,16 @@ public struct QuizRunnerView: View {
                     proxy.scrollTo(topAnchor, anchor: .top)
                 }
             }
+            #if DEBUG
+            // Screenshot runs only: `-medxScroll 1` brings the revealed explanation into view.
+            .onChange(of: isRevealed) { _, revealed in
+                guard revealed, UserDefaults.standard.integer(forKey: "medxScroll") > 0 else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 700_000_000)
+                    proxy.scrollTo("medx.explanation", anchor: .top)
+                }
+            }
+            #endif
         }
         // The faint dot grid from the mockup, behind the question and under both bars.
         .background {

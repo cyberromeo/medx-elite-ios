@@ -848,7 +848,10 @@ extension String {
 
         for character in self {
             if character.isWhitespace || character.isNewline {
-                pendingSpace = !result.isEmpty
+                // Leading whitespace counts too. A text node is often the space after a closing
+                // tag ("<b>inability</b> to"), and dropping it glued the bold word to the next one.
+                // `flush` drops a leading space at a line start or after another space.
+                pendingSpace = true
             } else {
                 if pendingSpace {
                     result.append(" ")
