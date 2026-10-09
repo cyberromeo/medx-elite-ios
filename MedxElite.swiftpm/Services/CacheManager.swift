@@ -8,6 +8,16 @@ public actor CacheManager {
     private let cacheDir: URL
     private var memoryCache = NSCache<NSString, NSData>()
 
+    /// When each key was last written in this process. Disk entries from an earlier launch fall
+    /// back to the file's modification date.
+    private var writtenAt: [String: Date] = [:]
+
+    /// Anything written before this moment is stale: it is still served when the network fails,
+    /// but it no longer short-circuits a fetch. Starts at launch, so the first read of every
+    /// collection in a session goes to the backend, and moves forward on pull-to-refresh and on
+    /// returning to the app.
+    private var staleBefore = Date()
+
     private init() {
         let paths = fileManager.urls(for: .cachesDirectory, in: .userDomainMask)
         let root = paths[0].appendingPathComponent("MedxEliteCache", isDirectory: true)
@@ -22,8 +32,37 @@ public actor CacheManager {
     public func set<T: Encodable>(_ object: T, forKey key: String) {
         guard let data = try? JSONEncoder().encode(object) else { return }
         memoryCache.setObject(data as NSData, forKey: key as NSString, cost: data.count)
+        writtenAt[key] = Date()
         let fileUrl = cacheDir.appendingPathComponent(sanitizedKey(key))
         try? data.write(to: fileUrl, options: .atomic)
+    }
+
+    /// Whether `key` may be served without asking the backend: written after the last
+    /// `markAllStale()` (or after launch) and less than `maxAge` ago.
+    ///
+    /// This is the fix for "new content does not appear until I clear the cache". Every read used
+    /// to return the cached copy whenever one existed, with no age at all — so a module, paper or
+    /// class added on the backend stayed invisible until the cache was deleted by hand.
+    public func isFresh(forKey key: String, maxAge: TimeInterval, sinceLaunch: Bool = true) -> Bool {
+        let stamp: Date
+        if let written = writtenAt[key] {
+            stamp = written
+        } else {
+            let fileUrl = cacheDir.appendingPathComponent(sanitizedKey(key))
+            guard let attributes = try? fileManager.attributesOfItem(atPath: fileUrl.path),
+                  let modified = attributes[.modificationDate] as? Date
+            else { return false }
+            stamp = modified
+        }
+        if sinceLaunch, stamp < staleBefore { return false }
+        return Date().timeIntervalSince(stamp) < maxAge
+    }
+
+    /// Marks everything cached so far as stale without deleting it. The next read of each key
+    /// goes to the backend first and falls back to the cached copy only if that fails, so
+    /// offline still works.
+    public func markAllStale() {
+        staleBefore = Date()
     }
 
     public func get<T: Decodable>(forKey key: String, as type: T.Type) -> T? {
@@ -40,6 +79,7 @@ public actor CacheManager {
 
     public func clearAll() {
         memoryCache.removeAllObjects()
+        writtenAt.removeAll()
         try? fileManager.removeItem(at: cacheDir)
         try? fileManager.createDirectory(at: cacheDir, withIntermediateDirectories: true)
     }
@@ -51,6 +91,7 @@ public actor CacheManager {
     /// the freshly filed class would not appear until the cache aged out or the app relaunched.
     public func remove(forKey key: String) {
         memoryCache.removeObject(forKey: key as NSString)
+        writtenAt[key] = nil
         let fileUrl = cacheDir.appendingPathComponent(sanitizedKey(key))
         try? fileManager.removeItem(at: fileUrl)
     }
@@ -93,4 +134,10 @@ public actor CacheManager {
             try? fileManager.removeItem(at: url)
         }
     }
+}
+
+public extension Notification.Name {
+    /// Posted when the app comes back after a while away. Screens that show backend content
+    /// refetch on it, so what is on screen catches up without a pull or a relaunch.
+    static let medxContentShouldRefresh = Notification.Name("medx.content.shouldRefresh")
 }

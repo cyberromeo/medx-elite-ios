@@ -292,6 +292,10 @@ public struct QuizRunnerView: View {
             isBookmarked: isCurrentBookmarked,
             showsInlineCounter: sizeClass == .regular,
             isPad: sizeClass == .regular,
+            title: payload.name,
+            modeLabel: payload.mode == .exam ? "Exam" : "Revision",
+            trackCells: hudTrackCells,
+            trackCurrent: currentIndex - navigatorRange.lowerBound,
             onClose: {
                 HapticManager.light()
                 if loadState == .ready, !responses.isEmpty {
@@ -310,6 +314,13 @@ public struct QuizRunnerView: View {
                 toggleBookmark(question)
             }
         )
+    }
+
+    /// The block on screen as answer-sheet cells, for the HUD's progress track.
+    private var hudTrackCells: [MedxSheetCell] {
+        let range = navigatorRange
+        guard !range.isEmpty, range.upperBound <= statuses.count else { return [] }
+        return statuses[range].map(\.sheetCell)
     }
 
     /// What the clock was wound to, so the bar can draw a fraction rather than a bare number.
@@ -340,7 +351,8 @@ public struct QuizRunnerView: View {
 
                     RunnerQuestionCard(
                         question: question,
-                        showsUngradedNotice: !payload.gradable
+                        showsUngradedNotice: !payload.gradable,
+                        number: currentIndex + 1
                     )
                     // Double-tap the stem to bookmark, the way Photos favourites a picture.
                     // The HUD button stays the discoverable route; VoiceOver gets the same thing
@@ -385,7 +397,21 @@ public struct QuizRunnerView: View {
             }
         }
         // The faint dot grid from the mockup, behind the question and under both bars.
-        .background { RunnerDotField() }
+        .background {
+            ZStack(alignment: .top) {
+                RunnerDotField()
+                // A low glow of the accent behind the HUD, so the black page has a light source.
+                RadialGradient(
+                    colors: [MedxTheme.accent.opacity(0.22), MedxTheme.accent.opacity(0)],
+                    center: .top,
+                    startRadius: 0,
+                    endRadius: 340
+                )
+                .frame(height: 380)
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
+            }
+        }
         .safeAreaInset(edge: .top, spacing: 0) {
             hud
         }
@@ -852,6 +878,20 @@ public struct QuizRunnerView: View {
                   let wrong = question.options.first(where: { !question.correctIds.contains($0.id) })
             else { return }
             handlePickOption(question: question, chosenId: wrong.id)
+        case "runner-navigator":
+            // Five answered, the sixth on screen with a pick, then the navigator over it.
+            for question in questions.prefix(5) {
+                guard let pick = question.correctIds.first ?? question.options.first?.id else { continue }
+                handlePickOption(question: question, chosenId: pick)
+            }
+            if questions.count > 5 {
+                jump(to: 5)
+                if let option = questions[5].options.dropFirst().first {
+                    handlePickOption(question: questions[5], chosenId: option.id)
+                }
+            }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            showNavigator = true
         case "review":
             for (index, question) in questions.enumerated() {
                 let wrong = question.options.first(where: { !question.correctIds.contains($0.id) })?.id
@@ -906,11 +946,27 @@ enum RunnerLoadState: Equatable {
 struct RunnerQuestionCard: View {
     let question: Question
     let showsUngradedNotice: Bool
+    /// The question's number in the paper, for the label over the stem.
+    var number: Int? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if showsUngradedNotice {
-                MedxBadge("No official key", tint: MedxDS.warn)
+            if number != nil || showsUngradedNotice {
+                HStack(spacing: 8) {
+                    if let number {
+                        Text("QUESTION \(number)")
+                            .font(.caption2.weight(.heavy))
+                            .tracking(0.8)
+                            .foregroundStyle(MedxTheme.accent)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule(style: .continuous).fill(MedxTheme.accent.opacity(0.14)))
+                    }
+                    if showsUngradedNotice {
+                        MedxBadge("No official key", tint: MedxDS.warn)
+                    }
+                    Spacer(minLength: 0)
+                }
             }
 
             // Images embedded in the HTML render inline; `question.images` carries the separately
@@ -926,6 +982,22 @@ struct RunnerQuestionCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(MedxDS.row)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [MedxTheme.accent.opacity(0.45), MedxDS.line, MedxDS.line],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                }
+        }
     }
 }
 
@@ -982,17 +1054,38 @@ struct RunnerExplanationCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Label(outcome.title, systemImage: outcome.icon)
-                    .font(MedxType.title)
-                    .foregroundStyle(outcome.color)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: outcome.icon)
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(outcome.color))
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(outcome.title)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(outcome.color)
+                    if let correctLabel, !correctLabel.isEmpty {
+                        Text(outcome == .correct ? "You picked \(correctLabel)" : "Correct answer is \(correctLabel)")
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
                 Spacer(minLength: 0)
+            }
 
-                if outcome != .correct, let correctLabel, !correctLabel.isEmpty {
-                    MedxBadge("Answer \(correctLabel)", tint: MedxDS.correct)
-                }
+            Rectangle()
+                .fill(MedxDS.line)
+                .frame(height: 1)
+
+            Label {
+                Text("Explanation")
+                    .font(.subheadline.weight(.bold))
+            } icon: {
+                Image(systemName: "lightbulb.fill")
+                    .foregroundStyle(MedxDS.warn)
             }
 
             if let explanation = question.explanation, !explanation.isEmpty {
@@ -1011,10 +1104,20 @@ struct RunnerExplanationCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        // The one surface in the runner's content that keeps a fill: it is a different *kind* of thing
-        // from the stem and the options — the reason rather than the question — and the step off the page
-        // is what says so.
-        .background(MedxDS.shape(MedxDS.card).fill(MedxDS.row))
+        .background {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [outcome.color.opacity(0.12), MedxDS.row],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(outcome.color.opacity(0.35), lineWidth: 1)
+                }
+        }
     }
 }
 
@@ -1162,30 +1265,54 @@ struct QuestionNavigatorSheet: View {
             : [.unanswered, .answered]
     }
 
+    private var counts: (answered: Int, open: Int, flaggedOutcome: Int) {
+        var answered = 0
+        var open = 0
+        var wrong = 0
+        for index in range {
+            let status = statuses.indices.contains(index) ? statuses[index] : .unanswered
+            switch status {
+            case .unanswered: open += 1
+            case .wrong, .timedOut: answered += 1; wrong += 1
+            default: answered += 1
+            }
+        }
+        return (answered, open, wrong)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 52), spacing: 10)], spacing: 10) {
+                    HStack(spacing: 10) {
+                        summaryPill(value: counts.answered, label: "answered", tint: MedxTheme.accent)
+                        summaryPill(value: counts.open, label: "left", tint: .secondary)
+                        if lockAhead {
+                            summaryPill(value: counts.flaggedOutcome, label: "wrong", tint: MedxDS.wrong)
+                        }
+                    }
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 50), spacing: 10)], spacing: 10) {
                         ForEach(Array(range), id: \.self) { index in
                             tile(for: index)
                         }
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Legend")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.secondary)
-
+                    // The legend as one wrapping row of chips rather than a list.
+                    LazyVGrid(
+                        columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)],
+                        alignment: .leading,
+                        spacing: 8
+                    ) {
                         ForEach(Array(legend.enumerated()), id: \.offset) { _, status in
-                            HStack(spacing: 8) {
+                            HStack(spacing: 6) {
                                 Circle()
-                                    .fill(status.chipFill)
-                                    .overlay(Circle().strokeBorder(status.chipForeground.opacity(0.5), lineWidth: 1))
-                                    .frame(width: 14, height: 14)
+                                    .fill(status.tileHue ?? MedxDS.sunken)
+                                    .frame(width: 10, height: 10)
                                 Text(status.legendLabel)
-                                    .font(.footnote)
+                                    .font(.caption.weight(.medium))
                                     .foregroundStyle(.secondary)
+                                    .lineLimit(1)
                             }
                         }
                     }
@@ -1206,35 +1333,47 @@ struct QuestionNavigatorSheet: View {
         .presentationDragIndicator(.visible)
     }
 
+    private func summaryPill(value: Int, label: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(value)")
+                .font(MedxType.figure(22, weight: .bold))
+                .foregroundStyle(tint)
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(MedxDS.raised))
+    }
+
     private func tile(for index: Int) -> some View {
         let status = statuses.indices.contains(index) ? statuses[index] : .unanswered
         let isCurrent = index == currentIndex
         let isLocked = lockAhead && index > furthestIndex
-        let hue: Color? = isCurrent ? MedxTheme.accent : status.tileHue
+        let hue = status.tileHue
 
         return Button {
             onSelect(index)
         } label: {
             Text("\(index + 1)")
                 .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(isCurrent ? MedxTheme.accent : status.chipForeground)
-                .frame(minWidth: 46, minHeight: 46)
-                // Plain ink tiles now: the sheet itself is the glass, and glass-on-glass tiles
-                // would sample the pane behind them and turn to mush. Colour still carries the
-                // outcome — the fill and the border do the work the material used to.
-                .medxSurface(
-                    MedxDS.shape(MedxDS.control),
-                    MedxSurfaceSpec(
-                        material: .ink,
-                        fill: status.chipFill,
-                        tint: hue,
-                        strokeHue: hue,
-                        strokeOpacity: isCurrent ? 0.9 : 0.45,
-                        strokeWidth: isCurrent ? 1.8 : 0.5
-                    )
-                )
+                .foregroundStyle(hue == nil ? Color.primary : Color.white)
+                .frame(width: 46, height: 46)
+                .background {
+                    Circle().fill(hue ?? MedxDS.sunken)
+                }
+                .overlay {
+                    if isCurrent {
+                        Circle()
+                            .strokeBorder(MedxTheme.accent, lineWidth: 2.5)
+                            .padding(-4)
+                    }
+                }
                 .opacity(isLocked ? 0.35 : 1)
-                .contentShape(MedxDS.shape(MedxDS.control))
+                .frame(width: 54, height: 54)
+                .contentShape(Circle())
         }
         .buttonStyle(MedxPressStyle())
         .disabled(isLocked)

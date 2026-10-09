@@ -13,6 +13,10 @@ struct MedxEliteApp: App {
     /// underneath it, so this only controls how long the mark is visible.
     @State private var showSplash = true
 
+    /// When the app last went to the background, so a return after a real absence refreshes what
+    /// is on screen (a flick to Control Centre does not).
+    @State private var backgroundedAt: Date?
+
     /// A `BGTaskScheduler` registration has to happen before the app finishes launching, and it
     /// traps if it happens later — so it goes in `init`, not in the `.task` that runs after the
     /// first frame. It also traps if the identifier is missing from
@@ -141,7 +145,7 @@ struct MedxEliteApp: App {
         case "downloads": appState.open(route: .downloads)
         case "settings": appState.open(route: .settings)
         case "module": appState.open(route: .module(demoModule))
-        case "runner", "runner-revision", "review":
+        case "runner", "runner-revision", "review", "runner-navigator":
             appState.startSitting(
                 RunnerPayload(
                     kind: "qbank",
@@ -162,6 +166,7 @@ struct MedxEliteApp: App {
     private func handle(scenePhase phase: ScenePhase) {
         switch phase {
         case .background, .inactive:
+            if phase == .background { backgroundedAt = Date() }
             ActivityStore.shared.flushPendingWrites()
             // Leaving the app is exactly when the widgets need the latest numbers.
             stats.publishSnapshot()
@@ -169,6 +174,17 @@ struct MedxEliteApp: App {
             MedxVodWatcher.shared.scheduleBackgroundCheck()
 
         case .active:
+            // Coming back after a minute or more: everything cached is marked stale (kept for
+            // offline, no longer served as current) and the screens on show refetch, so a module,
+            // paper or class added on the backend appears without clearing the cache by hand.
+            if let away = backgroundedAt, Date().timeIntervalSince(away) > 60 {
+                backgroundedAt = nil
+                Task {
+                    await CacheManager.shared.markAllStale()
+                    NotificationCenter.default.post(name: .medxContentShouldRefresh, object: nil)
+                }
+            }
+
             // The local HLS proxy has to be re-armed here, and this is the fix for "minimise the app,
             // come back, no video plays". iOS closes listening sockets when it suspends a process, and
             // `NWListener`'s state handler does not get to run while suspended — so nothing in the app

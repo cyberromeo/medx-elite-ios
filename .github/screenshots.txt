@@ -26,3 +26,6 @@
 25-videosubject -medxScreen videosubject
 26-deck -medxScreen deck
 27-review -medxScreen review
+28-runner-navigator -medxScreen runner-navigator
+29-settings-mid -medxScreen settings -medxScroll 1
+30-settings-end -medxScreen settings -medxScroll 2

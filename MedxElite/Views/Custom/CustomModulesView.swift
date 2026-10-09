@@ -74,6 +74,9 @@ public struct CustomModulesView: View {
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await store.reload(uid: uid) }
         .task { await store.loadIfNeeded(uid: uid) }
+        .onReceive(NotificationCenter.default.publisher(for: .medxContentShouldRefresh)) { _ in
+            Task { await store.reload(uid: uid) }
+        }
         .sheet(item: $draft) { editing in
             ModuleBuilderSheet(draft: editing, isEditing: isEditingExisting) { saved in
                 draft = nil

@@ -122,13 +122,11 @@ public struct SittingReviewView: View {
                 }
 
                 Section {
-                    Picker("Filter", selection: $filter) {
-                        Text("All \(totalCount)").tag(ReviewFilter.all)
-                        Text("Wrong \(wrongCount)").tag(ReviewFilter.wrong)
-                        Text("Skipped \(skippedCount)").tag(ReviewFilter.skipped)
+                    HStack(spacing: 8) {
+                        filterChip(.all, label: "All", count: totalCount, tint: MedxTheme.accent)
+                        filterChip(.wrong, label: "Wrong", count: wrongCount, tint: MedxDS.wrong)
+                        filterChip(.skipped, label: "Skipped", count: skippedCount, tint: .gray)
                     }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
                     .medxPlainRow()
 
                     if filteredQuestions.isEmpty, filter != .all {
@@ -166,6 +164,33 @@ public struct SittingReviewView: View {
         }
     }
 
+    private func filterChip(_ value: ReviewFilter, label: String, count: Int, tint: Color) -> some View {
+        let isOn = filter == value
+        return Button {
+            guard !isOn else { return }
+            HapticManager.selection()
+            withAnimation(.snappy(duration: 0.25)) { filter = value }
+        } label: {
+            HStack(spacing: 6) {
+                Text(label)
+                    .font(.subheadline.weight(.bold))
+                Text("\(count)")
+                    .font(.caption.weight(.bold).monospacedDigit())
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Capsule(style: .continuous).fill(isOn ? Color.white.opacity(0.25) : tint.opacity(0.15)))
+            }
+            .foregroundStyle(isOn ? Color.white : Color.primary)
+            .frame(maxWidth: .infinity)
+            .frame(height: 40)
+            .background(Capsule(style: .continuous).fill(isOn ? tint : MedxDS.raised))
+            .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel("\(label), \(count)")
+        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
+    }
+
     // MARK: - Hero
 
     /// The whole sitting as one grid, and this is the screen the answer sheet was designed for: it is the
@@ -173,34 +198,46 @@ public struct SittingReviewView: View {
     /// wrong" is legible from it in a way no percentage is.
     private var heroSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(gradable ? "\(scoreCount)" : "\(attemptedCount)")
-                        .font(MedxType.hero)
-                        .contentTransition(.numericText())
-                    Text("/ \(totalCount)")
-                        .font(MedxType.display)
-                        .foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .center, spacing: 18) {
+                    scoreRing
+                        .frame(width: 112, height: 112)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(verdict)
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.85)
+                        Text(gradable
+                             ? "\(scoreCount) of \(totalCount) correct"
+                             : "\(attemptedCount) of \(totalCount) attempted")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        Label(formattedElapsed, systemImage: "clock")
+                            .font(.footnote.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                        if !subject.isEmpty {
+                            Text(subject)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                Text(heroCaption)
-                    .medxTag()
+                HStack(spacing: 8) {
+                    if gradable {
+                        statTile(value: scoreCount, label: "Correct", icon: "checkmark", tint: MedxDS.correct)
+                        statTile(value: wrongCount, label: "Wrong", icon: "xmark", tint: MedxDS.wrong)
+                    } else {
+                        statTile(value: attemptedCount, label: "Attempted", icon: "pencil", tint: MedxTheme.accent)
+                    }
+                    statTile(value: skippedCount, label: "Skipped", icon: "arrow.uturn.right", tint: .gray)
+                }
 
                 MedxAnswerSheet(cells: reviewCells, scale: .sheet, label: sheetSummary)
-
-                HStack(alignment: .top, spacing: 10) {
-                    if gradable {
-                        MedxStat("\(scoreCount)", label: "correct", tint: MedxDS.correct)
-                        MedxStat("\(wrongCount)", label: "wrong", tint: wrongCount > 0 ? MedxDS.wrong : nil)
-                    } else {
-                        MedxStat("\(attemptedCount)", label: "attempted")
-                    }
-                    if skippedCount > 0 {
-                        MedxStat("\(skippedCount)", label: "skipped")
-                    }
-                    MedxStat(formattedElapsed, label: "time taken")
-                }
 
                 if !gradable {
                     Text("This paper has no official answer key, so nothing here is scored — only what you attempted is recorded.")
@@ -209,8 +246,110 @@ public struct SittingReviewView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .padding(18)
+            .background {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [ringTint.opacity(0.16), MedxDS.row],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .strokeBorder(ringTint.opacity(0.3), lineWidth: 1)
+                    }
+            }
             .medxPlainRow()
         }
+    }
+
+    private var scorePercent: Int {
+        guard totalCount > 0 else { return 0 }
+        return Int((Double(gradable ? scoreCount : attemptedCount) / Double(totalCount) * 100).rounded())
+    }
+
+    private var ringTint: Color {
+        guard gradable else { return MedxTheme.accent }
+        switch scorePercent {
+        case 75...: return MedxDS.correct
+        case 50..<75: return MedxTheme.accent
+        default: return MedxDS.warn
+        }
+    }
+
+    private var verdict: String {
+        guard gradable else { return "Sitting saved" }
+        switch scorePercent {
+        case 85...: return "Outstanding"
+        case 70..<85: return "Great work"
+        case 50..<70: return "Solid effort"
+        default: return "Keep going"
+        }
+    }
+
+    @State private var ringProgress: Double = 0
+
+    private var scoreRing: some View {
+        let target = totalCount > 0 ? Double(gradable ? scoreCount : attemptedCount) / Double(totalCount) : 0
+        return ZStack {
+            Circle()
+                .stroke(ringTint.opacity(0.18), lineWidth: 11)
+            Circle()
+                .trim(from: 0, to: ringProgress)
+                .stroke(
+                    AngularGradient(
+                        colors: [ringTint.opacity(0.65), ringTint, ringTint],
+                        center: .center,
+                        startAngle: .degrees(-90),
+                        endAngle: .degrees(270)
+                    ),
+                    style: StrokeStyle(lineWidth: 11, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: 0) {
+                Text("\(scorePercent)%")
+                    .font(MedxType.figure(28, weight: .bold))
+                    .foregroundStyle(.primary)
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+                Text(gradable ? "score" : "done")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(14)
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.9, dampingFraction: 0.85).delay(0.15)) {
+                ringProgress = target
+            }
+        }
+        .accessibilityElement()
+        .accessibilityLabel("Score \(scorePercent) percent")
+    }
+
+    private func statTile(value: Int, label: String, icon: String, tint: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .heavy))
+                .foregroundStyle(.white)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(tint))
+            VStack(alignment: .leading, spacing: 0) {
+                Text("\(value)")
+                    .font(MedxType.figure(17, weight: .bold))
+                    .foregroundStyle(.primary)
+                Text(label)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(tint.opacity(0.12)))
     }
 
     /// One cell per question, in paper order, from the real response.

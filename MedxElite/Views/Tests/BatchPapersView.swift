@@ -67,7 +67,7 @@ public struct BatchPapersView: View {
         )
         .task {
             guard case .loading = loadState else { return }
-            await load()
+            await medxLoadRevalidating { await load() }
         }
         .fullScreenCover(item: $activeRunnerPayload) { (payload: RunnerPayload) in
             QuizRunnerView(payload: payload) {
@@ -124,7 +124,13 @@ public struct BatchPapersView: View {
             .padding(.bottom, 28)
         }
         .refreshable {
+            // A pull always reaches the backend: cached copies are kept for offline, never
+            // served in place of a fresh read the student asked for.
+            await CacheManager.shared.markAllStale()
             await load()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .medxContentShouldRefresh)) { _ in
+            Task { await load() }
         }
     }
 

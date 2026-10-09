@@ -80,13 +80,139 @@ public struct MedxSegment<Value: Hashable>: Identifiable {
     /// Shown as a small trailing figure — "GTs 119". Omitted while the count is unknown, so
     /// the control does not flicker from `0` to the real number once the catalogue lands.
     public let count: Int?
+    /// An SF Symbol for the tab-style switcher (`MedxGlassTabs`); the pill control ignores it.
+    public let icon: String?
 
     public var id: Value { value }
 
-    public init(value: Value, label: String, count: Int? = nil) {
+    public init(value: Value, label: String, count: Int? = nil, icon: String? = nil) {
         self.value = value
         self.label = label
         self.count = count
+        self.icon = icon
+    }
+}
+
+// MARK: - Glass tabs
+
+/// A switcher drawn the way iOS 26 draws its own tab bar: one capsule of Liquid Glass, each choice
+/// a symbol over its label, and the current one lifted on a soft pill that slides between them.
+///
+/// For a choice that changes the *whole page* underneath it — which bank the QBank is showing —
+/// rather than a filter inside it. That is the line between this and `MedxSegmented`: a filter is a
+/// row of pills, a switch of worlds looks like the control that switches worlds everywhere else.
+///
+/// The glass is non-interactive and sits on the container, never inside a button's label, so the
+/// buttons keep every tap (the rule the runner's ✕ taught). Below iOS 26, or with Reduce
+/// Transparency, the capsule is the system's regular material.
+public struct MedxGlassTabs<Value: Hashable>: View {
+    private let section: MedxSection
+    private let segments: [MedxSegment<Value>]
+    private let countNoun: String?
+    @Binding private var selection: Value
+
+    @Namespace private var namespace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorScheme) private var scheme
+
+    /// `countNoun` turns a segment's count into a caption — "20 subjects".
+    public init(
+        section: MedxSection,
+        segments: [MedxSegment<Value>],
+        selection: Binding<Value>,
+        countNoun: String? = nil
+    ) {
+        self.section = section
+        self.segments = segments
+        self.countNoun = countNoun
+        self._selection = selection
+    }
+
+    private func caption(_ count: Int) -> String {
+        guard let countNoun else { return count.formatted() }
+        return "\(count.formatted()) \(countNoun)"
+    }
+
+    public var body: some View {
+        HStack(spacing: 4) {
+            ForEach(segments) { segment in
+                tab(segment)
+            }
+        }
+        .padding(5)
+        .modifier(MedxGlassCapsule(reduceTransparency: reduceTransparency))
+    }
+
+    private func tab(_ segment: MedxSegment<Value>) -> some View {
+        let isOn = segment.value == selection
+        let ink: Color = isOn ? (scheme == .dark ? section.fill : section.onSoft) : Color.secondary
+
+        return Button {
+            guard !isOn else { return }
+            HapticManager.selection()
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.32)) {
+                selection = segment.value
+            }
+        } label: {
+            HStack(spacing: 8) {
+                if let icon = segment.icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 17, weight: .semibold))
+                        .symbolVariant(isOn ? .fill : .none)
+                }
+
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(segment.label)
+                        .font(.subheadline.weight(.bold))
+                        .lineLimit(1)
+                    if let count = segment.count {
+                        Text(caption(count))
+                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            .opacity(0.7)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            .foregroundStyle(ink)
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .background {
+                if isOn {
+                    Capsule(style: .continuous)
+                        .fill(section.fill.opacity(scheme == .dark ? 0.2 : 0.24))
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .strokeBorder(section.fill.opacity(0.45), lineWidth: 1)
+                        )
+                        .matchedGeometryEffect(id: "medx.glassTabs.selection", in: namespace)
+                }
+            }
+            .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(segment.label)
+        .accessibilityValue(segment.count.map { caption($0) } ?? "")
+        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
+/// The capsule behind `MedxGlassTabs`: Liquid Glass where the system has it, the regular material
+/// otherwise, with a hairline so it still has an edge over a busy background.
+private struct MedxGlassCapsule: ViewModifier {
+    let reduceTransparency: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), !reduceTransparency {
+            content.glassEffect(.regular, in: Capsule(style: .continuous))
+        } else {
+            content
+                .background(.regularMaterial, in: Capsule(style: .continuous))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .strokeBorder(MedxSurface.separator.opacity(0.4), lineWidth: 0.5)
+                )
+        }
     }
 }
 

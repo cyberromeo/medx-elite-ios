@@ -99,7 +99,7 @@ public struct FlashcardsSubjectListView: View {
         )
         .task {
             guard case .loading = loadState else { return }
-            await loadFlashcards()
+            await medxLoadRevalidating { await loadFlashcards() }
         }
     }
 
@@ -148,7 +148,13 @@ public struct FlashcardsSubjectListView: View {
             .padding(.bottom, 28)
         }
         .refreshable {
+            // A pull always reaches the backend: cached copies are kept for offline, never
+            // served in place of a fresh read the student asked for.
+            await CacheManager.shared.markAllStale()
             await loadFlashcards()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .medxContentShouldRefresh)) { _ in
+            Task { await loadFlashcards() }
         }
     }
 

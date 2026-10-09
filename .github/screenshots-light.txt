@@ -4,3 +4,5 @@
 08-runner -medxScreen runner -medx.theme.appearance light
 10-tests -medxScreen tests -medx.theme.appearance light
 12-library -medxScreen library -medx.theme.appearance light
+16-settings -medxScreen settings -medx.theme.appearance light
+27-review -medxScreen review -medx.theme.appearance light

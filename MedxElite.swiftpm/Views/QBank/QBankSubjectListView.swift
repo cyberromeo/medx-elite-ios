@@ -109,7 +109,7 @@ public struct QBankSubjectListView: View {
         .task {
             guard case .loading = loadState else { return }
             bank = MedxBank(rawValue: UserDefaults.standard.string(forKey: Self.bankKey) ?? "") ?? .arise
-            await loadData()
+            await medxLoadRevalidating { await loadData() }
         }
         .fullScreenCover(item: $activeRunnerPayload) { (payload: RunnerPayload) in
             QuizRunnerView(payload: payload) {
@@ -144,12 +144,18 @@ public struct QBankSubjectListView: View {
                     symbol: bank.symbol
                 )
 
-                MedxSegmented(
+                MedxGlassTabs(
                     section: .qbank,
                     segments: MedxBank.allCases.map {
-                        MedxSegment(value: $0, label: $0.label, count: subjects(in: $0).count)
+                        MedxSegment(
+                            value: $0,
+                            label: $0.label,
+                            count: subjects(in: $0).count,
+                            icon: $0 == .arise ? "graduationcap" : "archivebox"
+                        )
                     },
-                    selection: $bank
+                    selection: $bank,
+                    countNoun: "subjects"
                 )
                 .onChange(of: bank) { _, next in
                     UserDefaults.standard.set(next.rawValue, forKey: Self.bankKey)
@@ -195,7 +201,13 @@ public struct QBankSubjectListView: View {
             .padding(.bottom, 28)
         }
         .refreshable {
+            // A pull always reaches the backend: cached copies are kept for offline, never
+            // served in place of a fresh read the student asked for.
+            await CacheManager.shared.markAllStale()
             await loadData()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .medxContentShouldRefresh)) { _ in
+            Task { await loadData() }
         }
     }
 

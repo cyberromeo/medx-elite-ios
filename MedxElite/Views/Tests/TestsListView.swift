@@ -71,7 +71,7 @@ public struct TestsListView: View {
         .task {
             guard case .loading = loadState else { return }
             group = MedxSeriesGroup(rawValue: UserDefaults.standard.string(forKey: Self.groupKey) ?? "") ?? .grand
-            await load()
+            await medxLoadRevalidating { await load() }
         }
         .sheet(item: $picked) { paper in
             MedxPaperModeSheet(paper: paper, record: bestByPaper[paper.id]) { mode in
@@ -119,7 +119,13 @@ public struct TestsListView: View {
             .padding(.bottom, 28)
         }
         .refreshable {
+            // A pull always reaches the backend: cached copies are kept for offline, never
+            // served in place of a fresh read the student asked for.
+            await CacheManager.shared.markAllStale()
             await load()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .medxContentShouldRefresh)) { _ in
+            Task { await load() }
         }
     }
 

@@ -102,7 +102,13 @@ public struct HomeView: View {
             }
         }
         .refreshable {
+            // A pull always reaches the backend: cached copies are kept for offline, never
+            // served in place of a fresh read the student asked for.
+            await CacheManager.shared.markAllStale()
             await loadHomeData()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .medxContentShouldRefresh)) { _ in
+            Task { await loadHomeData() }
         }
         .sheet(isPresented: $showTrackerSheet) {
             if let uid {

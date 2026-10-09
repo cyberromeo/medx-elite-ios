@@ -41,7 +41,7 @@ public struct QuestionOptionButton: View {
     public var body: some View {
         // Haptics are owned by the runner so revision mode doesn't buzz twice.
         Button(action: onSelect) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
                 letterBadge
 
                 // `interactive: false` — a button nested inside this one would never fire,
@@ -61,11 +61,11 @@ public struct QuestionOptionButton: View {
                     .padding(.top, 2)
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 13)
-            .frame(minHeight: 58, alignment: .center)
+            .padding(.vertical, 14)
+            .frame(minHeight: 60, alignment: .center)
             .medxOptionSurface(state: stateColor, emphasized: isEmphasized)
-            .opacity(isDimmed ? 0.5 : 1)
-            .contentShape(MedxDS.shape(MedxDS.control))
+            .opacity(isDimmed ? 0.45 : 1)
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(MedxPressStyle())
         .disabled(isLocked)
@@ -84,12 +84,23 @@ public struct QuestionOptionButton: View {
     /// while a neutral one sits one step brighter than the row it is on, so it still reads as a badge
     /// rather than as part of the fill.
     private var letterBadge: some View {
-        Text(letter)
+        let badge = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        return Text(letter)
             .font(MedxType.lead)
             .foregroundStyle(isFilledBadge ? MedxCandy.onSolid : Color.primary)
-            .frame(width: 30, height: 30)
+            .frame(width: 32, height: 32)
             .background {
-                Circle().fill(isFilledBadge ? (stateColor ?? MedxTheme.accent) : MedxDS.sunken)
+                if let tint = stateColor {
+                    badge.fill(
+                        LinearGradient(
+                            colors: [tint.opacity(0.85), tint],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                } else {
+                    badge.fill(MedxDS.sunken)
+                }
             }
     }
 
@@ -185,17 +196,23 @@ extension View {
     /// glance in a way a tinted pane of glass never was.
     @ViewBuilder
     func medxOptionSurface(state: Color?, emphasized: Bool) -> some View {
-        let shape = MedxDS.shape(MedxDS.control)
+        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
 
         if let state, emphasized {
             self
-                .background(shape.fill(state.opacity(0.16)))
+                .background(shape.fill(state.opacity(0.15)))
                 .overlay {
-                    shape.strokeBorder(state.opacity(0.85), lineWidth: 1.5)
+                    shape.strokeBorder(state.opacity(0.9), lineWidth: 1.6)
                         .allowsHitTesting(false)
                 }
+                .shadow(color: state.opacity(0.28), radius: 10, y: 2)
         } else {
-            self.background(shape.fill(MedxDS.row))
+            self
+                .background(shape.fill(MedxDS.raised))
+                .overlay {
+                    shape.strokeBorder(MedxDS.line, lineWidth: 0.6)
+                        .allowsHitTesting(false)
+                }
         }
     }
 }

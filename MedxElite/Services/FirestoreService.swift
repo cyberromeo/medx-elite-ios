@@ -1,11 +1,46 @@
 import Foundation
 
+/// How a read treats its cached copy. The default is "fresh or ask the backend"; a screen's first
+/// paint runs inside `cachedFirst` so it shows the last copy at once, then reads again for real.
+public enum MedxReadPolicy {
+    @TaskLocal public static var cachedFirst: Bool = false
+}
+
+/// Stale-while-revalidate for a screen's load: paints from whatever is cached (instantly, even
+/// offline), then runs the same load against the backend and repaints with what is new. Each
+/// screen's `load` replaces its state wholesale and never resets to a spinner, so the second pass
+/// is invisible unless something actually changed.
+@MainActor
+public func medxLoadRevalidating(_ load: () async -> Void) async {
+    await MedxReadPolicy.$cachedFirst.withValue(true) {
+        await load()
+    }
+    await load()
+}
+
 public actor FirestoreService {
     public static let shared = FirestoreService()
 
     private let cache = CacheManager.shared
 
     private init() {}
+
+    /// How long a cached read may be served without going back to the backend. Short enough
+    /// that something added on the backend shows up within a study session; long enough that
+    /// hopping between tabs does not refetch the same collection every time.
+    private static let freshness: TimeInterval = 10 * 60
+
+    /// Module question sets are large and almost never edited once published, so an opened
+    /// module stays fresh for a day — across launches too.
+    private static let moduleFreshness: TimeInterval = 24 * 60 * 60
+
+    /// Whether a read may answer from its cached copy without asking the backend. Inside
+    /// `MedxReadPolicy.cachedFirst` any cached copy will do, however old (the instant first paint);
+    /// otherwise only a copy written since launch, since the last refresh, and inside `maxAge`.
+    private func mayServeCached(_ key: String, maxAge: TimeInterval, sinceLaunch: Bool = true) async -> Bool {
+        if MedxReadPolicy.cachedFirst { return true }
+        return await cache.isFresh(forKey: key, maxAge: maxAge, sinceLaunch: sinceLaunch)
+    }
 
     // MARK: - Generic Document Fetching & Parsing
 
@@ -17,7 +52,9 @@ public actor FirestoreService {
         let cacheKey = "col_\(collection)"
         // An empty cached array is treated as a miss. A single bad decode used to poison
         // the cache with `[]` and the screen stayed blank until the app was reinstalled.
-        if useCache, let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
+        if useCache,
+           await mayServeCached(cacheKey, maxAge: Self.freshness),
+           let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
             return cached
         }
 
@@ -35,7 +72,17 @@ public actor FirestoreService {
             var request = URLRequest(url: url)
             request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
 
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let fetched: (Data, URLResponse)
+            do {
+                fetched = try await URLSession.shared.data(for: request)
+            } catch {
+                // No connection: serve what was cached rather than an empty screen.
+                if let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
+                    return cached
+                }
+                throw error
+            }
+            let (data, response) = fetched
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 if let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
                     return cached
@@ -89,7 +136,9 @@ public actor FirestoreService {
         useCache: Bool = true
     ) async throws -> T {
         let cacheKey = "doc_\(collection)_\(docId)"
-        if useCache, let cached: T = await cache.get(forKey: cacheKey, as: T.self) {
+        if useCache,
+           await mayServeCached(cacheKey, maxAge: Self.freshness),
+           let cached: T = await cache.get(forKey: cacheKey, as: T.self) {
             return cached
         }
 
@@ -100,7 +149,17 @@ public actor FirestoreService {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let fetched: (Data, URLResponse)
+        do {
+            fetched = try await URLSession.shared.data(for: request)
+        } catch {
+            // No connection: serve what was cached rather than an empty screen.
+            if let cached: T = await cache.get(forKey: cacheKey, as: T.self) {
+                return cached
+            }
+            throw error
+        }
+        let (data, response) = fetched
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             if let cached: T = await cache.get(forKey: cacheKey, as: T.self) {
                 return cached
@@ -131,7 +190,9 @@ public actor FirestoreService {
         useCache: Bool = true
     ) async throws -> [T] {
         let cacheKey = "query_\(collection)_\(field)_\(stringValue)"
-        if useCache, let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
+        if useCache,
+           await mayServeCached(cacheKey, maxAge: Self.freshness),
+           let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
             return cached
         }
 
@@ -158,7 +219,17 @@ public actor FirestoreService {
 
         request.httpBody = try JSONSerialization.data(withJSONObject: queryPayload)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let fetched: (Data, URLResponse)
+        do {
+            fetched = try await URLSession.shared.data(for: request)
+        } catch {
+            // No connection: serve what was cached rather than an empty screen.
+            if let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
+                return cached
+            }
+            throw error
+        }
+        let (data, response) = fetched
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             if let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
                 return cached
@@ -188,11 +259,21 @@ public actor FirestoreService {
 
     public func fetchQBankModule(moduleId: String, idToken: String) async throws -> QBankModuleDetail {
         let cacheKey = "qb_mod_\(moduleId)"
-        if let cached: QBankModuleDetail = await cache.get(forKey: cacheKey, as: QBankModuleDetail.self) {
+        if await mayServeCached(cacheKey, maxAge: Self.moduleFreshness, sinceLaunch: false),
+           let cached: QBankModuleDetail = await cache.get(forKey: cacheKey, as: QBankModuleDetail.self) {
             return cached
         }
 
-        let rawDoc: QBankModuleDetail = try await fetchDocument(collection: "medx_qbank_modules", docId: moduleId, idToken: idToken)
+        let rawDoc: QBankModuleDetail
+        do {
+            rawDoc = try await fetchDocument(collection: "medx_qbank_modules", docId: moduleId, idToken: idToken)
+        } catch {
+            // Offline: an older copy of the module beats no module.
+            if let cached: QBankModuleDetail = await cache.get(forKey: cacheKey, as: QBankModuleDetail.self) {
+                return cached
+            }
+            throw error
+        }
         
         // Check if module is split across parts
         if (rawDoc.questions == nil || rawDoc.questions?.isEmpty == true), (rawDoc.partCount ?? 0) > 0 {
