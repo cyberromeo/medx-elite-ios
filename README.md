@@ -25,9 +25,23 @@ unsigned IPA #10 — and the runner keeps the design that was built for it. Two 
 boundary between them is deliberate: you are either choosing what to study, in which case the app should
 look like iOS, or you are sitting a paper, in which case the screen should get out of the way.
 
+The fifth pass (October 2026) kept all of that and fixed the one thing it left behind. On iOS 26 the
+navigation bar, the toolbar buttons and the floating tab bar are Liquid Glass whether the app asks for it
+or not, and over flat `systemGroupedBackground` they read as grey bands — the same haze as the first
+pass, only on the chrome this time. So every browse screen now sits on **one soft wash of its section's
+two hues**, pinned to the top of the page and fading out a third of the way down (`MedxBackdrop`). It is
+drawn once, never animates, never sits on a card, and steps back under Increase Contrast. The glass
+samples it; the content stays opaque on top of it. Alongside it: Home leads with a **hero countdown** — the
+one coloured surface on a browse screen, used once — the goal card carries the streak and today's figures,
+cards round up to iOS 26's geometry, large marks are solid Settings-style squircles, figures speak in
+the rounded voice, and the lists that load show the shape of the page (`MedxSkeleton`) instead of a
+spinner. The runner is untouched.
+
 | Rule | Where it lives |
 |---|---|
 | **A surface is a flat grouped card.** One fill, a hairline, and a shadow only when it is genuinely raised | `medxCard()` / `medxTile()` and the `MedxSurface` tokens in `Theme/GlassModifier.swift` — `secondarySystemGroupedBackground` on `systemGroupedBackground`, which is what Settings, Mail and Files draw |
+| **Glass needs colour behind it, and only the chrome gets it.** One static wash per screen, under the bars, never under a card | `MedxBackdrop` / `medxBackdrop(_:)` in `Theme/MedxSections.swift`; `medxCardList(_:)` for the `List` screens. The pale hues wash at two thirds so lime does not turn olive over black |
+| **One hero per screen, at most** — a coloured, opaque headline card | `MedxHeroBackground` in `Components/CountdownWidgetView.swift`, used by the exam countdown on Home |
 | **A section has a hue and a mark**, and a screen wears them | `MedxSection` / `MedxCandy` in `Theme/MedxSections.swift`; `MedxSymbolMark` in `Components/MedxSticker.swift` — an SF Symbol in the section colour, in the rounded square the system uses in Settings and Shortcuts |
 | **Nothing is said twice.** One heading per screen, one route per destination | the navigation bar owns the title, `.large`; `MedxPageHeader` draws the mark, the eyebrow and the lead and **no title at all**. It used to draw a `.largeTitle` from the same string the screen handed `navigationTitle`, with the bar forced to `.inline` — the word "Tests" twice on screen at once, on nine screens |
 | **The toolbar button is a monogram**, not a photo | `MedxSettingsMonogram` in `Components/MedxMonogram.swift` — a 32pt circle and one letter, in all six toolbars. It replaced a `ProfileAvatarView` that watched `AvatarStore` from every one of them to draw an avatar the size of a fingernail |
@@ -399,7 +413,18 @@ None of this is a compiler. The only real build is Option C below.
 ### Option C: GitHub Actions → SideStore / AltStore
 
 `.github/workflows/build-unsigned-ipa.yml` builds an **unsigned** `MedxElite-unsigned.ipa` on a
-macOS runner and uploads it as an artifact (and attaches it to the release on a `v*` tag).
+macOS runner and uploads it as an artifact. Every push to `main` also replaces it on the `latest-build`
+pre-release, so the direct link never changes:
+`https://github.com/cyberromeo/medx-elite-ios/releases/download/latest-build/MedxElite-unsigned.ipa`
+(and a `v*` tag attaches it to that tag's release).
+
+`.github/workflows/screenshots.yml` is the layout check: it builds Debug for the simulator, boots an
+**iPhone 14 Pro** (393 × 852 pt, Dynamic Island), launches the app in the DEBUG-only demo mode
+(`MedxDemoMode` — fixture data served in the Firestore REST shape, no sign-in, nothing sent to
+`medx-e9acd`) and screenshots every screen listed in `.github/screenshots.txt` (dark) and
+`.github/screenshots-light.txt` (light). `-medxScreen <name>` picks the screen; the pictures, the
+console log and any crash reports land on the `sim-screenshots` pre-release. Release builds carry
+none of it — the demo file compiles to an empty stub outside `DEBUG`.
 Signing is off on purpose — the sideloader re-signs with your own Apple ID on install. The
 workflow uses `-target` rather than `-scheme` because the project ships no shared `.xcscheme`,
 and it **fails the build** if `PlugIns/MedxWidgets.appex` is missing, so a broken embed phase

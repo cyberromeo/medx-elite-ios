@@ -368,17 +368,22 @@ public extension EnvironmentValues {
 public struct MedxMetricsRow<Content: View>: View {
     private let content: Content
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     public init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
 
+    /// Side by side at every ordinary text size — each figure's label wraps to a second line
+    /// rather than the row giving up and stacking three full-width tiles. At an accessibility
+    /// size the figures stack, which is where `MedxMetric` switches to its one-line form anyway.
     public var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 10) {
+        if typeSize.isAccessibilitySize {
+            VStack(spacing: 8) {
                 content
             }
-
-            VStack(spacing: 8) {
+        } else {
+            HStack(alignment: .top, spacing: 10) {
                 content
             }
         }

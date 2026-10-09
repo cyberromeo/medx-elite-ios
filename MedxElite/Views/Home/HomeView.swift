@@ -222,7 +222,7 @@ public struct HomeView: View {
                 goalPill(
                     icon: "checkmark.circle.fill",
                     value: "\(stats.correctToday)",
-                    label: "correct today",
+                    label: "correct",
                     tint: MedxTheme.successGreen
                 )
 
@@ -231,7 +231,7 @@ public struct HomeView: View {
                     value: stats.answeredToday > 0
                         ? "\(Int((Double(stats.correctToday) / Double(stats.answeredToday) * 100).rounded()))%"
                         : "—",
-                    label: "today's accuracy",
+                    label: "accuracy",
                     tint: MedxTheme.primaryBlue
                 )
             }

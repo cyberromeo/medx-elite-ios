@@ -636,8 +636,10 @@ struct DownloadsView: View {
                     }
                 }
                 .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
             }
         }
+        .medxBackdrop(.videos, intensity: 0.8)
         .navigationTitle("Downloads")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {

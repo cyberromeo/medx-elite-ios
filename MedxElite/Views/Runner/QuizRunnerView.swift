@@ -827,10 +827,49 @@ public struct QuizRunnerView: View {
                     state: examActivityState
                 )
             }
+
+            #if DEBUG
+            await debugAutopilot()
+            #endif
         } catch {
             loadState = .unavailable("We couldn't load this sitting. Check your connection and try again.")
         }
     }
+
+    #if DEBUG
+    /// Screenshot runs only. `-medxScreen runner-revision` answers the first question wrongly so
+    /// the reveal is on screen; `-medxScreen review` answers the paper (two right, one wrong, …)
+    /// and submits it, so the sitting review can be captured.
+    private func debugAutopilot() async {
+        guard MedxDemoMode.isOn,
+              let screen = UserDefaults.standard.string(forKey: "medxScreen")
+        else { return }
+        try? await Task.sleep(nanoseconds: 900_000_000)
+
+        switch screen {
+        case "runner-revision":
+            guard let question = questions.first,
+                  let wrong = question.options.first(where: { !question.correctIds.contains($0.id) })
+            else { return }
+            handlePickOption(question: question, chosenId: wrong.id)
+        case "review":
+            for (index, question) in questions.enumerated() {
+                let wrong = question.options.first(where: { !question.correctIds.contains($0.id) })?.id
+                let pick: Int? = index % 3 == 2 ? wrong : question.correctIds.first
+                guard let pick else { continue }
+                responses[question.id] = QuestionResponse(
+                    questionId: question.id,
+                    chosenId: pick,
+                    correct: question.correctIds.contains(pick)
+                )
+            }
+            refreshStatuses()
+            finishSitting()
+        default:
+            break
+        }
+    }
+    #endif
 
     /// The single block an unsectioned paper is sat in. Its clock is the paper's own official
     /// duration where it has one — a Marrow subject paper is not always one minute a question

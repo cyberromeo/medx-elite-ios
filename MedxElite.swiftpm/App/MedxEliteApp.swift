@@ -141,14 +141,14 @@ struct MedxEliteApp: App {
         case "downloads": appState.open(route: .downloads)
         case "settings": appState.open(route: .settings)
         case "module": appState.open(route: .module(demoModule))
-        case "runner", "runner-revision":
+        case "runner", "runner-revision", "review":
             appState.startSitting(
                 RunnerPayload(
                     kind: "qbank",
                     id: demoModule.id,
                     name: demoModule.name,
                     subject: demoModule.subject,
-                    mode: screen == "runner" ? .exam : .revision
+                    mode: screen == "runner-revision" ? .revision : .exam
                 )
             )
         default: break

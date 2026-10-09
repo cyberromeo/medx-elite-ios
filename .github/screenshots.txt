@@ -25,3 +25,4 @@
 24-syllabus -medxScreen syllabus
 25-videosubject -medxScreen videosubject
 26-deck -medxScreen deck
+27-review -medxScreen review

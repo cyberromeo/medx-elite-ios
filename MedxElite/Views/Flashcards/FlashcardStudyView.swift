@@ -53,7 +53,7 @@ public struct FlashcardStudyView: View {
                 .padding(.top, 6)
                 .padding(.bottom, 32)
             }
-            .background(MedxSurface.groupedBackground)
+            .medxBackdrop(.cards, intensity: 0.8)
         }
         .navigationTitle(subject.name)
         .navigationBarTitleDisplayMode(.large)
