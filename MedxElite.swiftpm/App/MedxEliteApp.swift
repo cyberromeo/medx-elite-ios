@@ -116,6 +116,13 @@ struct MedxEliteApp: App {
               let screen = UserDefaults.standard.string(forKey: "medxScreen")
         else { return }
 
+        // `-medxLandscape YES`: the iPad job's landscape pass asks the scene to turn itself.
+        if UserDefaults.standard.bool(forKey: "medxLandscape"),
+           let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
+            scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight)) { _ in }
+            try? await Task.sleep(nanoseconds: 600_000_000)
+        }
+
         let demoModule = MedxModulePick(
             id: "qb_375",
             name: "Gram-Positive Cocci: Staphylococcus & Streptococcus",

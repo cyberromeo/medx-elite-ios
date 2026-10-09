@@ -1,0 +1,164 @@
+name: Simulator Screenshots (iPad Air)
+
+# The iPad twin of screenshots.yml: an iPad Air (820 x 1180 pt, the 10.9-inch iPad Air 4 class),
+# portrait and landscape. Builds the app for the iOS Simulator,
+# launches it in the DEBUG-only demo mode (fixture data, no sign-in, no network to Firebase)
+# and screenshots every main screen. The pictures are attached to the "sim-screenshots"
+# release so they can be checked from anywhere. Never shipped: demo mode compiles only into
+# Debug builds, and the IPA workflow builds Release.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sim-ipad-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    name: Run on an iPad Air simulator and capture every screen
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+
+      - name: Cache resolved Swift packages
+        uses: actions/cache@v4
+        with:
+          path: .spm-cache
+          key: spm-sim-${{ runner.os }}-${{ hashFiles('MedxElite.xcodeproj/project.pbxproj') }}
+          restore-keys: |
+            spm-sim-${{ runner.os }}-
+            spm-${{ runner.os }}-
+
+      - name: Resolve Swift package dependencies
+        run: |
+          xcodebuild -project MedxElite.xcodeproj -clonedSourcePackagesDirPath .spm-cache -resolvePackageDependencies
+
+      - name: Build for the simulator (Debug)
+        timeout-minutes: 45
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project MedxElite.xcodeproj \
+            -target MedxElite \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -clonedSourcePackagesDirPath .spm-cache \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGNING_ALLOWED=NO \
+            SYMROOT="$PWD/simbuild" > simbuild.log 2>&1 || { grep -E "error:" simbuild.log | sort -u | head -n 80; tail -n 60 simbuild.log; exit 1; }
+          grep -E "BUILD (SUCCEEDED|FAILED)" simbuild.log
+          grep -E "warning:.*(MedxElite|MedxWidgets)/" simbuild.log | sort -u | head -n 40 || true
+
+      - name: Create and boot an iPad Air (820 x 1180 pt)
+        run: |
+          RUNTIME=$(xcrun simctl list runtimes -j | python3 -c '
+          import json,sys
+          rs=[r for r in json.load(sys.stdin)["runtimes"] if r.get("platform","")=="iOS" and r.get("isAvailable")]
+          rs.sort(key=lambda r:[int(x) for x in r["version"].split(".")])
+          print(rs[-1]["identifier"])')
+          echo "Runtime: $RUNTIME"
+          xcrun simctl list devicetypes | grep -i ipad || true
+          UDID=""
+          # The 10.9-inch iPad Air 4 first, then the same 820 x 1180 pt class.
+          for NAME in "iPad Air (4th generation)" "iPad Air (5th generation)" "iPad Air 11-inch (M2)" "iPad Air 11-inch (M3)" "iPad (10th generation)" "iPad Air 11-inch (M4)"; do
+            TYPE=$(xcrun simctl list devicetypes -j | python3 -c "
+          import json,sys
+          n=sys.argv[1]
+          for d in json.load(sys.stdin)['devicetypes']:
+              if d['name']==n: print(d['identifier'])" "$NAME")
+            [ -z "$TYPE" ] && continue
+            if UDID=$(xcrun simctl create "MedX iPad" "$TYPE" "$RUNTIME" 2>/dev/null); then echo "Device: $NAME"; echo "$NAME" > device.txt; break; fi
+            UDID=""
+          done
+          [ -n "$UDID" ] || { echo "no iPad Air class device available"; exit 1; }
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time "9:41" --dataNetwork wifi --wifiBars 3 --batteryState charged --batteryLevel 100 || true
+          open -a Simulator || true
+          sleep 5
+
+      - name: Install, launch and capture each screen
+        timeout-minutes: 25
+        run: |
+          APP=$(find simbuild -maxdepth 3 -name "MedxElite.app" -type d | head -n 1)
+          BID=quest.srihari.medxelite
+          xcrun simctl install "$UDID" "$APP"
+          # Notifications would otherwise put a permission alert over every screenshot.
+          xcrun simctl privacy "$UDID" grant notifications "$BID" 2>/dev/null || true
+          mkdir -p shots
+          xcrun simctl spawn "$UDID" log stream --level debug --style compact --predicate 'process == "MedxElite"' > shots/console.log 2>&1 &
+          LOGPID=$!
+          # Warm-up launch: lets remote images land in the on-disk cache.
+          xcrun simctl launch "$UDID" "$BID" -medxDemo YES -medxScreen home
+          sleep 20
+          shoot() {
+            name="$1"; shift
+            xcrun simctl terminate "$UDID" "$BID" >/dev/null 2>&1 || true
+            sleep 1
+            OUT=$(xcrun simctl launch "$UDID" "$BID" -medxDemo YES "$@" 2>&1); echo "$name: $OUT"
+            case "$*" in *medxLandscape*) [ -z "$ROTATED" ] && { osascript -e 'tell application "Simulator" to activate' -e 'delay 1' -e 'tell application "System Events" to key code 124 using {command down}' 2>&1 || true; ROTATED=1; };; esac
+            PID=$(echo "$OUT" | awk -F': ' '{print $2}' | tr -d '[:space:]')
+            sleep "${WAIT:-8}"
+            xcrun simctl io "$UDID" screenshot --type=png "shots/$name.png" >/dev/null 2>&1
+            if [ -n "$PID" ] && ! ps -p "$PID" >/dev/null 2>&1; then echo "CRASH? $name: process $PID is gone" | tee -a shots/crashes.txt; fi
+          }
+          xcrun simctl ui "$UDID" appearance dark
+          while read -r name args; do
+            [ -z "$name" ] && continue
+            case "$name" in \#*) continue;; esac
+            shoot "$name" $args
+          done < .github/screenshots-ipad.txt
+          kill $LOGPID || true
+          cp ~/Library/Logs/DiagnosticReports/MedxElite* shots/ 2>/dev/null || true
+          ls -la shots
+          grep -iE "fatal|crash|exception|terminating" shots/console.log | head -n 40 || true
+
+      - name: Upload screenshots artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipad-air-screenshots
+          path: shots
+          if-no-files-found: ignore
+
+      - name: Publish to the "sim-screenshots" release
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -d shots ] || exit 0
+          ls shots/*.png >/dev/null 2>&1 || exit 0
+          cd shots
+          for f in *.png; do sips -s format jpeg -s formatOptions 82 "$f" --out "${f%.png}.jpg" >/dev/null; done
+          zip -q ../screenshots.zip *.jpg console.log $(ls crashes.txt *.ips 2>/dev/null) || true
+          cd ..
+          gh release delete sim-screenshots-ipad --yes --cleanup-tag || true
+          gh release create sim-screenshots-ipad screenshots.zip shots/console.log $(ls shots/crashes.txt 2>/dev/null) \
+            --title "iPad Air simulator screenshots (run ${{ github.run_number }})" \
+            --notes "iPad simulator screenshots from ${{ github.sha }} on $(cat device.txt 2>/dev/null)." \
+            --prerelease \
+            --target ${{ github.sha }}
+
+      - name: Upload the build log
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -f simbuild.log ] || exit 0
+          { grep -E "error:|warning: .*MedxElite/" simbuild.log | sort -u; echo "(end of list, ${{ github.sha }})"; } > simbuild-errors.txt
+          tail -n 300 simbuild.log > simbuild-tail.txt
+          gh release view sim-buildlog-ipad >/dev/null 2>&1 || gh release create sim-buildlog-ipad --title "Simulator build log" --notes "Latest simulator build log." --prerelease --target ${{ github.sha }} || true
+          gh release upload sim-buildlog-ipad simbuild-errors.txt simbuild-tail.txt --clobber || true

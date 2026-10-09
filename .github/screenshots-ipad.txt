@@ -1,0 +1,30 @@
+# iPad Air (820 x 1180 pt) portrait, then landscape. Read by .github/workflows/screenshots-ipad.yml
+P01-home -medxScreen home
+P02-qbank -medxScreen qbank
+P03-qbank-marrow -medxScreen qbank-marrow
+P04-subject -medxScreen subject
+P05-start-sheet -medxScreen module
+P06-runner -medxScreen runner
+P07-runner-explanation -medxScreen runner-revision -medxScroll 1
+P08-runner-navigator -medxScreen runner-navigator
+P09-review -medxScreen review
+P10-tests -medxScreen tests
+P11-classes -medxScreen classes
+P12-library -medxScreen library
+P13-cards -medxScreen flashcards
+P14-vod -medxScreen vod
+P15-settings -medxScreen settings
+P16-faceoff -medxScreen faceoff
+P17-custom -medxScreen custom
+P18-batch -medxScreen batch
+P19-search -medxScreen search
+P20-downloads -medxScreen downloads
+P21-login -medxDemoSignedOut YES
+L01-home -medxScreen home -medxLandscape YES
+L02-qbank -medxScreen qbank -medxLandscape YES
+L03-runner -medxScreen runner -medxLandscape YES
+L04-review -medxScreen review -medxLandscape YES
+L05-tests -medxScreen tests -medxLandscape YES
+L06-settings -medxScreen settings -medxLandscape YES
+L07-library -medxScreen library -medxLandscape YES
+L08-classes -medxScreen classes -medxLandscape YES
