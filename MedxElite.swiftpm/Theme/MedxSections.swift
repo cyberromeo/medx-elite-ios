@@ -135,6 +135,36 @@ public enum MedxCandy {
     }
 }
 
+// MARK: - Category icon colours
+
+/// The per-feature colours, kept for category icon tiles only (the Library grid, Home's quick
+/// tiles). Sri, 9 Oct 2026: the one-accent rule covers buttons, selection, progress and
+/// backgrounds, never the icons that tell one door from another. These are the candy values
+/// the app shipped with before the accent pass.
+public enum MedxIconHue {
+    public static let pink = tone(light: 0xFF4D8D, dark: 0xFF3D85)
+    public static let lime = tone(light: 0x8BC34A, dark: 0xC2F53F)
+    public static let violet = tone(light: 0x8B5CF6, dark: 0x9B6CFF)
+    public static let purple = tone(light: 0xA855F7, dark: 0xB57BFF)
+    public static let blue = tone(light: 0x3D7DFF, dark: 0x4B86FF)
+    public static let tangerine = tone(light: 0xFF8A3D, dark: 0xFF9440)
+    public static let teal = tone(light: 0x14B8A6, dark: 0x17E0BB)
+    public static let yellow = tone(light: 0xF5B800, dark: 0xFFDF55)
+    public static let sky = tone(light: 0x1EA7E1, dark: 0x3AD3FF)
+
+    private static func tone(light: UInt32, dark: UInt32) -> Color {
+        Color(uiColor: UIColor { traits in
+            let hex = traits.userInterfaceStyle == .dark ? dark : light
+            return UIColor(
+                red: CGFloat((hex >> 16) & 0xFF) / 255,
+                green: CGFloat((hex >> 8) & 0xFF) / 255,
+                blue: CGFloat(hex & 0xFF) / 255,
+                alpha: 1
+            )
+        })
+    }
+}
+
 // MARK: - Sections
 
 /// A destination and the one hue it owns, mirroring the `--sec-*` aliases in the PWA's

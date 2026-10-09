@@ -92,7 +92,7 @@ public struct LibraryView: View {
                 title: "Flashcards",
                 detail: "Tap to flip, swipe for the next",
                 symbol: "rectangle.stack.fill",
-                hue: MedxCandy.butter,
+                hue: MedxIconHue.yellow,
                 badge: nil
             ) { appState.open(route: .flashcards) },
 
@@ -101,7 +101,7 @@ public struct LibraryView: View {
                 title: "VOD feed",
                 detail: "The raw bucket, newest first",
                 symbol: "antenna.radiowaves.left.and.right",
-                hue: MedxCandy.blue,
+                hue: MedxIconHue.blue,
                 badge: vod.unseenCount > 0 ? "\(vod.unseenCount) new" : nil
             ) { appState.open(route: .vodFeed) },
 
@@ -110,7 +110,7 @@ public struct LibraryView: View {
                 title: "Import to Classes",
                 detail: "File a bucket recording into a subject",
                 symbol: "tray.and.arrow.down.fill",
-                hue: MedxCandy.violet,
+                hue: MedxIconHue.violet,
                 badge: nil
             ) { appState.open(route: .importVod) },
 
@@ -119,7 +119,7 @@ public struct LibraryView: View {
                 title: "Faceoff",
                 detail: "One question, one minute, two of you",
                 symbol: "bolt.fill",
-                hue: MedxCandy.pink,
+                hue: MedxIconHue.pink,
                 badge: waitingLobbies == 0 ? nil : "\(waitingLobbies) waiting"
             ) { appState.open(route: .faceoff) },
 
@@ -128,7 +128,7 @@ public struct LibraryView: View {
                 title: "Batch papers",
                 detail: "The batch's own four",
                 symbol: "flag.pattern.checkered",
-                hue: MedxCandy.tangerine,
+                hue: MedxIconHue.tangerine,
                 badge: nil
             ) { appState.open(route: .batchPapers) },
 
@@ -137,7 +137,7 @@ public struct LibraryView: View {
                 title: "Custom modules",
                 detail: "Your saved mixes",
                 symbol: "slider.horizontal.3",
-                hue: MedxCandy.violet,
+                hue: MedxIconHue.purple,
                 badge: customModules.modules.isEmpty ? nil : "\(customModules.modules.count)"
             ) {
                 if sizeClass == .regular {
@@ -152,7 +152,7 @@ public struct LibraryView: View {
                 title: "Quick sitting",
                 detail: "Scope, length, mode, go",
                 symbol: "wand.and.stars",
-                hue: MedxCandy.mint,
+                hue: MedxIconHue.teal,
                 badge: nil
             ) { appState.open(route: .quickSitting) },
 
@@ -161,7 +161,7 @@ public struct LibraryView: View {
                 title: "Search",
                 detail: "Full text across both banks",
                 symbol: "magnifyingglass",
-                hue: MedxCandy.lime,
+                hue: MedxIconHue.lime,
                 badge: nil
             ) { appState.open(route: .search(nil)) },
 
@@ -170,7 +170,7 @@ public struct LibraryView: View {
                 title: "Bookmarks",
                 detail: "Questions you kept",
                 symbol: "bookmark.fill",
-                hue: MedxCandy.butter,
+                hue: MedxIconHue.yellow,
                 badge: bookmarkCount > 0 ? "\(bookmarkCount)" : nil
             ) {
                 if sizeClass == .regular {
@@ -185,7 +185,7 @@ public struct LibraryView: View {
                 title: "Downloads",
                 detail: "Saved for no signal",
                 symbol: "arrow.down.circle.fill",
-                hue: MedxCandy.sky,
+                hue: MedxIconHue.sky,
                 badge: downloadBadge
             ) {
                 if sizeClass == .regular {
@@ -200,7 +200,7 @@ public struct LibraryView: View {
                 title: "Activity log",
                 detail: "Every sitting and class",
                 symbol: "list.bullet.rectangle.portrait",
-                hue: MedxCandy.mint,
+                hue: MedxIconHue.teal,
                 badge: nil
             ) { appState.showActivityLog = true },
 
@@ -209,7 +209,7 @@ public struct LibraryView: View {
                 title: "Settings",
                 detail: "Accent, reminders, the index",
                 symbol: "gearshape.fill",
-                hue: MedxCandy.violet,
+                hue: MedxIconHue.violet,
                 badge: nil
             ) { appState.showSettings = true }
         ]

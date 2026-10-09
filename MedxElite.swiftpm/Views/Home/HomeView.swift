@@ -654,12 +654,13 @@ private enum HomeShortcut: String, CaseIterable, Identifiable {
 
     var tint: Color {
         switch self {
-        case .qbank: return MedxCandy.lime
-        case .tests: return MedxCandy.tangerine
-        case .faceoff: return MedxCandy.pink
-        case .quickSitting: return MedxCandy.mint
-        case .customModules: return MedxCandy.butter
-        case .classes: return MedxCandy.violet
+        // Category icon colours (MedxIconHue), not the accent: these tiles are doors.
+        case .qbank: return MedxIconHue.lime
+        case .tests: return MedxIconHue.tangerine
+        case .faceoff: return MedxIconHue.pink
+        case .quickSitting: return MedxIconHue.teal
+        case .customModules: return MedxIconHue.purple
+        case .classes: return MedxIconHue.violet
         }
     }
 
