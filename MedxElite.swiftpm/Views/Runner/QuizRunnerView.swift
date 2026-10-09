@@ -1138,11 +1138,12 @@ public struct QuizRunnerView: View {
                 context.fill(CGRect(origin: .zero, size: size))
                 let colours: [UIColor] = [.systemPurple, .systemIndigo, .systemPink]
                 for index in 0..<46 {
-                    let angle = Double(index) * 2.4
-                    let radius = 18 * sqrt(Double(index)) * 2.2
-                    let center = CGPoint(x: 450 + radius * cos(angle), y: 300 + radius * sin(angle))
+                    let angle: Double = Double(index) * 2.4
+                    let radius: Double = 39.6 * Double(index).squareRoot()
+                    let x: CGFloat = CGFloat(450.0 + radius * cos(angle)) - 26
+                    let y: CGFloat = CGFloat(300.0 + radius * sin(angle)) - 26
                     colours[index % colours.count].withAlphaComponent(0.8).setFill()
-                    UIBezierPath(ovalIn: CGRect(x: center.x - 26, y: center.y - 26, width: 52, height: 52)).fill()
+                    UIBezierPath(ovalIn: CGRect(x: x, y: y, width: 52, height: 52)).fill()
                 }
                 let label = "Gram-positive cocci in clusters (x1000)" as NSString
                 label.draw(at: CGPoint(x: 40, y: 580), withAttributes: [

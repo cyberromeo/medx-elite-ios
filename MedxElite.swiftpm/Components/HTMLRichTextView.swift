@@ -336,8 +336,10 @@ private struct MedxZoomingImage: UIViewRepresentable {
         ) {
             // Only at normal size: when zoomed, a drag is a pan.
             guard scrollView.zoomScale <= scrollView.minimumZoomScale + 0.01 else { return }
-            let pulled = -(scrollView.contentOffset.y + scrollView.adjustedContentInset.top)
-            if pulled > 90 || (pulled > 30 && velocity.y < -1.2) {
+            let resting: CGFloat = -scrollView.adjustedContentInset.top
+            let pulled: CGFloat = resting - scrollView.contentOffset.y
+            let flicked: Bool = pulled > 30 && velocity.y < -1.2
+            if pulled > 90 || flicked {
                 onPullDown()
             }
         }
@@ -347,15 +349,12 @@ private struct MedxZoomingImage: UIViewRepresentable {
             if view.zoomScale > view.minimumZoomScale + 0.01 {
                 view.setZoomScale(view.minimumZoomScale, animated: true)
             } else {
-                let point = gesture.location(in: view.imageView)
-                let scale = min(view.maximumZoomScale, view.minimumZoomScale * 2.5)
-                let size = CGSize(width: view.bounds.width / scale, height: view.bounds.height / scale)
-                let rect = CGRect(
-                    x: point.x - size.width / 2,
-                    y: point.y - size.height / 2,
-                    width: size.width,
-                    height: size.height
-                )
+                let point: CGPoint = gesture.location(in: view.imageView)
+                let target: CGFloat = view.minimumZoomScale * 2.5
+                let scale: CGFloat = Swift.min(view.maximumZoomScale, target)
+                let width: CGFloat = view.bounds.width / scale
+                let height: CGFloat = view.bounds.height / scale
+                let rect = CGRect(x: point.x - width / 2, y: point.y - height / 2, width: width, height: height)
                 view.zoom(to: rect, animated: true)
             }
             UISelectionFeedbackGenerator().selectionChanged()
@@ -397,19 +396,25 @@ final class MedxZoomScrollView: UIScrollView {
         minimumZoomScale = 1
         maximumZoomScale = 1
         zoomScale = 1
-        let fit = min(bounds.width / image.size.width, bounds.height / image.size.height)
+        let widthRatio: CGFloat = bounds.width / image.size.width
+        let heightRatio: CGFloat = bounds.height / image.size.height
+        let fit: CGFloat = Swift.min(widthRatio, heightRatio)
         let fitted = CGSize(width: image.size.width * fit, height: image.size.height * fit)
         imageView.frame = CGRect(origin: .zero, size: fitted)
         contentSize = fitted
         // Enough to read a small label in a diagram, never so much that it turns to mush.
-        maximumZoomScale = max(4, min(8, 1 / max(fit, 0.01) * 2))
+        let safeFit: CGFloat = Swift.max(fit, CGFloat(0.01))
+        let native: CGFloat = CGFloat(2) / safeFit
+        maximumZoomScale = Swift.max(CGFloat(4), Swift.min(CGFloat(8), native))
         centerImage()
     }
 
     /// Keeps a smaller-than-screen image in the middle instead of the top-left corner.
     func centerImage() {
-        let horizontal = max((bounds.width - contentSize.width) / 2, 0)
-        let vertical = max((bounds.height - contentSize.height) / 2, 0)
+        let spareWidth: CGFloat = bounds.width - contentSize.width
+        let spareHeight: CGFloat = bounds.height - contentSize.height
+        let horizontal: CGFloat = Swift.max(spareWidth / 2, 0)
+        let vertical: CGFloat = Swift.max(spareHeight / 2, 0)
         contentInset = UIEdgeInsets(top: vertical, left: horizontal, bottom: vertical, right: horizontal)
     }
 }

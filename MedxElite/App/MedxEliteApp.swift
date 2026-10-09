@@ -194,7 +194,9 @@ struct MedxEliteApp: App {
                     mode: .exam,
                     gradable: true,
                     questions: supplied.isEmpty ? nil : supplied,
-                    questionTags: supplied.isEmpty ? nil : supplied.indices.map { $0 % 2 == 0 ? "FMGE June 2023" : "FMGE Dec 2022" }
+                    questionTags: supplied.isEmpty ? nil : supplied.indices.map { (index: Int) -> String in
+                        index % 2 == 0 ? "FMGE June 2023" : "FMGE Dec 2022"
+                    }
                 )
             )
         case "runner-zoom":
