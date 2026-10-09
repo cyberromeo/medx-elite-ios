@@ -323,6 +323,8 @@ public struct MedxPill: View {
             }
             Text(text)
                 .font(.caption2.weight(.bold))
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
         .foregroundStyle(foreground)
         .padding(.horizontal, 7)
@@ -384,10 +386,91 @@ public struct MedxRuleHeader: View {
             if let count {
                 Text(count.formatted())
                     .font(.caption.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
+    }
+}
+
+// MARK: - Flow layout
+
+/// Chips that wrap onto the next line instead of running off the edge of their card. Each chip is
+/// offered the full row width at most, so a long module name truncates inside the card rather than
+/// being cut mid-word by it.
+public struct MedxFlowLayout: Layout {
+    public var spacing: CGFloat
+    public var lineSpacing: CGFloat
+
+    public init(spacing: CGFloat = 6, lineSpacing: CGFloat = 6) {
+        self.spacing = spacing
+        self.lineSpacing = lineSpacing
+    }
+
+    public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var lineHeight: CGFloat = 0
+        var widest: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+            let width = min(size.width, maxWidth)
+            if x > 0, x + width > maxWidth {
+                x = 0
+                y += lineHeight + lineSpacing
+                lineHeight = 0
+            }
+            x += width + spacing
+            lineHeight = max(lineHeight, size.height)
+            widest = max(widest, x - spacing)
+        }
+        return CGSize(width: proposal.width ?? widest, height: y + lineHeight)
+    }
+
+    public func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let maxWidth = bounds.width
+        var x = bounds.minX
+        var y = bounds.minY
+        var lineHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+            let width = min(size.width, maxWidth)
+            if x > bounds.minX, x + width > bounds.maxX {
+                x = bounds.minX
+                y += lineHeight + lineSpacing
+                lineHeight = 0
+            }
+            subview.place(
+                at: CGPoint(x: x, y: y),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: width, height: size.height)
+            )
+            x += width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+    }
+}
+
+/// `MedxFlowLayout` as a view: `MedxFlow { chips }`.
+public struct MedxFlow<Content: View>: View {
+    private let spacing: CGFloat
+    private let lineSpacing: CGFloat
+    private let content: Content
+
+    public init(spacing: CGFloat = 6, lineSpacing: CGFloat = 6, @ViewBuilder content: () -> Content) {
+        self.spacing = spacing
+        self.lineSpacing = lineSpacing
+        self.content = content()
+    }
+
+    public var body: some View {
+        let layout = MedxFlowLayout(spacing: spacing, lineSpacing: lineSpacing)
+        return layout {
+            content
+        }
     }
 }

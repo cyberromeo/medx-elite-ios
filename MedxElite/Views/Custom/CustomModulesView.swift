@@ -68,7 +68,8 @@ public struct CustomModulesView: View {
             .padding(.top, 6)
             .padding(.bottom, 28)
         }
-        .medxBackdrop(.custom)
+        // Turned down: lime and its partner at full strength turn olive behind the bar.
+        .medxBackdrop(.custom, intensity: 0.55)
         .medxScrollEdge()
         .navigationTitle("Custom modules")
         .navigationBarTitleDisplayMode(.large)
@@ -255,7 +256,7 @@ struct CustomModuleCard: View {
     let onEdit: () -> Void
     let onDelete: () -> Void
 
-    private static let previewChips = 4
+    private static let previewChips = 3
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -311,38 +312,40 @@ struct CustomModuleCard: View {
     }
 
     private var chips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                if let author = module.author {
-                    MedxPill(author.displayName, hue: author.duelFill, weight: .solid, icon: "person.fill")
-                }
-                ForEach(module.sources.prefix(Self.previewChips)) { source in
-                    MedxPill(source.name, hue: source.bank == .marrow ? MedxCandy.butter : MedxCandy.lime)
-                }
-                if module.sources.count > Self.previewChips {
-                    MedxPill("+\(module.sources.count - Self.previewChips)", weight: .outline)
-                }
+        MedxFlow(spacing: 6, lineSpacing: 6) {
+            if let author = module.author {
+                MedxPill(author.displayName, hue: author.duelFill, weight: .solid, icon: "person.fill")
+            }
+            ForEach(module.sources.prefix(Self.previewChips)) { source in
+                MedxPill(source.name, hue: source.bank == .marrow ? MedxCandy.butter : MedxCandy.lime)
+            }
+            if module.sources.count > Self.previewChips {
+                MedxPill("+\(module.sources.count - Self.previewChips)", weight: .outline)
             }
         }
-        .scrollClipDisabled()
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Run, Edit and Delete as one row of equal-height capsules: Run solid, the other two quiet.
     private var actions: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .center, spacing: 8) {
             Button {
                 HapticManager.medium()
                 onRun()
             } label: {
-                HStack(spacing: 5) {
+                HStack(spacing: 6) {
                     Image(systemName: "play.fill")
                         .font(.caption.weight(.bold))
                     Text("Run")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.subheadline.weight(.bold))
                 }
-                .frame(minWidth: 66, minHeight: 34)
-                .padding(.horizontal, 6)
+                .foregroundStyle(MedxCandy.onSolid)
+                .padding(.horizontal, 16)
+                .frame(height: 40)
+                .background(Capsule(style: .continuous).fill(MedxSection.custom.fill))
+                .contentShape(Capsule(style: .continuous))
             }
-            .medxFilled(MedxSection.custom.fill)
+            .buttonStyle(MedxPressStyle())
 
             Button {
                 HapticManager.light()
@@ -350,10 +353,13 @@ struct CustomModuleCard: View {
             } label: {
                 Text("Edit")
                     .font(.subheadline.weight(.semibold))
-                    .frame(minWidth: 56, minHeight: 34)
+                    .foregroundStyle(Color.primary)
+                    .padding(.horizontal, 16)
+                    .frame(height: 40)
+                    .background(Capsule(style: .continuous).fill(Color.primary.opacity(0.08)))
+                    .contentShape(Capsule(style: .continuous))
             }
-            .medxBorderedButton()
-            .buttonBorderShape(.capsule)
+            .buttonStyle(MedxPressStyle())
 
             Button(role: .destructive) {
                 HapticManager.light()
@@ -361,10 +367,12 @@ struct CustomModuleCard: View {
             } label: {
                 Image(systemName: "trash")
                     .font(.subheadline.weight(.semibold))
-                    .frame(width: 40, height: 34)
+                    .foregroundStyle(MedxTheme.destructiveRed)
+                    .frame(width: 48, height: 40)
+                    .background(Capsule(style: .continuous).fill(MedxTheme.destructiveRed.opacity(0.12)))
+                    .contentShape(Capsule(style: .continuous))
             }
-            .medxBorderedButton()
-            .buttonBorderShape(.capsule)
+            .buttonStyle(MedxPressStyle())
             .accessibilityLabel("Delete \(module.name)")
 
             Spacer(minLength: 0)
@@ -373,6 +381,7 @@ struct CustomModuleCard: View {
                 Text(updated.formatted(.relative(presentation: .numeric)))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                    .lineLimit(1)
             }
         }
     }

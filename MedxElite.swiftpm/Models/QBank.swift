@@ -265,13 +265,29 @@ public struct Question: Identifiable, Hashable, Codable, Sendable {
         case id, lqId, number, html, plain, type, answerType, options, correctIds, explanation, reference, images
     }
 
+    /// Other names an uploaded question has used for its id.
+    private enum AltKeys: String, CodingKey {
+        case questionId, qid, _id
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let alt = try? decoder.container(keyedBy: AltKeys.self)
         if let intVal = try? container.decode(Int.self, forKey: .id) {
             id = intVal
-        } else if let strVal = try? container.decode(String.self, forKey: .id), let intVal = Int(strVal) {
+        } else if let strVal = try? container.decode(String.self, forKey: .id), !strVal.isEmpty {
+            // "123", "q_123" and opaque strings all become a stable number.
+            id = MedxOptionId.int(from: strVal)
+        } else if let alt, let intVal = (try? alt.decode(Int.self, forKey: .questionId)) ?? (try? alt.decode(Int.self, forKey: .qid)) {
             id = intVal
+        } else if let alt,
+                  let strVal = (try? alt.decode(String.self, forKey: .questionId))
+                    ?? (try? alt.decode(String.self, forKey: .qid))
+                    ?? (try? alt.decode(String.self, forKey: ._id)),
+                  !strVal.isEmpty {
+            id = MedxOptionId.int(from: strVal)
         } else {
+            // No id at all. `MedxQuestionIdentity.uniqued` gives it one when the paper loads.
             id = 0
         }
         lqId = try? container.decodeIfPresent(Int.self, forKey: .lqId)
@@ -329,6 +345,52 @@ public struct Question: Identifiable, Hashable, Codable, Sendable {
         self.explanation = explanation
         self.reference = reference
         self.images = images
+    }
+}
+
+/// Makes every question in a sitting its own answer slot.
+///
+/// The runner keys answers, reveals and the navigator by `Question.id`. A freshly uploaded batch
+/// paper arrived with no question ids, so every question decoded to id `0`: answering the first
+/// one filed that answer under the key every other question shared, and the rest of the paper
+/// showed as already answered. Here, any id that is missing or repeated is replaced by a stable one
+/// (the question's `lqId` if that is free, otherwise one derived from its position in the paper),
+/// so the same paper always gets the same ids and nothing else changes for papers that were fine.
+public enum MedxQuestionIdentity {
+    public static func uniqued(_ questions: [Question]) -> [Question] {
+        let ids = questions.map(\.id)
+        guard ids.contains(0) || Set(ids).count != ids.count else { return questions }
+
+        // Ids that are already fine keep their value; only the clashing ones move.
+        var counts: [Int: Int] = [:]
+        for id in ids { counts[id, default: 0] += 1 }
+        var taken = Set(ids.filter { $0 != 0 && counts[$0] == 1 })
+
+        return questions.enumerated().map { (index, question) -> Question in
+            if question.id != 0, counts[question.id] == 1 { return question }
+            var candidate: Int
+            if let lq = question.lqId, lq != 0, !taken.contains(lq) {
+                candidate = lq
+            } else {
+                candidate = 900_000_000 + index + 1
+                while taken.contains(candidate) { candidate += 1 }
+            }
+            taken.insert(candidate)
+            return Question(
+                id: candidate,
+                lqId: question.lqId,
+                number: question.number,
+                html: question.html,
+                plain: question.plain,
+                type: question.type,
+                answerType: question.answerType,
+                options: question.options,
+                correctIds: question.correctIds,
+                explanation: question.explanation,
+                reference: question.reference,
+                images: question.images
+            )
+        }
     }
 }
 

@@ -226,8 +226,7 @@ public struct ModuleBuilderSheet: View {
 
     private var pickedChips: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
+            MedxFlow(spacing: 6, lineSpacing: 6) {
                     ForEach(showAllPicked ? draft.sources : Array(draft.sources.prefix(Self.pickedPreview))) { source in
                         Button {
                             HapticManager.selection()
@@ -248,9 +247,8 @@ public struct ModuleBuilderSheet: View {
                         .buttonStyle(.plain)
                         .accessibilityLabel("Remove \(source.name)")
                     }
-                }
             }
-            .scrollClipDisabled()
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 10) {
                 if draft.sources.count > Self.pickedPreview {

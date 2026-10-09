@@ -322,3 +322,219 @@ public struct MedxCloseButton: View {
         .accessibilityLabel("Close figure")
     }
 }
+
+// MARK: - Card swipe actions
+//
+// The platform's `.swipeActions` slide the whole list row sideways. On a page of inset cards that
+// pushed the card's leading edge off the screen (the class number and the start of the title
+// vanished under the left edge) and drew iOS 26's floating action circle with its label hanging
+// underneath, neither the row's height nor centred on it.
+//
+// Here the card never leaves its margins. Swiping squeezes it from the side being uncovered and
+// the actions grow into the space it gives up: each one a rounded tile the full height of the row,
+// with the card's own corner radius, icon over label, centred. A tap anywhere on an open card
+// closes it, opening one row closes any other, and every action is also offered to VoiceOver.
+
+public struct MedxSwipeAction: Identifiable {
+    public let id: String
+    public let title: String
+    public let icon: String
+    public let tint: Color
+    public let perform: () -> Void
+
+    public init(_ title: String, icon: String, tint: Color, perform: @escaping () -> Void) {
+        self.id = title + icon
+        self.title = title
+        self.icon = icon
+        self.tint = tint
+        self.perform = perform
+    }
+}
+
+/// Which row is open, so opening one closes the last.
+@MainActor
+final class MedxSwipeCoordinator: ObservableObject {
+    static let shared = MedxSwipeCoordinator()
+    @Published var openRow: UUID?
+    #if DEBUG
+    var didDemo = false
+    #endif
+}
+
+private struct MedxSwipeRowModifier: ViewModifier {
+    let leading: [MedxSwipeAction]
+    let trailing: [MedxSwipeAction]
+    let cornerRadius: CGFloat
+
+    @ObservedObject private var coordinator = MedxSwipeCoordinator.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @State private var rowID = UUID()
+    /// Positive: leading actions showing. Negative: trailing actions showing.
+    @State private var reveal: CGFloat = 0
+    @State private var dragBase: CGFloat?
+    @GestureState private var isDragging = false
+
+    private static let tileWidth: CGFloat = 76
+    private static let gap: CGFloat = 8
+
+    private func span(_ actions: [MedxSwipeAction]) -> CGFloat {
+        guard !actions.isEmpty else { return 0 }
+        let count = CGFloat(actions.count)
+        return count * Self.tileWidth + count * Self.gap
+    }
+
+    private var settle: Animation? {
+        reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86)
+    }
+
+    func body(content: Content) -> some View {
+        let leadingShown = max(reveal, 0)
+        let trailingShown = max(-reveal, 0)
+
+        content
+            // An open card answers a tap by closing, not by opening what it shows.
+            .overlay {
+                if reveal != 0 {
+                    Color.white.opacity(0.001)
+                        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                        .onTapGesture { close() }
+                }
+            }
+            .padding(.leading, leadingShown)
+            .padding(.trailing, trailingShown)
+            .overlay(alignment: .leading) {
+                if leadingShown > Self.gap {
+                    tiles(leading, width: leadingShown - Self.gap)
+                }
+            }
+            .overlay(alignment: .trailing) {
+                if trailingShown > Self.gap {
+                    tiles(trailing, width: trailingShown - Self.gap)
+                }
+            }
+            .simultaneousGesture(drag)
+            .onChange(of: isDragging) { _, dragging in
+                // The scroll view can take a drag over without an end event; settle either way.
+                if !dragging { settleAfterDrag(predicted: nil) }
+            }
+            .onChange(of: coordinator.openRow) { _, open in
+                if open != rowID, reveal != 0 {
+                    withAnimation(settle) { reveal = 0 }
+                }
+            }
+            .accessibilityActions {
+                ForEach(leading + trailing) { action in
+                    Button(action.title) { action.perform() }
+                }
+            }
+            #if DEBUG
+            // Screenshot runs only (`-medxSwipeOpen YES`): the first row with trailing actions
+            // opens them, so the swipe can be checked without a finger.
+            .onAppear {
+                guard MedxDemoMode.isOn,
+                      UserDefaults.standard.bool(forKey: "medxSwipeOpen"),
+                      !trailing.isEmpty,
+                      !MedxSwipeCoordinator.shared.didDemo
+                else { return }
+                MedxSwipeCoordinator.shared.didDemo = true
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    coordinator.openRow = rowID
+                    withAnimation(settle) { reveal = -span(trailing) }
+                }
+            }
+            #endif
+    }
+
+    private func tiles(_ actions: [MedxSwipeAction], width: CGFloat) -> some View {
+        HStack(spacing: Self.gap) {
+            ForEach(actions) { action in
+                Button {
+                    HapticManager.light()
+                    action.perform()
+                    close()
+                } label: {
+                    VStack(spacing: 5) {
+                        Image(systemName: action.icon)
+                            .font(.system(size: 17, weight: .semibold))
+                        Text(action.title)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .foregroundStyle(.white)
+                    // Labels arrive once there is room for them, instead of being squashed.
+                    .opacity(width >= span(actions) * 0.6 ? 1 : 0)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(action.tint.gradient)
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                }
+                .buttonStyle(MedxPressStyle())
+                .accessibilityHidden(true)
+            }
+        }
+        .frame(width: max(width, 0))
+        .frame(maxHeight: .infinity)
+        .clipped()
+    }
+
+    private var drag: some Gesture {
+        DragGesture(minimumDistance: 14, coordinateSpace: .local)
+            .updating($isDragging) { _, state, _ in state = true }
+            .onChanged { value in
+                let dx = value.translation.width
+                let dy = value.translation.height
+                if dragBase == nil {
+                    // Only a clearly sideways drag belongs to the row; anything else is the scroll.
+                    guard abs(dx) > abs(dy) * 1.3 else { return }
+                    dragBase = reveal
+                    coordinator.openRow = rowID
+                }
+                var next = (dragBase ?? 0) + dx
+                if leading.isEmpty { next = min(next, 0) }
+                if trailing.isEmpty { next = max(next, 0) }
+                let maxLeading = span(leading)
+                let maxTrailing = span(trailing)
+                // Rubber band past the open width.
+                if next > maxLeading { next = maxLeading + (next - maxLeading) * 0.2 }
+                if next < -maxTrailing { next = -maxTrailing + (next + maxTrailing) * 0.2 }
+                reveal = next
+            }
+            .onEnded { value in
+                settleAfterDrag(predicted: (dragBase ?? reveal) + value.predictedEndTranslation.width)
+            }
+    }
+
+    private func settleAfterDrag(predicted: CGFloat?) {
+        guard dragBase != nil else { return }
+        dragBase = nil
+        let target = predicted ?? reveal
+        withAnimation(settle) {
+            if reveal > 0 {
+                reveal = target > span(leading) / 2 ? span(leading) : 0
+            } else if reveal < 0 {
+                reveal = -target > span(trailing) / 2 ? -span(trailing) : 0
+            }
+        }
+        if reveal != 0 { HapticManager.selection() }
+    }
+
+    private func close() {
+        withAnimation(settle) { reveal = 0 }
+    }
+}
+
+public extension View {
+    /// Swipe actions for a card row that keep the card inside its margins. See the note above.
+    func medxSwipeActions(
+        leading: [MedxSwipeAction] = [],
+        trailing: [MedxSwipeAction] = [],
+        cornerRadius: CGFloat = MedxSurface.cardRadius
+    ) -> some View {
+        modifier(MedxSwipeRowModifier(leading: leading, trailing: trailing, cornerRadius: cornerRadius))
+    }
+}

@@ -95,7 +95,7 @@ public struct HomeView: View {
         // a large title reading "Home", which is two headings on a screen that needs one — and the
         // one the tab bar had already named was the redundant one.
         .navigationTitle(profileGreeting)
-        .navigationBarTitleDisplayMode(.large)
+        .toolbarTitleDisplayMode(.inlineLarge)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 MedxProfileButton()

@@ -38,13 +38,11 @@ public struct VideoSubjectView: View {
             Section {
                 ForEach(Array(subjectGroup.videos.enumerated()), id: \.element.id) { index, video in
                     videoRow(video, index: index)
+                        .medxSwipeActions(
+                            leading: playbackSwipeActions(video),
+                            trailing: downloadSwipeActions(video)
+                        )
                         .medxCardRow()
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            downloadSwipeAction(video)
-                        }
-                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                            playbackSwipeActions(video)
-                        }
                 }
             } footer: {
                 Text("Swipe a class left to save it offline, right to play it. Long-press for the quality menu.")
@@ -116,51 +114,44 @@ public struct VideoSubjectView: View {
 
     /// Trailing swipe: save it, or — where it is already saved — delete it. Same two actions the
     /// long-press menu offers, one gesture closer.
-    @ViewBuilder
-    private func downloadSwipeAction(_ video: RecordedVideo) -> some View {
+    private func downloadSwipeActions(_ video: RecordedVideo) -> [MedxSwipeAction] {
         if downloads.items[video.id]?.state == .completed {
-            Button(role: .destructive) {
-                HapticManager.warning()
-                downloads.remove(video.id)
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        } else {
-            Button {
+            return [
+                MedxSwipeAction("Delete", icon: "trash", tint: MedxTheme.destructiveRed) {
+                    HapticManager.warning()
+                    downloads.remove(video.id)
+                }
+            ]
+        }
+        return [
+            MedxSwipeAction("Save", icon: "arrow.down.circle", tint: MedxTheme.successGreen) {
                 HapticManager.success()
                 downloads.start(video, quality: .standard)
-            } label: {
-                Label("Save", systemImage: "arrow.down.circle")
             }
-            .tint(MedxTheme.successGreen)
-        }
+        ]
     }
 
     /// Leading swipe: play, and — where there is something to forget — forget it.
-    @ViewBuilder
-    private func playbackSwipeActions(_ video: RecordedVideo) -> some View {
+    private func playbackSwipeActions(_ video: RecordedVideo) -> [MedxSwipeAction] {
         let history = activityStore.entry(for: video.id, uid: uid)
-
-        Button {
-            HapticManager.light()
-            activeVideo = video
-        } label: {
-            Label(
+        var actions = [
+            MedxSwipeAction(
                 (history?.resumePosition ?? 0) > 0 ? "Resume" : "Play",
-                systemImage: "play.fill"
+                icon: "play.fill",
+                tint: MedxCandy.violet
+            ) {
+                activeVideo = video
+            }
+        ]
+        if let history {
+            actions.append(
+                MedxSwipeAction("Clear", icon: "clock.badge.xmark", tint: MedxTheme.warningOrange) {
+                    HapticManager.warning()
+                    activityStore.removeWatchHistory(history, uid: uid)
+                }
             )
         }
-        .tint(MedxCandy.violet)
-
-        if let history {
-            Button {
-                HapticManager.warning()
-                activityStore.removeWatchHistory(history, uid: uid)
-            } label: {
-                Label("Clear", systemImage: "clock.badge.xmark")
-            }
-            .tint(MedxTheme.warningOrange)
-        }
+        return actions
     }
 
     private func videoRow(_ video: RecordedVideo, index: Int) -> some View {

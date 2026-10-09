@@ -39,6 +39,18 @@ public struct TestsListView: View {
         return all.filter { $0.title.localizedCaseInsensitiveContains(query) }
     }
 
+    /// Says exactly what the search covers: the papers in the group on screen.
+    private var searchPrompt: String {
+        guard let count = index?.count(of: group) else { return "Search papers" }
+        let noun: String
+        switch group {
+        case .grand: noun = count == 1 ? "grand test" : "grand tests"
+        case .mini: noun = count == 1 ? "mini test" : "mini tests"
+        case .subject: noun = count == 1 ? "subject test" : "subject tests"
+        }
+        return "Search \(count.formatted()) \(noun)"
+    }
+
     private var months: [MedxSeriesMonth] {
         MedxSeriesRules.byMonth(papers)
     }
@@ -57,7 +69,7 @@ public struct TestsListView: View {
         .medxBackdrop(.tests)
         .medxScrollEdge()
         .navigationTitle("Tests")
-        .navigationBarTitleDisplayMode(.large)
+        .toolbarTitleDisplayMode(.inlineLarge)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 MedxProfileButton()
@@ -66,7 +78,7 @@ public struct TestsListView: View {
         .searchable(
             text: $searchText,
             placement: .navigationBarDrawer(displayMode: .automatic),
-            prompt: "Search 352 papers"
+            prompt: searchPrompt
         )
         .task {
             guard case .loading = loadState else { return }
@@ -92,6 +104,9 @@ public struct TestsListView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
                 header
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .medxCard()
 
                 batchRow
 
@@ -132,8 +147,11 @@ public struct TestsListView: View {
     private var header: some View {
         MedxPageHeader(
             section: .tests,
+            // Counted from the papers that can actually be opened, the same set the segments and
+            // the search count, so the three numbers on this screen always agree.
             lead: index.map {
-                "\($0.totalPapers.formatted()) papers, \($0.totalQuestions.formatted()) questions. "
+                "\($0.papers.count.formatted()) papers, "
+                    + "\($0.papers.reduce(0) { $0 + $1.questions }.formatted()) questions. "
                     + "Every one of them is keyed, so every one can be scored."
             } ?? "The Marrow FMGE test series — grand, mini and subject papers.",
             symbol: "trophy.fill"
@@ -212,12 +230,13 @@ public struct TestsListView: View {
 
                 Spacer(minLength: 0)
 
-                VStack(alignment: .trailing, spacing: 4) {
+                // Badge and chevron on one line, centred on the row.
+                HStack(spacing: 8) {
                     if let record {
                         MedxPill(
                             "\(record.bestScore)/\(record.total)",
-                            hue: MedxCandy.tangerine,
-                            weight: .solid
+                            hue: MedxCandy.mint,
+                            icon: "checkmark"
                         )
                     } else if let sections, let first = sections.first {
                         // A grand paper's shape is the one thing worth knowing before opening
@@ -227,6 +246,7 @@ public struct TestsListView: View {
 
                     MedxDisclosure()
                 }
+                .fixedSize()
             }
             .padding(14)
             .frame(minHeight: 64)

@@ -749,7 +749,9 @@ final class MedxDemoFixtures {
             (id: "test_1", name: "ARISE Grand Test 1", subject: "All subjects", questions: 200, gradable: true),
             (id: "test_2", name: "ARISE Grand Test 2", subject: "All subjects", questions: 200, gradable: true),
             (id: "test_3", name: "Para-clinical Practice Paper", subject: "Pathology · Pharmacology · Microbiology", questions: 100, gradable: false),
-            (id: "test_4", name: "Clinical Practice Paper", subject: "Medicine · Surgery · OBG · Pediatrics", questions: 100, gradable: false)
+            (id: "test_4", name: "Clinical Practice Paper", subject: "Medicine · Surgery · OBG · Pediatrics", questions: 100, gradable: false),
+            // Shaped like a fresh upload: its questions carry no ids at all (see paperQuestions).
+            (id: "test_5", name: "ARISE Mock 7 (new upload)", subject: "All subjects", questions: 20, gradable: true)
         ]
         for test in batchTests {
             var fields: [String: MedxDemoValue] = [
@@ -793,7 +795,12 @@ final class MedxDemoFixtures {
         let seed = Int(MedxDemoHash.value(testId) % 991)
         let base = questionBase(for: "paper-\(testId)")
         return (0..<count).map { index in
-            MedxDemoQuestions.question(pool[(seed + index * 7) % pool.count], id: base + index + 1, number: index + 1, reference: nil)
+            var question = MedxDemoQuestions.question(pool[(seed + index * 7) % pool.count], id: base + index + 1, number: index + 1, reference: nil)
+            // The newest uploads arrive without question ids; the app has to tell them apart anyway.
+            if testId == "test_5" {
+                question["id"] = nil
+            }
+            return question
         }
     }
 

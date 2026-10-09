@@ -198,9 +198,14 @@ public extension View {
     @ViewBuilder
     func medxScrollEdge() -> some View {
         if #available(iOS 26.0, *) {
-            self.scrollEdgeEffectStyle(.soft, for: .all)
-        } else {
+            // Hard at the bottom: the floating tab bar sits over the list, and the soft edge let
+            // row text read straight through the glass ("Grand Test" legible inside the bar). The
+            // top keeps the system's own soft edge under the title.
             self
+                .scrollEdgeEffectStyle(.hard, for: .bottom)
+                .contentMargins(.bottom, 12, for: .scrollContent)
+        } else {
+            self.contentMargins(.bottom, 12, for: .scrollContent)
         }
     }
 

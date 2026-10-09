@@ -72,7 +72,7 @@ public struct VideosBatchListView: View {
             debugPick = all.first(where: { $0.name.localizedCaseInsensitiveContains("micro") }) ?? all.first
         }
         #endif
-        .navigationBarTitleDisplayMode(.large)
+        .toolbarTitleDisplayMode(.inlineLarge)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {

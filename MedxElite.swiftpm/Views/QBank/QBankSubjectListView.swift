@@ -79,7 +79,7 @@ public struct QBankSubjectListView: View {
         .medxBackdrop(.qbank)
         .medxScrollEdge()
         .navigationTitle("Question Bank")
-        .navigationBarTitleDisplayMode(.large)
+        .toolbarTitleDisplayMode(.inlineLarge)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {

@@ -30,3 +30,5 @@
 29-settings-mid -medxScreen settings -medxScroll 1
 30-settings-end -medxScreen settings -medxScroll 2
 31-runner-explanation -medxScreen runner-revision -medxScroll 1
+32-runner-batch -medxScreen runner-batch
+33-videosubject-swipe -medxScreen videosubject -medxSwipeOpen YES

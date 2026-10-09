@@ -54,8 +54,14 @@ public struct MainTabView: View {
                 NavigationStack {
                     CustomModulesView()
                         .toolbar {
-                            ToolbarItem(placement: .topBarLeading) {
-                                Button("Done") { appState.showCustomModules = false }
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button {
+                                    appState.showCustomModules = false
+                                } label: {
+                                    Text("Done")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(Color.primary)
+                                }
                             }
                         }
                 }
@@ -67,8 +73,14 @@ public struct MainTabView: View {
                 NavigationStack {
                     BookmarkedQuestionsView(uid: uid)
                         .toolbar {
-                            ToolbarItem(placement: .topBarLeading) {
-                                Button("Done") { appState.showBookmarks = false }
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button {
+                                    appState.showBookmarks = false
+                                } label: {
+                                    Text("Done")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(Color.primary)
+                                }
                             }
                         }
                 }

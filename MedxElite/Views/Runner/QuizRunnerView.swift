@@ -855,7 +855,7 @@ public struct QuizRunnerView: View {
                 return
             }
 
-            questions = loaded
+            questions = MedxQuestionIdentity.uniqued(loaded)
             currentIndex = 0
             furthestIndex = 0
             responses = [:]
@@ -910,6 +910,13 @@ public struct QuizRunnerView: View {
                   let wrong = question.options.first(where: { !question.correctIds.contains($0.id) })
             else { return }
             handlePickOption(question: question, chosenId: wrong.id)
+        case "runner-batch":
+            // A fresh upload with no question ids: answer the first, move to the second, which
+            // must still be open.
+            if let first = questions.first, let pick = first.correctIds.first ?? first.options.first?.id {
+                handlePickOption(question: first, chosenId: pick)
+            }
+            if questions.count > 1 { jump(to: 1) }
         case "runner-navigator":
             // Five answered, the sixth on screen with a pick, then the navigator over it.
             for question in questions.prefix(5) {

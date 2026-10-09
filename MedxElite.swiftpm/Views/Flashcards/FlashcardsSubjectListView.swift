@@ -66,7 +66,7 @@ public struct FlashcardsSubjectListView: View {
             .medxScrollEdge()
         }
         .navigationTitle("Cards")
-        .navigationBarTitleDisplayMode(.large)
+        .toolbarTitleDisplayMode(.inlineLarge)
         #if DEBUG
         // Screenshot runs only (`-medxScreen deck`): opens the first item once loaded.
         .navigationDestination(item: $debugPick) { item in

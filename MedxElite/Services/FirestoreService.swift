@@ -330,7 +330,11 @@ public actor FirestoreService {
             equals: testId,
             idToken: idToken
         )
-        return parts.sorted { ($0.part ?? 0) < ($1.part ?? 0) }.flatMap { $0.questions ?? [] }
+        let questions = parts.sorted { ($0.part ?? 0) < ($1.part ?? 0) }.flatMap { $0.questions ?? [] }
+        // A fresh upload can arrive with no question ids (every one decodes to 0) or with ids that
+        // restart in each part. Answers are filed by id, so either would make one answer show on
+        // many questions. Every caller (runner, faceoff, review) gets one id per question.
+        return MedxQuestionIdentity.uniqued(questions)
     }
 
     public func fetchFlashcardSubjects(idToken: String) async throws -> [FlashcardSubject] {

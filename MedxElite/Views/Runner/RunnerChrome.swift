@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Runner chrome
 //
@@ -590,6 +591,34 @@ struct RunnerActionBar: View {
 
     private var controlHeight: CGFloat { isPad ? 54 : 50 }
 
+    /// The app's floating tab bar on a Face ID iPhone, measured off the iPhone 14 Pro simulator on
+    /// iOS 26: 62 pt tall (a 50 pt control plus 6 pt of glass above and below), 21 pt in from each
+    /// side, and its bottom edge 21 pt above the bottom of the screen, which is inside the 34 pt
+    /// home-indicator safe area. The pill used to sit on top of that safe area (40 pt up) with
+    /// 16 pt sides, so it read as floating a little above where the tab bar lives.
+    private enum TabBarLine {
+        static let side: CGFloat = 21
+        static let bottomGap: CGFloat = 21
+    }
+
+    /// The key window's bottom safe area: 34 pt on a Face ID iPhone in portrait, 21 in landscape,
+    /// 0 on a Home-button phone.
+    private var windowBottomInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .safeAreaInsets.bottom ?? 0
+    }
+
+    /// Phone in portrait with a home indicator: the pill drops into the safe area to the tab
+    /// bar's exact line. Everywhere else it keeps a small gap above the safe area.
+    private var bottomPadding: CGFloat {
+        guard !isPad else { return 6 }
+        let inset = windowBottomInset
+        return inset >= 30 ? TabBarLine.bottomGap - inset : 6
+    }
+
     private var advanceTint: Color { isLastQuestion ? MedxDS.correct : MedxTheme.accent }
 
     var body: some View {
@@ -662,9 +691,9 @@ struct RunnerActionBar: View {
         .padding(6)
         .modifier(RunnerCapsuleGlass())
         .frame(maxWidth: isPad ? 560 : CGFloat.infinity)
-        .padding(.horizontal, MedxDS.gutter)
+        .padding(.horizontal, isPad ? MedxDS.gutter : TabBarLine.side)
         .padding(.top, 4)
-        .padding(.bottom, 6)
+        .padding(.bottom, bottomPadding)
         .animation(reduceMotion ? nil : MedxDS.snap, value: isLastQuestion)
         .animation(reduceMotion ? nil : MedxDS.snap, value: canAdvance)
     }

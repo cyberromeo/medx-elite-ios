@@ -363,10 +363,14 @@ public struct FaceoffLobbyView: View {
 
             Spacer(minLength: 0)
 
-            Button("Open") {
+            Button {
                 openRoom = MedxRoomRequest(id: game.id)
+            } label: {
+                // Same label height as the trash beside it, so the two capsules match.
+                Text("Open")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(height: 30)
             }
-            .font(.subheadline.weight(.semibold))
             .medxBorderedButton()
             .buttonBorderShape(.capsule)
 

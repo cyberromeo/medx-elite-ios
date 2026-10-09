@@ -123,13 +123,11 @@ public struct VodFeedView: View {
                 Section {
                     ForEach(day.items) { item in
                         row(item)
+                            .medxSwipeActions(
+                                leading: vodPlayActions(item),
+                                trailing: vodDownloadActions(item)
+                            )
                             .medxCardRow(vertical: 5)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                vodDownloadAction(item)
-                            }
-                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                vodPlayAction(item)
-                            }
                     }
                 } header: {
                     // Insets only — the header keeps the system's own sticky background, which is
@@ -320,39 +318,31 @@ public struct VodFeedView: View {
 
     /// Trailing swipe: save the recording, or delete a saved one. Skipped entirely for the rows the
     /// bucket gave no stream URL, which cannot be downloaded or played.
-    @ViewBuilder
-    private func vodDownloadAction(_ item: MedxVodItem) -> some View {
-        if item.streamUrl.isEmpty {
-            EmptyView()
-        } else if downloads.items[item.id]?.state == .completed {
-            Button(role: .destructive) {
-                HapticManager.warning()
-                downloads.remove(item.id)
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        } else {
-            Button {
+    private func vodDownloadActions(_ item: MedxVodItem) -> [MedxSwipeAction] {
+        guard !item.streamUrl.isEmpty else { return [] }
+        if downloads.items[item.id]?.state == .completed {
+            return [
+                MedxSwipeAction("Delete", icon: "trash", tint: MedxTheme.destructiveRed) {
+                    HapticManager.warning()
+                    downloads.remove(item.id)
+                }
+            ]
+        }
+        return [
+            MedxSwipeAction("Save", icon: "arrow.down.circle", tint: MedxTheme.successGreen) {
                 HapticManager.success()
                 downloads.start(item.asRecordedVideo, quality: .standard)
-            } label: {
-                Label("Save", systemImage: "arrow.down.circle")
             }
-            .tint(MedxTheme.successGreen)
-        }
+        ]
     }
 
-    @ViewBuilder
-    private func vodPlayAction(_ item: MedxVodItem) -> some View {
-        if !item.streamUrl.isEmpty {
-            Button {
-                HapticManager.light()
+    private func vodPlayActions(_ item: MedxVodItem) -> [MedxSwipeAction] {
+        guard !item.streamUrl.isEmpty else { return [] }
+        return [
+            MedxSwipeAction("Play", icon: "play.fill", tint: MedxCandy.blue) {
                 playing = item.asRecordedVideo
-            } label: {
-                Label("Play", systemImage: "play.fill")
             }
-            .tint(MedxCandy.blue)
-        }
+        ]
     }
 
     private func row(_ item: MedxVodItem) -> some View {

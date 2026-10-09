@@ -152,6 +152,17 @@ struct MedxEliteApp: App {
         case "downloads": appState.open(route: .downloads)
         case "settings": appState.open(route: .settings)
         case "module": appState.open(route: .module(demoModule))
+        case "runner-batch":
+            appState.startSitting(
+                RunnerPayload(
+                    kind: "test",
+                    id: "test_5",
+                    name: "ARISE Mock 7 (new upload)",
+                    subject: "All subjects",
+                    mode: .exam,
+                    gradable: true
+                )
+            )
         case "runner", "runner-revision", "review", "runner-navigator":
             appState.startSitting(
                 RunnerPayload(

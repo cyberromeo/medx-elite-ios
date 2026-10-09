@@ -28,3 +28,4 @@ L05-tests -medxScreen tests -medxLandscape YES
 L06-settings -medxScreen settings -medxLandscape YES
 L07-library -medxScreen library -medxLandscape YES
 L08-classes -medxScreen classes -medxLandscape YES
+P22-videosubject-swipe -medxScreen videosubject -medxSwipeOpen YES
