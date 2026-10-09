@@ -130,7 +130,8 @@ public struct QuizRunnerView: View {
                 "Pick up where you left off?",
                 isPresented: Binding(get: { resumeOffer != nil }, set: { if !$0 { resumeOffer = nil } })
             ) {
-                Button("Resume") {
+                // The cancel role, so the alert offers exactly two choices and Resume is the default.
+                Button("Resume", role: .cancel) {
                     if let snapshot = resumeOffer { applySnapshot(snapshot) }
                     resumeOffer = nil
                 }
@@ -1175,21 +1176,21 @@ public struct QuizRunnerView: View {
             showExitAlert = true
         case "runner-resume":
             // What opening a paper left half-way looks like.
-            let picks = questions.prefix(12).compactMap { question -> QuestionResponse? in
+            let picks = questions.prefix(5).compactMap { question -> QuestionResponse? in
                 guard let pick = question.correctIds.first ?? question.options.first?.id else { return nil }
                 return QuestionResponse(questionId: question.id, chosenId: pick, correct: question.correctIds.contains(pick))
             }
             resumeOffer = MedxSittingSnapshot(
                 fingerprint: MedxSittingSnapshot.fingerprint(questions),
                 mode: payload.mode.rawValue,
-                currentIndex: min(12, questions.count - 1),
-                furthestIndex: min(12, questions.count - 1),
+                currentIndex: min(5, questions.count - 1),
+                furthestIndex: min(5, questions.count - 1),
                 responses: picks,
                 revealed: [],
-                remainingSeconds: max(remainingSeconds - 754, 60),
+                remainingSeconds: max(capacitySeconds * 3 / 5, 60),
                 sectionIndex: 0,
                 sectionLog: [],
-                elapsedSeconds: 754,
+                elapsedSeconds: capacitySeconds * 2 / 5,
                 savedAt: Date()
             )
         case "review", "review-question", "review-custom":
