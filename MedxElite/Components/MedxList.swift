@@ -351,6 +351,52 @@ public struct MedxSwipeAction: Identifiable {
     }
 }
 
+/// When a row last moved sideways under a finger. The row's own tap target (a plain `Button`) still
+/// sees the touch end inside it after a swipe, so without this a swipe that started on the title
+/// was also taken as a tap and opened what the row opens (the player, on a class row).
+public final class MedxSwipeTapGuard {
+    var lastSideways: Date = .distantPast
+    public init() {}
+    /// True for a moment after a sideways drag: the touch that ends a swipe is not a tap.
+    public var swallowsTap: Bool { Date().timeIntervalSince(lastSideways) < 0.45 }
+    func markSideways() { lastSideways = Date() }
+}
+
+private struct MedxSwipeTapGuardKey: EnvironmentKey {
+    static var defaultValue: MedxSwipeTapGuard? { nil }
+}
+
+public extension EnvironmentValues {
+    /// Set by `medxSwipeActions` on the row it wraps.
+    var medxSwipeTapGuard: MedxSwipeTapGuard? {
+        get { self[MedxSwipeTapGuardKey.self] }
+        set { self[MedxSwipeTapGuardKey.self] = newValue }
+    }
+}
+
+/// The tap target of a swipeable card row: a plain button that ignores the touch which ends a
+/// swipe, so only a clean tap fires `action`.
+public struct MedxRowTapButton<Label: View>: View {
+    @Environment(\.medxSwipeTapGuard) private var tapGuard
+    private let action: () -> Void
+    private let label: Label
+
+    public init(action: @escaping () -> Void, @ViewBuilder label: () -> Label) {
+        self.action = action
+        self.label = label()
+    }
+
+    public var body: some View {
+        Button {
+            if tapGuard?.swallowsTap == true { return }
+            action()
+        } label: {
+            label
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 /// Which row is open, so opening one closes the last.
 @MainActor
 final class MedxSwipeCoordinator: ObservableObject {
@@ -370,6 +416,7 @@ private struct MedxSwipeRowModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var rowID = UUID()
+    @State private var tapGuard = MedxSwipeTapGuard()
     /// Positive: leading actions showing. Negative: trailing actions showing.
     @State private var reveal: CGFloat = 0
     @State private var dragBase: CGFloat?
@@ -413,6 +460,7 @@ private struct MedxSwipeRowModifier: ViewModifier {
                     tiles(trailing, width: trailingShown - Self.gap)
                 }
             }
+            .environment(\.medxSwipeTapGuard, tapGuard)
             .simultaneousGesture(drag)
             .onChange(of: isDragging) { _, dragging in
                 // The scroll view can take a drag over without an end event; settle either way.
@@ -494,6 +542,8 @@ private struct MedxSwipeRowModifier: ViewModifier {
                     dragBase = reveal
                     coordinator.openRow = rowID
                 }
+                // A swipe is never a tap, whichever way it went and whether or not it opened anything.
+                tapGuard.markSideways()
                 var next = (dragBase ?? 0) + dx
                 if leading.isEmpty { next = min(next, 0) }
                 if trailing.isEmpty { next = max(next, 0) }
@@ -512,6 +562,7 @@ private struct MedxSwipeRowModifier: ViewModifier {
     private func settleAfterDrag(predicted: CGFloat?) {
         guard dragBase != nil else { return }
         dragBase = nil
+        tapGuard.markSideways()
         let target = predicted ?? reveal
         withAnimation(settle) {
             if reveal > 0 {

@@ -125,3 +125,13 @@ public struct VideoSubjectGroup: Identifiable, Hashable, Sendable {
         }
     }
 }
+
+public extension String {
+    /// A class or video title as shown on screen. Stored titles from the backend use an em-dash
+    /// ("Anaesthesia — Class 3"); the app shows a plain hyphen. Display only: the stored value,
+    /// ids and search keys are never rewritten.
+    var medxDisplayTitle: String {
+        replacingOccurrences(of: " \u{2014} ", with: " - ")
+            .replacingOccurrences(of: "\u{2014}", with: "-")
+    }
+}

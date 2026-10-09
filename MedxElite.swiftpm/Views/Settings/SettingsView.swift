@@ -1559,7 +1559,7 @@ private struct WatchHistoryView: View {
                                 }
 
                                 VStack(alignment: .leading, spacing: 5) {
-                                    Text(entry.video.title)
+                                    Text(entry.video.title.medxDisplayTitle)
                                         .font(.headline)
                                         .foregroundStyle(.primary)
                                         .lineLimit(2)
@@ -1736,7 +1736,7 @@ struct ActivityLogView: View {
                                 MedxSymbolMark(item.symbol, hue: item.color, size: 34)
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(item.title)
+                                    Text(item.title.medxDisplayTitle)
                                         .font(.headline)
                                         .lineLimit(2)
 

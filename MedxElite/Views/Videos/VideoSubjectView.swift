@@ -37,15 +37,14 @@ public struct VideoSubjectView: View {
 
             Section {
                 ForEach(Array(subjectGroup.videos.enumerated()), id: \.element.id) { index, video in
+                    // Trailing only. A right swipe used to offer Play, which squeezed the card and
+                    // grew an oversized tile; play is a tap, and Clear sits in the long-press menu.
                     videoRow(video, index: index)
-                        .medxSwipeActions(
-                            leading: playbackSwipeActions(video),
-                            trailing: downloadSwipeActions(video)
-                        )
+                        .medxSwipeActions(trailing: downloadSwipeActions(video))
                         .medxCardRow()
                 }
             } footer: {
-                Text("Swipe a class left to save it offline, right to play it. Long-press for the quality menu.")
+                Text("Tap a class to play it. Swipe left to save it offline. Long-press for the quality menu.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .listRowInsets(
@@ -59,7 +58,7 @@ public struct VideoSubjectView: View {
             }
         }
         .medxCardList(.videos)
-        .navigationTitle(subjectGroup.name)
+        .navigationTitle(subjectGroup.name.medxDisplayTitle)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -131,35 +130,13 @@ public struct VideoSubjectView: View {
         ]
     }
 
-    /// Leading swipe: play, and — where there is something to forget — forget it.
-    private func playbackSwipeActions(_ video: RecordedVideo) -> [MedxSwipeAction] {
-        let history = activityStore.entry(for: video.id, uid: uid)
-        var actions = [
-            MedxSwipeAction(
-                (history?.resumePosition ?? 0) > 0 ? "Resume" : "Play",
-                icon: "play.fill",
-                tint: MedxCandy.violet
-            ) {
-                activeVideo = video
-            }
-        ]
-        if let history {
-            actions.append(
-                MedxSwipeAction("Clear", icon: "clock.badge.xmark", tint: MedxTheme.warningOrange) {
-                    HapticManager.warning()
-                    activityStore.removeWatchHistory(history, uid: uid)
-                }
-            )
-        }
-        return actions
-    }
-
     private func videoRow(_ video: RecordedVideo, index: Int) -> some View {
         let history = activityStore.entry(for: video.id, uid: uid)
         let isDownloaded = downloads.items[video.id]?.state == .completed
 
         return HStack(spacing: 8) {
-            Button {
+            // A tap plays; the touch that ends a swipe does not (see `MedxRowTapButton`).
+            MedxRowTapButton {
                 HapticManager.light()
                 activeVideo = video
             } label: {
@@ -174,7 +151,7 @@ public struct VideoSubjectView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(video.title)
+                        Text(video.title.medxDisplayTitle)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
                             .multilineTextAlignment(.leading)
@@ -221,9 +198,8 @@ public struct VideoSubjectView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Play \(video.title)")
+            .accessibilityLabel("Play \(video.title.medxDisplayTitle)")
 
             // A `Menu` nested inside a `Button` label never receives taps, so the download
             // control lives beside the play button rather than inside it.

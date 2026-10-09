@@ -209,16 +209,9 @@ public extension View {
     /// under a hard line.
     @ViewBuilder
     func medxScrollEdge() -> some View {
-        if #available(iOS 26.0, *) {
-            // Hard at the bottom: the floating tab bar sits over the list, and the soft edge let
-            // row text read straight through the glass ("Grand Test" legible inside the bar). The
-            // top keeps the system's own soft edge under the title.
-            self
-                .scrollEdgeEffectStyle(.hard, for: .bottom)
-                .contentMargins(.bottom, 12, for: .scrollContent)
-        } else {
-            self.contentMargins(.bottom, 12, for: .scrollContent)
-        }
+        // The system's own (soft) edge at both ends. A hard bottom edge drew a dark band with a
+        // line on top behind the minimised tab bar on iOS 27, so no style is forced here.
+        self.contentMargins(.bottom, 12, for: .scrollContent)
     }
 
     /// A secondary action. Deliberately does **not** set a border shape: the call sites that

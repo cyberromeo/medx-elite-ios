@@ -203,7 +203,7 @@ public struct VideosBatchListView: View {
             MedxSymbolMark(MedxSubjectArt.symbol(for: subject.name), hue: MedxCandy.violet, size: 38)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(subject.name)
+                Text(subject.name.medxDisplayTitle)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(2)
@@ -277,7 +277,7 @@ public struct VideosBatchListView: View {
                     }
                 }
 
-                Text(entry.video.title)
+                Text(entry.video.title.medxDisplayTitle)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(2)
@@ -307,7 +307,7 @@ public struct VideosBatchListView: View {
                 Label("Remove from history", systemImage: "trash")
             }
         }
-        .accessibilityLabel(entry.video.title)
+        .accessibilityLabel(entry.video.title.medxDisplayTitle)
         .accessibilityValue("\(Int(entry.progress * 100)) percent watched")
     }
 
@@ -700,7 +700,7 @@ struct DownloadsView: View {
                 .background(statusColor(item).opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.video.title)
+                Text(item.video.title.medxDisplayTitle)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(2)

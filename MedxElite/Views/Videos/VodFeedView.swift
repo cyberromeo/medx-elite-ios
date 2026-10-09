@@ -101,7 +101,7 @@ public struct VodFeedView: View {
 
     public var body: some View {
         // A `List`, so the bucket's ~2,900 rows take the platform's own swipe actions — pull a row
-        // left to save it offline, right to play it — and so the day headers become real section
+        // left to save it offline (play is a tap) — and so the day headers become real section
         // headers that stick to the top as you scroll back in time. `medxCardRow` keeps each row
         // drawing its own card, exactly as it did inside the stack this replaced.
         List {
@@ -122,11 +122,9 @@ public struct VodFeedView: View {
             ForEach(days) { day in
                 Section {
                     ForEach(day.items) { item in
+                        // Trailing only: play is a tap, never a swipe.
                         row(item)
-                            .medxSwipeActions(
-                                leading: vodPlayActions(item),
-                                trailing: vodDownloadActions(item)
-                            )
+                            .medxSwipeActions(trailing: vodDownloadActions(item))
                             .medxCardRow(vertical: 5)
                     }
                 } header: {
@@ -335,15 +333,6 @@ public struct VodFeedView: View {
         ]
     }
 
-    private func vodPlayActions(_ item: MedxVodItem) -> [MedxSwipeAction] {
-        guard !item.streamUrl.isEmpty else { return [] }
-        return [
-            MedxSwipeAction("Play", icon: "play.fill", tint: MedxCandy.blue) {
-                playing = item.asRecordedVideo
-            }
-        ]
-    }
-
     private func row(_ item: MedxVodItem) -> some View {
         let label = item.display
         let watched = activityStore.entry(for: item.id, uid: uid)
@@ -352,7 +341,7 @@ public struct VodFeedView: View {
         let saved = downloads.items[item.id]?.state == .completed
 
         return HStack(spacing: 8) {
-            Button {
+            MedxRowTapButton {
                 guard !item.streamUrl.isEmpty else {
                     HapticManager.error()
                     return
@@ -371,7 +360,7 @@ public struct VodFeedView: View {
                     )
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(label.title)
+                        Text(label.title.medxDisplayTitle)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(2)
@@ -406,10 +395,9 @@ public struct VodFeedView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
             .disabled(item.streamUrl.isEmpty)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel(label.title)
+            .accessibilityLabel(label.title.medxDisplayTitle)
             .accessibilityValue([label.sub, item.formattedDuration, isNew ? "new" : "", saved ? "saved offline" : ""]
                 .filter { !$0.isEmpty }
                 .joined(separator: ", "))

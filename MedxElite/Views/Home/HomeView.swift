@@ -434,7 +434,7 @@ public struct HomeView: View {
                         .background(MedxTheme.accent, in: Circle())
 
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(entry.video.title)
+                        Text(entry.video.title.medxDisplayTitle)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(2)
@@ -456,7 +456,7 @@ public struct HomeView: View {
                 .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Resume \(entry.video.title)")
+            .accessibilityLabel("Resume \(entry.video.title.medxDisplayTitle)")
             .accessibilityValue("\(Int(entry.progress * 100)) percent watched")
             .contextMenu {
                 Button {
