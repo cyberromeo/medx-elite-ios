@@ -194,6 +194,20 @@ public final class HLSProxyServer: ObservableObject {
         return (response as? HTTPURLResponse)?.statusCode == 200
     }
 
+    /// The local address of a finished download: `http://127.0.0.1:<port>/offline/<folder>/local.m3u8`.
+    ///
+    /// Offline classes are served by this loopback server, the same way streams are, because
+    /// AVFoundation will not fetch an HLS stream's video segments through an
+    /// `AVAssetResourceLoader` custom scheme. The old `medxoffline://` route loaded the playlist
+    /// and then failed on the first segment, so every download silently fell back to the online
+    /// stream: fine with signal, "Playback Error" without it. Loopback needs no network at all.
+    public func offlineURL(videoId: String) -> URL? {
+        guard isRunning, port > 0 else { return nil }
+        let folder = VideoDownloadStore.folderName(for: videoId)
+        let encoded = folder.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? folder
+        return URL(string: "http://127.0.0.1:\(port)/offline/\(encoded)/\(VideoDownloadStore.playlistFileName)")
+    }
+
     /// Convert a remote stream URL to a local proxied URL
     public func proxiedURL(for remoteURL: String) -> URL? {
         guard isRunning, port > 0 else { return nil }
@@ -266,9 +280,15 @@ public final class HLSProxyServer: ObservableObject {
                 return
             }
 
-            // Only GET /proxy?url=… is served now that offline playback is handled by
-            // `MedxOfflineAssetLoader` rather than a second route on this server.
+            // GET /proxy?url=… streams a class; GET /offline/<folder>/<file> serves a download
+            // straight off the disk (see `serveOffline`).
             let path = parts[1]
+
+            if path.hasPrefix("/offline/") {
+                let range = lines.first { $0.lowercased().hasPrefix("range:") }
+                self.serveOffline(path: path, rangeHeader: range, connection: connection)
+                return
+            }
 
             // `/health` exists so `waitUntilRunning` can ask the socket rather than trusting a
             // `@Published` flag that stops being updated the moment the process suspends.
@@ -379,6 +399,88 @@ public final class HLSProxyServer: ObservableObject {
         }
 
         return Data(rewritten.joined(separator: "\n").utf8)
+    }
+
+    // MARK: - Offline files
+
+    /// Serves one file of a finished download from the app container, with byte ranges.
+    ///
+    /// The folder is resolved against `VideoDownloadStore.rootDirectory()` on every request, never
+    /// a stored absolute path, so a download survives the container moving on an app update.
+    private func serveOffline(path: String, rangeHeader: String?, connection: NWConnection) {
+        let clean = path.components(separatedBy: "?").first ?? path
+        let pieces = clean.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        guard pieces.count == 3, pieces[0] == "offline",
+              let folder = pieces[1].removingPercentEncoding,
+              let file = pieces[2].removingPercentEncoding,
+              MedxOfflineScheme.isSafeComponent(folder),
+              MedxOfflineScheme.isSafeComponent(file) else {
+            sendError(connection: connection, code: 400, message: "Bad Request")
+            return
+        }
+
+        let fileURL = VideoDownloadStore.rootDirectory()
+            .appendingPathComponent(folder, isDirectory: true)
+            .appendingPathComponent(file)
+        guard let data = try? Data(contentsOf: fileURL, options: .mappedIfSafe), !data.isEmpty else {
+            sendError(connection: connection, code: 404, message: "Not Found")
+            return
+        }
+
+        var status = "200 OK"
+        var body = data
+        var rangeLine = ""
+        if let rangeHeader, let range = Self.byteRange(rangeHeader, size: data.count) {
+            body = data.subdata(in: range)
+            status = "206 Partial Content"
+            rangeLine = "Content-Range: bytes \(range.lowerBound)-\(range.upperBound - 1)/\(data.count)\r\n"
+        }
+
+        var head = "HTTP/1.1 \(status)\r\n"
+        head += "Content-Type: \(Self.offlineMimeType(for: file))\r\n"
+        head += "Content-Length: \(body.count)\r\n"
+        head += "Accept-Ranges: bytes\r\n"
+        head += rangeLine
+        head += "Cache-Control: no-store\r\n"
+        head += "Connection: close\r\n\r\n"
+
+        var response = Data(head.utf8)
+        response.append(body)
+        connection.send(content: response, completion: .contentProcessed { _ in
+            connection.cancel()
+        })
+    }
+
+    /// `Range: bytes=a-b`, `bytes=a-` or `bytes=-n`, clamped to the file. Nil means "send it all".
+    static func byteRange(_ header: String, size: Int) -> Range<Int>? {
+        guard size > 0, let equals = header.firstIndex(of: "=") else { return nil }
+        let spec = header[header.index(after: equals)...]
+            .split(separator: ",").first.map(String.init)?
+            .trimmingCharacters(in: .whitespaces) ?? ""
+        let bounds = spec.split(separator: "-", omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+        guard bounds.count == 2 else { return nil }
+
+        if bounds[0].isEmpty {
+            guard let suffix = Int(bounds[1]), suffix > 0 else { return nil }
+            return max(0, size - suffix)..<size
+        }
+        guard let start = Int(bounds[0]), start >= 0, start < size else { return nil }
+        let end = Int(bounds[1]).map { min($0, size - 1) } ?? (size - 1)
+        guard end >= start else { return nil }
+        return start..<(end + 1)
+    }
+
+    static func offlineMimeType(for file: String) -> String {
+        switch (file as NSString).pathExtension.lowercased() {
+        case "m3u8", "m3u": return "application/vnd.apple.mpegurl"
+        case "ts": return "video/mp2t"
+        case "mp4", "m4s", "m4v": return "video/mp4"
+        case "m4a": return "audio/mp4"
+        case "aac": return "audio/aac"
+        case "vtt": return "text/vtt"
+        default: return "application/octet-stream"
+        }
     }
 
     // MARK: - Error Response

@@ -680,6 +680,15 @@ struct DownloadsView: View {
         .fullScreenCover(item: $activeVideo) { video in
             VideoPlayerView(video: video) { activeVideo = nil }
         }
+        #if DEBUG
+        // Screenshot runs only (`-medxScreen player-offline`): plays the saved test class.
+        .task {
+            guard MedxDemoMode.isOn,
+                  UserDefaults.standard.string(forKey: "medxScreen") == "player-offline" else { return }
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            activeVideo = finished.first(where: { $0.id == MedxOfflineFixture.videoId })?.video
+        }
+        #endif
     }
 
     private func row(_ item: DownloadedVideo) -> some View {

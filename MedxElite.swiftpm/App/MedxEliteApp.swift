@@ -149,7 +149,7 @@ struct MedxEliteApp: App {
         case "custom": appState.open(route: .customModules)
         case "faceoff": appState.open(route: .faceoff)
         case "bookmarks": appState.open(route: .bookmarks)
-        case "downloads": appState.open(route: .downloads)
+        case "downloads", "player-offline": appState.open(route: .downloads)
         case "settings": appState.open(route: .settings)
         case "module": appState.open(route: .module(demoModule))
         case "runner-batch":

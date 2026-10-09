@@ -22,6 +22,8 @@ public struct VideoPlayerView: View {
     @State private var failureObserver: NSObjectProtocol?
     @State private var lastCloudSyncTime = Date.distantPast
     @State private var usingOfflineCopy = false
+    /// Which way the saved copy is being served, for the diagnostics row.
+    @State private var offlineRoute = "offline copy"
     @State private var forceOnlinePlayback = false
     @State private var showOfflineBadge = false
     /// One retry through a freshly bound proxy, and only one. See `watchForLoadFailure`.
@@ -145,6 +147,8 @@ public struct VideoPlayerView: View {
                 Button {
                     HapticManager.light()
                     hasError = false
+                    // Retry tries the saved copy again too, not only the stream it fell back to.
+                    forceOnlinePlayback = false
                     setupProxyAndPlayer()
                 } label: {
                     Label("Retry", systemImage: "arrow.clockwise")
@@ -174,15 +178,27 @@ public struct VideoPlayerView: View {
         hasRetriedThroughProxy = false
         configureAudioSession()
 
-        // Offline first, and with no dependency on the proxy: a download is served by
-        // `MedxOfflineAssetLoader` straight out of the app container, so playback starts
-        // immediately and works with the local server stopped or unbound.
-        if !forceOnlinePlayback,
-           let video,
-           hasOfflineCopy(video),
-           let asset = offlineLoader.makeAsset(videoId: video.id) {
+        // Offline first, before any network call. A download is served by the app's own
+        // loopback server straight out of the app container (`HLSProxyServer.offlineURL`), which
+        // needs no network. It used to go through `MedxOfflineAssetLoader`'s custom URL scheme,
+        // but AVFoundation does not load an HLS stream's video segments that way: the playlist
+        // loaded, the first segment failed, and the player quietly fell back to the online
+        // stream. With signal that hid the bug; without it the class showed "Playback Error".
+        // The custom scheme stays only as a last resort if the local server cannot bind.
+        if !forceOnlinePlayback, let video, hasOfflineCopy(video) {
             usingOfflineCopy = true
-            createPlayer(with: asset)
+            let videoId = video.id
+            Task { @MainActor in
+                if await proxy.waitUntilRunning(), let url = proxy.offlineURL(videoId: videoId) {
+                    offlineRoute = "offline copy via local server"
+                    createPlayer(with: AVURLAsset(url: url))
+                } else if let asset = offlineLoader.makeAsset(videoId: videoId) {
+                    offlineRoute = "offline copy via custom scheme"
+                    createPlayer(with: asset)
+                } else {
+                    fallBackToOnlinePlayback()
+                }
+            }
             return
         }
 
@@ -252,6 +268,20 @@ public struct VideoPlayerView: View {
         player = newPlayer
         watchForLoadFailure(of: newPlayer)
 
+        #if DEBUG
+        // Screenshot runs: one line in the console saying which route played and whether time moved.
+        if MedxDemoMode.isOn {
+            let route = usingOfflineCopy ? offlineRoute : playbackContext
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                let status = newPlayer.currentItem?.status.rawValue ?? -1
+                let line = "[OfflineCheck] route=\(route) status=\(status) time=\(String(format: "%.1f", newPlayer.currentTime().seconds))"
+                NSLog("%@", line as NSString)
+                print(line)
+            }
+        }
+        #endif
+
         guard usingOfflineCopy else { return }
         withAnimation(.easeOut(duration: 0.25)) { showOfflineBadge = true }
 
@@ -283,10 +313,17 @@ public struct VideoPlayerView: View {
                     return
                 case .failed:
                     let failure = watched.currentItem?.error
-                    if usingOfflineCopy {
+                    if usingOfflineCopy, !hasRetriedThroughProxy {
+                        // The local server's socket can die while the app is suspended, exactly as
+                        // it does for streams. Rebind once and serve the download again before
+                        // reaching for the network.
+                        hasRetriedThroughProxy = true
+                        MedxPlaybackDiagnostics.shared.record(failure, context: "\(offlineRoute) failed, retrying on a fresh port")
+                        retryOfflineThroughFreshProxy()
+                    } else if usingOfflineCopy {
                         // A rewritten local playlist can still be rejected; fall back rather
                         // than dead-end.
-                        MedxPlaybackDiagnostics.shared.record(failure, context: "offline playlist rejected")
+                        MedxPlaybackDiagnostics.shared.record(failure, context: "\(offlineRoute) rejected")
                         fallBackToOnlinePlayback()
                     } else if !hasRetriedThroughProxy {
                         // The streaming failure this catches is almost always a dead proxy port: the app
@@ -408,6 +445,27 @@ public struct VideoPlayerView: View {
             _ = await proxy.waitUntilRunning()
             guard let asset = streamingAsset() else { return }
             createPlayer(with: asset)
+        }
+    }
+
+    /// Same as `retryThroughFreshProxy`, for a download: rebinds the local server and serves the
+    /// saved copy again, still with no network.
+    @MainActor
+    private func retryOfflineThroughFreshProxy() {
+        guard let video else { return fallBackToOnlinePlayback() }
+        removeObservers()
+        player?.pause()
+        player?.replaceCurrentItem(with: nil)
+        player = nil
+
+        let videoId = video.id
+        Task { @MainActor in
+            await proxy.revalidate()
+            if await proxy.waitUntilRunning(), let url = proxy.offlineURL(videoId: videoId) {
+                createPlayer(with: AVURLAsset(url: url))
+            } else {
+                fallBackToOnlinePlayback()
+            }
         }
     }
 
