@@ -26,6 +26,8 @@ public struct QuizRunnerView: View {
     @State private var firedHaptic50 = false
     @State private var firedHaptic20 = false
     @State private var loadState: RunnerLoadState = .loading
+    /// A load in flight, so two overlapping `.task` runs cannot both reset the sitting.
+    @State private var isLoadingSitting = false
     @State private var isFinished = false
     @State private var showExitAlert = false
     @State private var showNavigator = false
@@ -1037,6 +1039,14 @@ public struct QuizRunnerView: View {
     }
 
     private func loadSittingQuestions() async {
+        // Once a paper is on screen it is never loaded again under the student. `.task` runs
+        // again whenever the runner re-appears (a full-screen figure closing over it, the cover
+        // being re-presented), and every run reset the sitting to question 1 with no answers:
+        // Next moved on, then the paper snapped back. Only "Try Again" after a failure reloads.
+        guard loadState != .ready || questions.isEmpty else { return }
+        guard !isLoadingSitting else { return }
+        isLoadingSitting = true
+        defer { isLoadingSitting = false }
         do {
             let loaded: [Question]
 
