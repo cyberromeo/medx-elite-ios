@@ -33,56 +33,48 @@ public struct SettingsView: View {
     public var body: some View {
         NavigationStack {
             ScrollViewReader { scroller in
-                List {
-                    // MARK: Profile
-                    if let profile = authService.currentProfile {
-                        Section {
-                            profileHero(profile)
-                                .listRowInsets(EdgeInsets())
-                                .listRowBackground(Color.clear)
+                ScrollView {
+                    VStack(spacing: 18) {
+                        if let profile = authService.currentProfile {
+                            identityHeader(profile)
                         }
 
-                        Section {
-                            libraryTiles
-                                .listRowInsets(EdgeInsets())
-                                .listRowBackground(Color.clear)
-                        }
+                        progressCard
+
+                        libraryGrid
+
+                        studyPlanCard
+
+                        remindersCard
+                            .id("settings.mid")
+
+                        lookCard
+
+                        syncStorageCard
+
+                        accountCard
+
+                        advancedCard
+
+                        aboutFooter
+                            .id("settings.end")
                     }
-
-                    Group {
-                        examGoalsSection
-
-                        remindersSection
-
-                        appearanceSection
-                    }
-
-                    Group {
-                        dataSection
-
-                        storageSection
-
-                        advancedSection
-                    }
-
-                    Group {
-                        accountSection
-
-                        aboutSection
-                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 6)
+                    .padding(.bottom, 36)
+                    // On iPad the page stays a readable column instead of a stretched form.
+                    .frame(maxWidth: 640)
+                    .frame(maxWidth: .infinity)
                 }
-                .listStyle(.insetGrouped)
-                .listSectionSpacing(.compact)
-                .labelStyle(MedxSettingsLabelStyle())
-                .scrollContentBackground(.hidden)
-                .medxBackdrop(.home, intensity: 0.7)
+                .scrollIndicators(.hidden)
+                .medxBackdrop(.home, intensity: 0.9)
                 #if DEBUG
                 .task {
                     // Screenshot runs only: `-medxScroll 1|2` scrolls to the middle or the end.
                     let target = UserDefaults.standard.integer(forKey: "medxScroll")
                     guard target > 0 else { return }
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
-                    scroller.scrollTo(target == 1 ? "settings.mid" : "settings.end", anchor: target == 1 ? .center : .bottom)
+                    scroller.scrollTo(target == 1 ? "settings.mid" : "settings.end", anchor: target == 1 ? .top : .bottom)
                 }
                 #endif
             }
@@ -152,94 +144,118 @@ public struct SettingsView: View {
         .presentationCornerRadius(28)
     }
 
-    // MARK: - Profile hero
+    // MARK: - Identity
 
-    /// The person, not a form row: the avatar on a ring of their own colours, their name, and the
-    /// four numbers that describe where they are in their preparation.
-    private func profileHero(_ profile: Profile) -> some View {
+    /// The email under the name. Demo runs (simulator screenshots, published publicly) show a
+    /// placeholder rather than a real address.
+    private func shownEmail(_ profile: Profile) -> String {
+        #if DEBUG
+        if MedxDemoMode.isOn { return "sri@example.com" }
+        #endif
+        return profile.email
+    }
+
+    /// The top of the page is the person: their face on a ring of their own colours, their name,
+    /// the exam they are counting down to, and three numbers that say how it is going.
+    private func identityHeader(_ profile: Profile) -> some View {
         // Read here, in `body`'s isolation: `PhotosPicker`'s label closure is not main-actor
         // isolated, so it must not reach into `AvatarStore` itself.
         let hasPhoto = avatars.hasImage(for: profile.id)
         let start = Color(hex: profile.gradientStart)
         let end = Color(hex: profile.gradientEnd)
+        let days = max(stats.daysToExam, 0)
 
-        return VStack(spacing: 16) {
-            HStack(alignment: .center, spacing: 16) {
-                ZStack(alignment: .bottomTrailing) {
-                    ProfileAvatarView(profile: profile, size: 76, showsRing: false)
-                        .padding(4)
-                        .background(
-                            Circle().strokeBorder(
-                                LinearGradient(colors: [start, end], startPoint: .topLeading, endPoint: .bottomTrailing),
-                                lineWidth: 3
+        return VStack(spacing: 14) {
+            ZStack(alignment: .bottomTrailing) {
+                ProfileAvatarView(profile: profile, size: 92, showsRing: false)
+                    .padding(5)
+                    .background(
+                        Circle().strokeBorder(
+                            AngularGradient(colors: [start, end, start], center: .center),
+                            lineWidth: 3.5
+                        )
+                    )
+                    .shadow(color: end.opacity(0.35), radius: 16, y: 6)
+
+                PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(LinearGradient(colors: [start, end], startPoint: .topLeading, endPoint: .bottomTrailing)))
+                        .overlay(Circle().strokeBorder(Color(uiColor: .systemBackground), lineWidth: 3))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(hasPhoto ? "Change profile photo" : "Add profile photo")
+            }
+
+            VStack(spacing: 3) {
+                Text(profile.displayName)
+                    .font(.system(.title, design: .rounded, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text("@\(profile.handle)  ·  \(shownEmail(profile))")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(Color.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                if hasPhoto {
+                    Button("Remove photo", role: .destructive) {
+                        HapticManager.medium()
+                        avatars.removeImage(for: profile.id)
+                    }
+                    .font(.caption.weight(.semibold))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(MedxTheme.destructiveRed)
+                    .padding(.top, 2)
+                }
+            }
+
+            // The countdown is the page's headline: it is what every number below is for.
+            HStack(spacing: 8) {
+                Image(systemName: "hourglass")
+                    .font(.system(size: 14, weight: .bold))
+                Text("\(days)")
+                    .font(MedxType.figure(17, weight: .heavy))
+                Text(days == 1 ? "day to \(stats.examName)" : "days to \(stats.examName)")
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .frame(height: 38)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(LinearGradient(colors: [start, end], startPoint: .leading, endPoint: .trailing))
+            )
+            .shadow(color: end.opacity(0.3), radius: 10, y: 4)
+
+            HStack(spacing: 10) {
+                identityStat(value: "\(stats.streakDays)", label: "day streak", icon: "flame.fill", tint: MedxDS.warn)
+                identityStat(value: overallAccuracy.map { "\($0)%" } ?? "–", label: "accuracy", icon: "scope", tint: MedxDS.correct)
+                identityStat(value: "\(attempts.count)", label: "sittings", icon: "checklist", tint: start)
+            }
+        }
+        .padding(.vertical, 22)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity)
+        .background {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [start.opacity(0.30), end.opacity(0.14), .clear],
+                                startPoint: .top,
+                                endPoint: .bottom
                             )
                         )
-
-                    PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 28, height: 28)
-                            .background(Circle().fill(end))
-                            .overlay(Circle().strokeBorder(Color(uiColor: .systemBackground), lineWidth: 2.5))
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel(hasPhoto ? "Change profile photo" : "Add profile photo")
                 }
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(profile.displayName)
-                        .font(.title2.weight(.bold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    Text("@\(profile.handle)")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(MedxCandy.onSoft(start))
-                        .lineLimit(1)
-                    Text(profile.email)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-
-                    if hasPhoto {
-                        Button(role: .destructive) {
-                            HapticManager.medium()
-                            avatars.removeImage(for: profile.id)
-                        } label: {
-                            Text("Remove photo")
-                                .font(.caption.weight(.semibold))
-                        }
-                        .buttonStyle(.borderless)
-                        .padding(.top, 2)
-                    }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .strokeBorder(start.opacity(0.25), lineWidth: 1)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            HStack(spacing: 8) {
-                heroStat(value: "\(stats.streakDays)", label: "day streak", icon: "flame.fill", tint: MedxDS.warn)
-                heroStat(value: "\(attempts.count)", label: "sittings", icon: "checklist", tint: start)
-                heroStat(value: overallAccuracy.map { "\($0)%" } ?? "–", label: "accuracy", icon: "scope", tint: MedxDS.correct)
-                heroStat(value: "\(max(stats.daysToExam, 0))", label: "days left", icon: "calendar", tint: end)
-            }
-        }
-        .padding(18)
-        .background {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                .overlay(alignment: .top) {
-                    LinearGradient(
-                        colors: [start.opacity(0.32), end.opacity(0.10), .clear],
-                        startPoint: .topLeading,
-                        endPoint: .bottom
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-                }
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .strokeBorder(start.opacity(0.25), lineWidth: 1)
         }
     }
 
@@ -251,29 +267,102 @@ public struct SettingsView: View {
         return Int((Double(correct) / Double(attempted) * 100).rounded())
     }
 
-    private func heroStat(value: String, label: String, icon: String, tint: Color) -> some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(tint)
-            Text(value)
-                .font(MedxType.figure(18, weight: .bold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .contentTransition(.numericText())
+    private func identityStat(value: String, label: String, icon: String, tint: Color) -> some View {
+        VStack(spacing: 3) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(tint)
+                Text(value)
+                    .font(MedxType.figure(20, weight: .bold))
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .contentTransition(.numericText())
+            }
             Text(label)
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.secondary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.primary.opacity(0.05)))
+        .padding(.vertical, 11)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.primary.opacity(0.06)))
     }
 
-    // MARK: - Library tiles
+    // MARK: - This week
+
+    /// Today's goal as a ring beside the last seven days as bars: the progress the page is about.
+    private var progressCard: some View {
+        let week = stats.weeklyAnswered
+        let peak = max(week.max() ?? 0, stats.dailyGoal, 1)
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let labels: [String] = (0..<7).map { offset in
+            let day = calendar.date(byAdding: .day, value: offset - 6, to: today) ?? today
+            return String(day.formatted(.dateTime.weekday(.narrow)))
+        }
+
+        return ProfileCard(title: "This week", icon: "chart.bar.fill", tint: MedxCandy.tangerine) {
+            HStack(alignment: .center, spacing: 18) {
+                ZStack {
+                    Circle()
+                        .stroke(MedxTheme.accent.opacity(0.16), lineWidth: 10)
+                    Circle()
+                        .trim(from: 0, to: min(stats.goalFraction, 1))
+                        .stroke(
+                            AngularGradient(colors: [MedxTheme.accent.opacity(0.6), MedxTheme.accent], center: .center),
+                            style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                    VStack(spacing: 0) {
+                        Text("\(stats.answeredToday)")
+                            .font(MedxType.figure(22, weight: .bold))
+                            .foregroundStyle(Color.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                        Text("of \(stats.dailyGoal)")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color.secondary)
+                    }
+                    .padding(10)
+                }
+                .frame(width: 92, height: 92)
+                .accessibilityElement()
+                .accessibilityLabel("\(stats.answeredToday) of \(stats.dailyGoal) answered today")
+
+                HStack(alignment: .bottom, spacing: 6) {
+                    ForEach(0..<7, id: \.self) { index in
+                        let value = index < week.count ? week[index] : 0
+                        VStack(spacing: 5) {
+                            Capsule(style: .continuous)
+                                .fill(
+                                    index == 6
+                                        ? AnyShapeStyle(LinearGradient(colors: [MedxTheme.accent.opacity(0.7), MedxTheme.accent], startPoint: .bottom, endPoint: .top))
+                                        : AnyShapeStyle(MedxTheme.accent.opacity(0.32))
+                                )
+                                .frame(height: max(6, 72 * CGFloat(value) / CGFloat(peak)))
+                            Text(labels[index])
+                                .font(.caption2.weight(index == 6 ? .heavy : .semibold))
+                                .foregroundStyle(index == 6 ? Color.primary : Color.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(height: 96, alignment: .bottom)
+                .accessibilityElement()
+                .accessibilityLabel("Questions answered over the last seven days: \(week.map(String.init).joined(separator: ", "))")
+            }
+
+            Text(stats.isGoalMet
+                 ? "Goal met today. \(stats.answeredToday) answered."
+                 : "\(stats.remainingToGoal) more to today's goal of \(stats.dailyGoal).")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(Color.secondary)
+        }
+    }
+
+    // MARK: - Library
 
     private enum SettingsRoute: Hashable {
         case downloads, bookmarks, history, activity, advanced
@@ -295,42 +384,44 @@ public struct SettingsView: View {
         }
     }
 
-    /// The four places a student's own things live, as tiles rather than four identical rows.
-    private var libraryTiles: some View {
+    private var libraryGrid: some View {
         let uid = authService.currentSession?.uid
-        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-            libraryTile(
-                .downloads,
-                title: "Downloads",
-                detail: downloads.completedItems.isEmpty ? "Nothing saved" : downloads.formattedTotalSize,
-                count: downloads.completedItems.count,
-                icon: "arrow.down.circle.fill",
-                tint: MedxCandy.mint
-            )
-            libraryTile(
-                .bookmarks,
-                title: "Bookmarks",
-                detail: "Saved questions",
-                count: activityStore.bookmarks(for: uid).count,
-                icon: "bookmark.fill",
-                tint: MedxCandy.violet
-            )
-            libraryTile(
-                .history,
-                title: "Watch history",
-                detail: "Classes you started",
-                count: activityStore.watchHistory(for: uid).count,
-                icon: "play.circle.fill",
-                tint: MedxCandy.blue
-            )
-            libraryTile(
-                .activity,
-                title: "Activity log",
-                detail: "Every sitting",
-                count: activityStore.watchHistory(for: uid).count + attempts.count,
-                icon: "chart.bar.doc.horizontal.fill",
-                tint: MedxCandy.tangerine
-            )
+        return VStack(alignment: .leading, spacing: 10) {
+            ProfileSectionTitle("Your library")
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                libraryTile(
+                    .downloads,
+                    title: "Downloads",
+                    detail: downloads.completedItems.isEmpty ? "Nothing saved" : downloads.formattedTotalSize,
+                    count: downloads.completedItems.count,
+                    icon: "arrow.down.circle.fill",
+                    tint: MedxCandy.mint
+                )
+                libraryTile(
+                    .bookmarks,
+                    title: "Bookmarks",
+                    detail: "Saved questions",
+                    count: activityStore.bookmarks(for: uid).count,
+                    icon: "bookmark.fill",
+                    tint: MedxCandy.violet
+                )
+                libraryTile(
+                    .history,
+                    title: "Watch history",
+                    detail: "Classes you started",
+                    count: activityStore.watchHistory(for: uid).count,
+                    icon: "play.circle.fill",
+                    tint: MedxCandy.blue
+                )
+                libraryTile(
+                    .activity,
+                    title: "Activity log",
+                    detail: "Every sitting",
+                    count: activityStore.watchHistory(for: uid).count + attempts.count,
+                    icon: "chart.bar.doc.horizontal.fill",
+                    tint: MedxCandy.tangerine
+                )
+            }
         }
     }
 
@@ -346,16 +437,16 @@ public struct SettingsView: View {
             HapticManager.selection()
             route = target
         } label: {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top) {
                     Image(systemName: icon)
                         .font(.system(size: 17, weight: .bold))
                         .foregroundStyle(MedxCandy.onSolid)
-                        .frame(width: 36, height: 36)
-                        .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(tint))
+                        .frame(width: 38, height: 38)
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(tint))
                     Spacer(minLength: 4)
                     Text("\(count)")
-                        .font(MedxType.figure(20, weight: .bold))
+                        .font(MedxType.figure(22, weight: .bold))
                         .foregroundStyle(Color.primary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
@@ -374,317 +465,121 @@ public struct SettingsView: View {
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .fill(Color(uiColor: .secondarySystemGroupedBackground))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(tint.opacity(0.28), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(tint.opacity(0.3), lineWidth: 1)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(MedxPressStyle())
         .accessibilityLabel("\(title), \(count)")
     }
 
-    // MARK: - Data & sync
+    // MARK: - Study plan
 
-    private var dataSection: some View {
-        Section {
-            HStack(spacing: 12) {
-                Label {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Cloud sync")
-                            .font(.body)
-                        if let lastSync = activityStore.lastSyncedAt {
-                            Text("Last synced \(RelativeDateTimeFormatter().localizedString(for: lastSync, relativeTo: Date()))")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text("Syncs automatically on every change")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+    private var studyPlanCard: some View {
+        ProfileCard(title: "Study plan", icon: "target", tint: MedxCandy.pink) {
+            ProfileRow(icon: "calendar.badge.clock", tint: MedxCandy.pink, title: "Exam date") {
+                DatePicker("", selection: $stats.examDate, in: Date()..., displayedComponents: .date)
+                    .labelsHidden()
+            }
+            ProfileDivider()
+            ProfileRow(icon: "target", tint: MedxCandy.tangerine, title: "Daily goal", detail: "questions a day") {
+                HStack(spacing: 10) {
+                    Text("\(stats.dailyGoal)")
+                        .font(MedxType.figure(17, weight: .bold))
+                        .foregroundStyle(Color.primary)
+                        .contentTransition(.numericText())
+                    Stepper("") {
+                        stats.dailyGoal = min(stats.dailyGoal + 10, 300)
+                    } onDecrement: {
+                        stats.dailyGoal = max(stats.dailyGoal - 10, 10)
                     }
-                } icon: {
-                    Image(systemName: "icloud.fill")
-                        .foregroundStyle(MedxTheme.cyanAccent)
+                    .labelsHidden()
                 }
+            }
+        }
+    }
 
-                Spacer(minLength: 0)
+    // MARK: - Reminders
 
+    private var remindersCard: some View {
+        ProfileCard(title: "Reminders", icon: "bell.badge.fill", tint: MedxCandy.violet) {
+            if !reminders.isAuthorized {
                 Button {
-                    guard let uid = authService.currentSession?.uid else { return }
-                    isManualSyncing = true
-                    HapticManager.selection()
                     Task {
-                        await activityStore.syncWithCloud(uid: uid)
-                        await loadAttempts()
-                        isManualSyncing = false
-                        HapticManager.success()
+                        let granted = await reminders.requestAuthorization()
+                        if granted { HapticManager.success() } else { HapticManager.warning() }
                     }
                 } label: {
-                    if isManualSyncing || activityStore.isSyncing {
-                        ProgressView()
-                            .controlSize(.small)
-                            .frame(width: 64)
-                    } else {
-                        Text("Sync now")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(MedxTheme.accent)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(MedxTheme.accent.opacity(0.14), in: Capsule())
-                    }
-                }
-                .buttonStyle(.borderless)
-                .disabled(isManualSyncing || activityStore.isSyncing)
-            }
-            .frame(minHeight: 44)
-            .id("settings.mid")
-        } header: {
-            MedxSettingsHeader("Sync", symbol: "arrow.triangle.2.circlepath", hue: MedxCandy.blue)
-        } footer: {
-            Text("New modules, papers and classes appear on their own: lists refresh when you open the app and when you pull down.")
-                .font(.caption)
-        }
-    }
-
-    // MARK: - Storage
-
-    private var storageSection: some View {
-        Section {
-            storageRow(
-                title: "Offline videos",
-                detail: "\(downloads.completedItems.count) classes saved",
-                value: downloads.formattedTotalSize,
-                icon: "arrow.down.circle.fill",
-                tint: MedxTheme.successGreen
-            )
-            storageRow(
-                title: "Images",
-                detail: "Figures and flashcard artwork",
-                value: imageCacheSize,
-                icon: "photo.on.rectangle.angled",
-                tint: MedxTheme.indigoAccent
-            )
-            storageRow(
-                title: "Question cache",
-                detail: "Modules and papers for no signal",
-                value: cacheSize,
-                icon: "internaldrive.fill",
-                tint: MedxTheme.primaryBlue
-            )
-
-            Button {
-                Task { await clearCaches() }
-            } label: {
-                HStack {
-                    Label {
-                        Text("Clear cached data")
-                            .font(.body)
+                    HStack(spacing: 10) {
+                        Image(systemName: "bell.slash.fill")
                             .foregroundStyle(MedxTheme.warningOrange)
-                    } icon: {
-                        Image(systemName: "arrow.counterclockwise")
-                            .foregroundStyle(MedxTheme.warningOrange)
-                    }
-                    Spacer()
-                    if cacheCleared {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(MedxTheme.successGreen)
-                            .transition(.scale.combined(with: .opacity))
-                    }
-                }
-            }
-
-            if !downloads.allItems.isEmpty {
-                Button(role: .destructive) {
-                    showDeleteDownloadsConfirm = true
-                } label: {
-                    Label {
-                        Text("Delete all downloads")
-                            .font(.body)
-                    } icon: {
-                        Image(systemName: "trash")
-                            .foregroundStyle(MedxTheme.destructiveRed)
-                    }
-                }
-            }
-        } header: {
-            MedxSettingsHeader("Storage", symbol: "internaldrive.fill", hue: MedxCandy.violet)
-        } footer: {
-            Text("Clearing cached data keeps your downloads, bookmarks and history. It is never needed to see new content.")
-                .font(.caption)
-        }
-    }
-
-    private func storageRow(title: String, detail: String, value: String, icon: String, tint: Color) -> some View {
-        HStack(spacing: 12) {
-            Label {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.body)
-                    Text(detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            } icon: {
-                Image(systemName: icon)
-                    .foregroundStyle(tint)
-            }
-            Spacer(minLength: 8)
-            Text(value)
-                .font(.footnote.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .fixedSize()
-        }
-        .frame(minHeight: 44)
-    }
-
-    // MARK: - Advanced
-
-    private var advancedSection: some View {
-        Section {
-            Button {
-                HapticManager.selection()
-                route = .advanced
-            } label: {
-                HStack(spacing: 12) {
-                    Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Search, Siri & diagnostics")
-                                .font(.body)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Turn on notifications")
+                                .font(.subheadline.weight(.bold))
                                 .foregroundStyle(Color.primary)
-                            Text("\(index.indexedCount.formatted()) questions indexed")
+                            Text(reminders.authorization == .denied
+                                 ? "Denied. Enable them in the Settings app."
+                                 : "Needed before any reminder can be scheduled")
                                 .font(.caption)
                                 .foregroundStyle(Color.secondary)
                         }
-                    } icon: {
-                        Image(systemName: "gearshape.2.fill")
-                            .foregroundStyle(.gray)
+                        Spacer(minLength: 0)
                     }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.bold))
-                        .foregroundStyle(Color(uiColor: .tertiaryLabel))
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(MedxTheme.warningOrange.opacity(0.12)))
                 }
-                .contentShape(Rectangle())
-            }
-            .frame(minHeight: 44)
-        } header: {
-            MedxSettingsHeader("Advanced", symbol: "wrench.and.screwdriver.fill", hue: MedxCandy.butter)
-        }
-    }
-
-    /// The rarely-touched machinery, one tap away instead of in the middle of the page.
-    private var advancedPage: some View {
-        List {
-            questionIndexSection
-
-            siriSection
-
-            diagnosticsSection
-        }
-        .listStyle(.insetGrouped)
-        .labelStyle(MedxSettingsLabelStyle())
-        .navigationTitle("Advanced")
-        .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Delete the question index?", isPresented: $showWipeIndexConfirm) {
-            Button("Delete \(index.indexedCount.formatted()) indexed questions", role: .destructive) {
-                HapticManager.warning()
-                index.wipe()
-            }
-        } message: {
-            Text("Search will only cover your bookmarks until it is rebuilt. Nothing else is affected.")
-        }
-    }
-
-    // MARK: - Account
-
-    private var accountSection: some View {
-        Section {
-            Button(role: .destructive) {
-                showSignOutConfirm = true
-            } label: {
-                Label {
-                    Text("Sign out")
-                        .font(.body)
-                } icon: {
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
-                        .foregroundStyle(MedxTheme.destructiveRed)
-                }
+                .buttonStyle(.plain)
             }
 
-            if let profile = authService.currentProfile, authService.hasSavedPassword(for: profile.id) {
-                Button(role: .destructive) {
-                    showForgetCachedConfirm = true
-                } label: {
-                    Label {
-                        Text("Sign out & forget password")
-                            .font(.body)
-                    } icon: {
-                        Image(systemName: "key.slash")
-                            .foregroundStyle(MedxTheme.destructiveRed)
+            ForEach(Array(MedxNotificationManager.Kind.allCases.enumerated()), id: \.offset) { position, kind in
+                if position > 0 { ProfileDivider() }
+                Toggle(isOn: reminderBinding(kind)) {
+                    HStack(spacing: 12) {
+                        ProfileIcon(kind.icon, tint: MedxCandy.violet)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(kind.title)
+                                .font(.subheadline.weight(.semibold))
+                            Text(kind.detail)
+                                .font(.caption)
+                                .foregroundStyle(Color.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
+                .tint(MedxTheme.accent)
+                .disabled(!reminders.isAuthorized)
             }
-        } header: {
-            MedxSettingsHeader("Account", symbol: "person.crop.circle.fill", hue: MedxCandy.pink)
-        }
-    }
 
-    // MARK: - About
-
-    private var aboutSection: some View {
-        Section {
-            HStack(spacing: 14) {
-                MedxLogoMark(size: 44)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("MedX Elite")
-                        .font(.headline)
-                    Text("Version \(Self.appVersion) · native iOS")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            ProfileDivider()
+            ProfileRow(icon: "clock.fill", tint: MedxCandy.blue, title: "Reminder time") {
+                Picker("", selection: $reminders.reminderHour) {
+                    ForEach(Array(6...23), id: \.self) { hour in
+                        Text(Self.hourLabel(hour)).tag(hour)
+                    }
                 }
-                Spacer(minLength: 0)
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .disabled(!reminders.enabled.contains(.dailyQuestions) || !reminders.isAuthorized)
             }
-            .padding(.vertical, 4)
-            .id("settings.end")
-        } footer: {
-            creditFooter
+
+            Text(reminders.isAuthorized
+                 ? "\(reminders.pendingCount) scheduled. The wording is rebuilt each time the app opens, so the numbers are current."
+                 : "Reminders stay off until notifications are allowed.")
+                .font(.caption)
+                .foregroundStyle(Color.secondary)
         }
     }
 
-    private static var appVersion: String {
-        let info = Bundle.main.infoDictionary
-        let short = info?["CFBundleShortVersionString"] as? String ?? "1.0"
-        if let build = info?["CFBundleVersion"] as? String, !build.isEmpty, build != short {
-            return "\(short) (\(build))"
-        }
-        return short
-    }
+    // MARK: - Look
 
-    // MARK: - Appearance
-
-    private var appearanceSection: some View {
-        Section {
-            Label {
-                HStack {
-                    Text("Accent colour")
-                    Spacer()
-                    Text(medxTheme.accent.label)
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(medxTheme.accent.color)
-                }
-            } icon: {
-                Image(systemName: "paintbrush.pointed.fill")
-                    .foregroundStyle(medxTheme.accent.color)
-            }
-            .frame(minHeight: 40)
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 12)], spacing: 12) {
+    private var lookCard: some View {
+        ProfileCard(title: "Look", icon: "paintpalette.fill", tint: MedxCandy.butter) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 10)], spacing: 10) {
                 ForEach(MedxAccent.allCases) { accent in
                     Button {
                         HapticManager.selection()
@@ -720,67 +615,232 @@ public struct SettingsView: View {
                     .accessibilityAddTraits(medxTheme.accent == accent ? [.isButton, .isSelected] : .isButton)
                 }
             }
-            .padding(.vertical, 6)
 
-            Picker(selection: $medxTheme.appearance) {
+            Picker("Appearance", selection: $medxTheme.appearance) {
                 ForEach(MedxAppearance.allCases) { appearance in
                     Text(appearance.label).tag(appearance)
                 }
-            } label: {
-                Label("Appearance", systemImage: medxTheme.appearance.icon)
             }
             .pickerStyle(.segmented)
-            .padding(.vertical, 2)
-        } header: {
-            MedxSettingsHeader("Appearance", symbol: "paintpalette.fill", hue: MedxCandy.butter)
-        } footer: {
-            Text("The accent applies across the app, its widgets and the Lock Screen activities. Colours are system colours, so contrast settings keep working.")
+
+            Text("Accent: \(medxTheme.accent.label). It applies across the app, its widgets and the Lock Screen activities.")
                 .font(.caption)
+                .foregroundStyle(Color.secondary)
         }
     }
 
-    // MARK: - Exam & goals
+    // MARK: - Sync & storage
 
-    private var examGoalsSection: some View {
-        Section {
-            DatePicker(
-                selection: $stats.examDate,
-                in: Date()...,
-                displayedComponents: .date
-            ) {
-                Label("Exam date", systemImage: "calendar.badge.clock")
-            }
-
-            HStack {
-                Label("Daily goal", systemImage: "target")
-                Spacer()
-                Text("\(stats.dailyGoal)")
-                    .font(.body.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
-                Stepper("") {
-                    stats.dailyGoal = min(stats.dailyGoal + 10, 300)
-                } onDecrement: {
-                    stats.dailyGoal = max(stats.dailyGoal - 10, 10)
+    private var syncStorageCard: some View {
+        ProfileCard(title: "Sync & storage", icon: "externaldrive.fill.badge.icloud", tint: MedxCandy.blue) {
+            HStack(spacing: 12) {
+                ProfileIcon("icloud.fill", tint: MedxCandy.blue)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Cloud sync")
+                        .font(.subheadline.weight(.semibold))
+                    if let lastSync = activityStore.lastSyncedAt {
+                        Text("Last synced \(RelativeDateTimeFormatter().localizedString(for: lastSync, relativeTo: Date()))")
+                            .font(.caption)
+                            .foregroundStyle(Color.secondary)
+                    } else {
+                        Text("Syncs on every change")
+                            .font(.caption)
+                            .foregroundStyle(Color.secondary)
+                    }
                 }
-                .labelsHidden()
+                Spacer(minLength: 0)
+                Button {
+                    guard let uid = authService.currentSession?.uid else { return }
+                    isManualSyncing = true
+                    HapticManager.selection()
+                    Task {
+                        await activityStore.syncWithCloud(uid: uid)
+                        await loadAttempts()
+                        isManualSyncing = false
+                        HapticManager.success()
+                    }
+                } label: {
+                    Group {
+                        if isManualSyncing || activityStore.isSyncing {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("Sync now")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(MedxTheme.accent)
+                        }
+                    }
+                    .frame(width: 78, height: 30)
+                    .background(MedxTheme.accent.opacity(0.14), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(isManualSyncing || activityStore.isSyncing)
             }
-            .frame(minHeight: 44)
 
-            HStack {
-                Label("Today", systemImage: "flame.fill")
-                Spacer()
-                Text("\(stats.answeredToday) answered · \(stats.streakDays)-day streak")
-                    .font(.footnote.monospacedDigit())
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                storageTile(value: downloads.formattedTotalSize, label: "Videos", icon: "film.stack", tint: MedxCandy.mint)
+                storageTile(value: imageCacheSize, label: "Images", icon: "photo.fill", tint: MedxCandy.violet)
+                storageTile(value: cacheSize, label: "Questions", icon: "doc.text.fill", tint: MedxCandy.blue)
             }
-            .frame(minHeight: 44)
-        } header: {
-            MedxSettingsHeader("Exam & goals", symbol: "target", hue: MedxCandy.tangerine)
-        } footer: {
-            Text("\(stats.daysToExam) days to \(stats.examName). The countdown card, the widgets and the reminders all read these two values.")
+
+            HStack(spacing: 8) {
+                Button {
+                    Task { await clearCaches() }
+                } label: {
+                    Label(cacheCleared ? "Cleared" : "Clear cache", systemImage: cacheCleared ? "checkmark.circle.fill" : "arrow.counterclockwise")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(cacheCleared ? MedxTheme.successGreen : MedxTheme.warningOrange)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(MedxTheme.warningOrange.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+
+                if !downloads.allItems.isEmpty {
+                    Button {
+                        showDeleteDownloadsConfirm = true
+                    } label: {
+                        Label("Delete downloads", systemImage: "trash")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(MedxTheme.destructiveRed)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 40)
+                            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(MedxTheme.destructiveRed.opacity(0.12)))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Text("New modules, papers and classes appear on their own when you open the app or pull down. Clearing the cache is never needed for that, and keeps your downloads, bookmarks and history.")
                 .font(.caption)
+                .foregroundStyle(Color.secondary)
         }
+    }
+
+    private func storageTile(value: String, label: String, icon: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(tint)
+            Text(value)
+                .font(.subheadline.weight(.bold).monospacedDigit())
+                .foregroundStyle(Color.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Color.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.primary.opacity(0.05)))
+    }
+
+    // MARK: - Account
+
+    private var accountCard: some View {
+        VStack(spacing: 10) {
+            Button {
+                showSignOutConfirm = true
+            } label: {
+                Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(MedxTheme.destructiveRed)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                    )
+            }
+            .buttonStyle(MedxPressStyle())
+
+            if let profile = authService.currentProfile, authService.hasSavedPassword(for: profile.id) {
+                Button {
+                    showForgetCachedConfirm = true
+                } label: {
+                    Text("Sign out & forget saved password")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(MedxTheme.destructiveRed.opacity(0.85))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: - Advanced
+
+    private var advancedCard: some View {
+        Button {
+            HapticManager.selection()
+            route = .advanced
+        } label: {
+            HStack(spacing: 12) {
+                ProfileIcon("gearshape.2.fill", tint: .gray)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Advanced")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Color.primary)
+                    Text("Search index · Siri · diagnostics")
+                        .font(.caption)
+                        .foregroundStyle(Color.secondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(Color(uiColor: .tertiaryLabel))
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(MedxPressStyle())
+    }
+
+    /// The rarely-touched machinery, one tap away instead of in the middle of the page.
+    private var advancedPage: some View {
+        List {
+            questionIndexSection
+
+            siriSection
+
+            diagnosticsSection
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Advanced")
+        .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Delete the question index?", isPresented: $showWipeIndexConfirm) {
+            Button("Delete \(index.indexedCount.formatted()) indexed questions", role: .destructive) {
+                HapticManager.warning()
+                index.wipe()
+            }
+        } message: {
+            Text("Search will only cover your bookmarks until it is rebuilt. Nothing else is affected.")
+        }
+    }
+
+    // MARK: - About
+
+    private var aboutFooter: some View {
+        VStack(spacing: 4) {
+            creditFooter
+            Text("Version \(Self.appVersion)")
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(Color(uiColor: .tertiaryLabel))
+        }
+        .padding(.top, 4)
+    }
+
+    private static var appVersion: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "1.0"
+        if let build = info?["CFBundleVersion"] as? String, !build.isEmpty, build != short {
+            return "\(short) (\(build))"
+        }
+        return short
     }
 
     // MARK: - Question index
@@ -876,71 +936,6 @@ public struct SettingsView: View {
     }
 
     // MARK: - Reminders
-
-    private var remindersSection: some View {
-        Section {
-            if !reminders.isAuthorized {
-                Button {
-                    Task {
-                        let granted = await reminders.requestAuthorization()
-                        if granted { HapticManager.success() } else { HapticManager.warning() }
-                    }
-                } label: {
-                    Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Turn on notifications")
-                                .font(.body)
-                            Text(reminders.authorization == .denied
-                                 ? "Denied — enable them in the Settings app"
-                                 : "Needed before any reminder can be scheduled")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    } icon: {
-                        Image(systemName: "bell.badge")
-                            .foregroundStyle(MedxTheme.warningOrange)
-                    }
-                    .frame(minHeight: 44)
-                }
-            }
-
-            ForEach(MedxNotificationManager.Kind.allCases) { kind in
-                Toggle(isOn: reminderBinding(kind)) {
-                    Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(kind.title)
-                                .font(.body)
-                            Text(kind.detail)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    } icon: {
-                        Image(systemName: kind.icon)
-                            .foregroundStyle(MedxTheme.accent)
-                    }
-                }
-                .disabled(!reminders.isAuthorized)
-            }
-
-            Picker(selection: $reminders.reminderHour) {
-                ForEach(Array(6...23), id: \.self) { hour in
-                    Text(Self.hourLabel(hour)).tag(hour)
-                }
-            } label: {
-                Label("Reminder time", systemImage: "clock")
-            }
-            .disabled(!reminders.enabled.contains(.dailyQuestions) || !reminders.isAuthorized)
-        } header: {
-            MedxSettingsHeader("Reminders", symbol: "bell.badge.fill", hue: MedxCandy.pink)
-        } footer: {
-            Text(reminders.isAuthorized
-                 ? "\(reminders.pendingCount) scheduled. The wording is rebuilt each time the app opens, so the numbers are current."
-                 : "Reminders stay off until notifications are allowed.")
-                .font(.caption)
-        }
-        .tint(MedxTheme.accent)
-    }
 
     private func reminderBinding(_ kind: MedxNotificationManager.Kind) -> Binding<Bool> {
         Binding(
@@ -1949,6 +1944,124 @@ private enum ActivityLogItem: Identifiable, Hashable {
 /// Settings is the one screen with nine peer sections and no hierarchy between them, so the marks
 /// are doing real work rather than decoration: they are what makes "the one with the reminders"
 /// findable by scrolling instead of by reading every heading on the way past.
+// MARK: - Profile page pieces
+
+/// A card on the Profile page: a tinted squircle and a title, then its content.
+struct ProfileCard<Content: View>: View {
+    let title: String
+    let icon: String
+    let tint: Color
+    @ViewBuilder let content: Content
+
+    init(title: String, icon: String, tint: Color, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.icon = icon
+        self.tint = tint
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(MedxCandy.onSolid)
+                    .frame(width: 28, height: 28)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tint))
+                Text(title)
+                    .font(.headline.weight(.bold))
+                Spacer(minLength: 0)
+            }
+            content
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+        )
+    }
+}
+
+/// A heading that sits on the page between cards.
+struct ProfileSectionTitle: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text)
+            .font(.headline.weight(.bold))
+            .padding(.leading, 4)
+    }
+}
+
+/// A small soft squircle with a glyph in the card's own colour.
+struct ProfileIcon: View {
+    let name: String
+    let tint: Color
+    init(_ name: String, tint: Color) {
+        self.name = name
+        self.tint = tint
+    }
+
+    var body: some View {
+        Image(systemName: name)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(MedxCandy.onSoft(tint))
+            .frame(width: 32, height: 32)
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(tint.opacity(0.22)))
+    }
+}
+
+/// One line inside a card: icon, title (and a caption), and a trailing control.
+struct ProfileRow<Trailing: View>: View {
+    let icon: String
+    let tint: Color
+    let title: String
+    var detail: String? = nil
+    @ViewBuilder let trailing: Trailing
+
+    init(icon: String, tint: Color, title: String, detail: String? = nil, @ViewBuilder trailing: () -> Trailing) {
+        self.icon = icon
+        self.tint = tint
+        self.title = title
+        self.detail = detail
+        self.trailing = trailing()
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ProfileIcon(icon, tint: tint)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                if let detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(Color.secondary)
+                }
+            }
+            Spacer(minLength: 8)
+            trailing
+        }
+        .frame(minHeight: 40)
+    }
+}
+
+/// A hairline between rows in a card, inset past the icon.
+struct ProfileDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.08))
+            .frame(height: 1)
+            .padding(.leading, 44)
+    }
+}
+
 /// Every settings row's icon on the same soft squircle, the way the system's own Settings lines its
 /// icons up: the glyph keeps its colour, the tile gives every row the same left edge.
 struct MedxSettingsLabelStyle: LabelStyle {
