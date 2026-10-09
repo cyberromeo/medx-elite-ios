@@ -75,7 +75,7 @@ public struct PasswordPromptView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 28)
             }
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxBackdrop(.home)
             .navigationTitle("Sign In")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

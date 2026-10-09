@@ -157,7 +157,7 @@ public struct VodFeedView: View {
                 .medxCardRow(vertical: 8)
             }
         }
-        .medxCardList()
+        .medxCardList(.vod)
         .navigationTitle("VOD feed")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await reload() }

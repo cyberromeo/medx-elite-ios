@@ -80,6 +80,7 @@
 		9B00112C2A00000100000001 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00112B2A00000100000001 /* LibraryView.swift */; };
 		9B00112E2A00000100000001 /* Vod.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00112D2A00000100000001 /* Vod.swift */; };
 		9B0011302A00000100000001 /* MedxVodWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00112F2A00000100000001 /* MedxVodWatcher.swift */; };
+		9B00FF000000000100000033 /* MedxDemoMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00FF000000000100000002 /* MedxDemoMode.swift */; };
 		9B0011322A00000100000001 /* VodFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011312A00000100000001 /* VodFeedView.swift */; };
 		9B0011342A00000100000001 /* Duel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011332A00000100000001 /* Duel.swift */; };
 		9B0011362A00000100000001 /* MedxDuelRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011352A00000100000001 /* MedxDuelRules.swift */; };
@@ -202,6 +203,7 @@
 		9B00112B2A00000100000001 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library/LibraryView.swift; sourceTree = "<group>"; };
 		9B00112D2A00000100000001 /* Vod.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Vod.swift; sourceTree = "<group>"; };
 		9B00112F2A00000100000001 /* MedxVodWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxVodWatcher.swift; sourceTree = "<group>"; };
+		9B00FF000000000100000002 /* MedxDemoMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxDemoMode.swift; sourceTree = "<group>"; };
 		9B0011312A00000100000001 /* VodFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Videos/VodFeedView.swift; sourceTree = "<group>"; };
 		9B0011332A00000100000001 /* Duel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Duel.swift; sourceTree = "<group>"; };
 		9B0011352A00000100000001 /* MedxDuelRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxDuelRules.swift; sourceTree = "<group>"; };
@@ -307,6 +309,7 @@
 				9B00110E2A00000100000001 /* MedxQuestionIndexStore.swift */,
 				9B0011252A00000100000001 /* MedxCustomModuleStore.swift */,
 				9B00112F2A00000100000001 /* MedxVodWatcher.swift */,
+				9B00FF000000000100000002 /* MedxDemoMode.swift */,
 				9B0011352A00000100000001 /* MedxDuelRules.swift */,
 				9B0011372A00000100000001 /* MedxDuelTransport.swift */,
 				9B0011392A00000100000001 /* MedxDuelRestTransport.swift */,
@@ -592,6 +595,7 @@
 				9B00112C2A00000100000001 /* LibraryView.swift in Sources */,
 				9B00112E2A00000100000001 /* Vod.swift in Sources */,
 				9B0011302A00000100000001 /* MedxVodWatcher.swift in Sources */,
+				9B00FF000000000100000033 /* MedxDemoMode.swift in Sources */,
 				9B0011322A00000100000001 /* VodFeedView.swift in Sources */,
 				9B0011342A00000100000001 /* Duel.swift in Sources */,
 				9B0011362A00000100000001 /* MedxDuelRules.swift in Sources */,

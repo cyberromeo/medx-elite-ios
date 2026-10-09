@@ -241,7 +241,7 @@ public struct FaceoffLobbyView: View {
                 .padding(.top, 6)
                 .padding(.bottom, 28)
             }
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxBackdrop(.duel)
             .medxScrollEdge()
             .navigationTitle("Faceoff")
             .navigationBarTitleDisplayMode(.large)
@@ -592,7 +592,7 @@ struct FaceoffHostSheet: View {
 
                 dealBar
             }
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxBackdrop(.duel)
             .navigationTitle("Host a faceoff")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

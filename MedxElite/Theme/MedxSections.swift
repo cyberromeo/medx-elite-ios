@@ -262,3 +262,121 @@ public extension MedxAttemptKind {
         MedxAttemptKind(rawValue: raw)?.hue ?? MedxCandy.mint
     }
 }
+
+
+// MARK: - Ambient backdrop
+//
+// Liquid Glass needs something behind it. The first glass pass in this app put translucent panes
+// over flat grey and got haze, because there was nothing to refract; the fix then was to take the
+// glass off content, which was right. What iOS 26 still wants is colour *under the chrome* — the
+// navigation bar, the toolbar buttons and the floating tab bar are glass whether the app asks for
+// it or not, and over a flat background they read as grey bands.
+//
+// So each screen gets one soft wash of its section's hue, pinned to the top of the page and fading
+// to the grouped background a third of the way down. It is drawn once, it never animates, and it
+// never sits on a card: content stays opaque on top of it, exactly as before. The bars are what
+// sample it, which is the job glass is for.
+
+public extension MedxSection {
+    /// The second hue in a section's wash — a neighbour on the wheel, so the wash reads as light
+    /// rather than as a flag.
+    var partner: Color {
+        switch self {
+        case .home: return MedxCandy.violet
+        case .qbank: return MedxCandy.mint
+        case .custom: return MedxCandy.butter
+        case .tests: return MedxCandy.pink
+        case .cards: return MedxCandy.tangerine
+        case .videos: return MedxCandy.blue
+        case .vod: return MedxCandy.sky
+        case .library: return MedxCandy.sky
+        case .duel: return MedxCandy.sky
+        }
+    }
+}
+
+public struct MedxBackdrop: View {
+    private let section: MedxSection
+    private let intensity: Double
+
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    public init(section: MedxSection, intensity: Double = 1) {
+        self.section = section
+        self.intensity = intensity
+    }
+
+    public var body: some View {
+        let dark = scheme == .dark
+        // Increase Contrast asks for less decoration behind text, so the wash steps back.
+        let k = intensity * (contrast == .increased ? 0.5 : 1)
+
+        ZStack(alignment: .top) {
+            MedxSurface.groupedBackground
+
+            GeometryReader { geo in
+                let w = geo.size.width
+                let h = min(max(geo.size.height * 0.5, 320), 520)
+
+                ZStack {
+                    RadialGradient(
+                        colors: [section.fill.opacity((dark ? 0.42 : 0.34) * k), section.fill.opacity(0)],
+                        center: UnitPoint(x: 0.1, y: 0.0),
+                        startRadius: 0,
+                        endRadius: w * 1.0
+                    )
+                    RadialGradient(
+                        colors: [section.partner.opacity((dark ? 0.30 : 0.24) * k), section.partner.opacity(0)],
+                        center: UnitPoint(x: 0.98, y: 0.12),
+                        startRadius: 0,
+                        endRadius: w * 0.8
+                    )
+                }
+                .frame(width: w, height: h)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0),
+                            .init(color: .black.opacity(0.6), location: 0.55),
+                            .init(color: .black.opacity(0), location: 1)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+public extension View {
+    /// The page background for a screen that belongs to `section`: the grouped background with
+    /// the section's wash at the top. Replaces `.background(MedxSurface.groupedBackground…)`.
+    func medxBackdrop(_ section: MedxSection, intensity: Double = 1) -> some View {
+        background { MedxBackdrop(section: section, intensity: intensity) }
+    }
+}
+
+// MARK: - Ink on a hue
+
+public extension Color {
+    /// Whether this colour, resolved in `scheme`, is light enough that text on it should be dark.
+    /// The candy palette has both kinds — lime and butter want ink, violet and pink want white.
+    func medxIsLight(in scheme: ColorScheme) -> Bool {
+        let traits = UITraitCollection(userInterfaceStyle: scheme == .dark ? .dark : .light)
+        let resolved = UIColor(self).resolvedColor(with: traits)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        guard resolved.getRed(&r, green: &g, blue: &b, alpha: &a) else { return false }
+        let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        return luminance > 0.62
+    }
+
+    /// Ink for a glyph or a label set on a solid fill of this colour.
+    func medxInk(in scheme: ColorScheme) -> Color {
+        medxIsLight(in: scheme) ? MedxCandy.onSolid : .white
+    }
+}

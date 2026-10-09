@@ -89,7 +89,7 @@ public struct QBankChapterView: View {
             .padding(.top, 8)
             .padding(.bottom, 32)
         }
-        .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxBackdrop(.qbank)
         .medxScrollEdge()
         .navigationTitle(subject.name)
         .navigationBarTitleDisplayMode(.large)

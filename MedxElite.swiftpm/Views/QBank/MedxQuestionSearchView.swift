@@ -46,7 +46,7 @@ public struct MedxQuestionSearchView: View {
     public var body: some View {
         NavigationStack {
             content
-                .background(MedxSurface.groupedBackground.ignoresSafeArea())
+                .medxBackdrop(.qbank)
                 .medxScrollEdge()
                 .navigationTitle("Search questions")
                 .navigationBarTitleDisplayMode(.inline)
@@ -534,7 +534,7 @@ struct MedxSearchResultDetailView: View {
             }
             .padding(MedxSurface.gutter)
         }
-        .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxBackdrop(.qbank)
         .navigationTitle(entry.subject)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

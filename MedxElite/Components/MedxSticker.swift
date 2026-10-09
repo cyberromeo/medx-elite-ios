@@ -176,26 +176,50 @@ public struct MedxSymbolMark: View {
     private let hue: Color
     private let size: CGFloat
     private let filled: Bool
+    private let solid: Bool?
 
-    /// `filled` washes the square in the hue and inks the glyph in `onSoft`; otherwise the
-    /// glyph alone carries the colour, which is what a dense list wants.
-    public init(_ symbol: String, hue: Color, size: CGFloat = 36, filled: Bool = true) {
+    @Environment(\.colorScheme) private var scheme
+
+    /// `filled` puts the glyph on a squircle. At 42 pt and up it is drawn the way Settings and
+    /// Shortcuts draw theirs — solid hue, lit from the top, glyph inked for contrast (white on
+    /// violet, dark on lime); smaller marks keep a soft tint. Without `filled` the glyph alone
+    /// carries the colour, which is what a dense list wants.
+    public init(_ symbol: String, hue: Color, size: CGFloat = 36, filled: Bool = true, solid: Bool? = nil) {
         self.symbol = symbol
         self.hue = hue
         self.size = size
         self.filled = filled
+        self.solid = solid
+    }
+
+    /// A mark big enough to lead a page or a tile is drawn solid; the small ones that repeat down a
+    /// list stay a soft tint, so twenty subjects do not become twenty neon squares.
+    private var vivid: Bool { filled && (solid ?? (size >= 42)) }
+
+    private var glyphStyle: Color {
+        if vivid { return hue.medxInk(in: scheme) }
+        return filled ? MedxCandy.onSoft(hue) : hue
     }
 
     public var body: some View {
         Image(systemName: symbol)
             .font(.system(size: size * 0.44, weight: .semibold))
-            .foregroundStyle(filled ? MedxCandy.onSoft(hue) : hue)
-            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(glyphStyle)
+            .symbolRenderingMode(vivid ? SymbolRenderingMode.monochrome : SymbolRenderingMode.hierarchical)
             .frame(width: size, height: size)
             .background {
                 if filled {
-                    RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                        .fill(hue.opacity(0.16))
+                    let shape = RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
+                    if vivid {
+                        shape
+                            .fill(hue.gradient)
+                            .overlay(
+                                shape.strokeBorder(Color.white.opacity(scheme == .dark ? 0.16 : 0.3), lineWidth: 0.5)
+                            )
+                    } else {
+                        shape
+                            .fill(hue.opacity(scheme == .dark ? 0.2 : 0.17).gradient)
+                    }
                 }
             }
             .accessibilityHidden(true)

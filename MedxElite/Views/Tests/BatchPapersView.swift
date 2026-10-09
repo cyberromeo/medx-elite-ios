@@ -56,7 +56,7 @@ public struct BatchPapersView: View {
                 }
             }
         }
-        .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxBackdrop(.tests)
         .medxScrollEdge()
         .navigationTitle("Batch papers")
         .navigationBarTitleDisplayMode(.large)

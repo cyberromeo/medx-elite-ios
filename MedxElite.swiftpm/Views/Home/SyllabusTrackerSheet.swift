@@ -71,7 +71,7 @@ public struct SyllabusTrackerSheet: View {
                 .padding(.top, 12)
                 .padding(.bottom, 32)
             }
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxBackdrop(.home)
             .navigationTitle("Syllabus")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

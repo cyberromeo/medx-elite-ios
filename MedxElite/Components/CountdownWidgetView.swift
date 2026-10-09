@@ -22,18 +22,23 @@ public struct CountdownWidgetView: View {
             let remaining = TimeRemaining(until: targetDate, from: context.date)
 
             VStack(alignment: .leading, spacing: 14) {
-                header(remaining: remaining)
+                header
 
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                HStack(alignment: .lastTextBaseline, spacing: 8) {
                     Text("\(remaining.days)")
-                        .font(MedxFont.display(44))
+                        .font(.system(size: 72, weight: .heavy, design: .rounded))
                         .monospacedDigit()
                         .contentTransition(.numericText())
-                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
 
-                    Text(remaining.days == 1 ? "day" : "days")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(remaining.days == 1 ? "day" : "days")
+                            .font(.title3.weight(.bold))
+                        Text("to go")
+                            .font(.subheadline.weight(.semibold))
+                            .opacity(0.78)
+                    }
 
                     Spacer(minLength: 8)
 
@@ -41,14 +46,13 @@ public struct CountdownWidgetView: View {
                 }
                 .animation(.snappy, value: remaining.days)
 
-                ProgressView(value: remaining.elapsedFraction)
-                    .tint(MedxTheme.primaryPink)
-                    .accessibilityHidden(true)
+                progress(remaining: remaining)
             }
-            .padding(18)
+            .foregroundStyle(.white)
+            .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .medxCard(cornerRadius: 20)
-            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .background { MedxHeroBackground(colors: [MedxSection.home.fill, MedxSection.home.partner]) }
+            .contentShape(RoundedRectangle(cornerRadius: MedxHeroBackground.radius, style: .continuous))
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(title) countdown")
             .accessibilityValue("\(remaining.days) days, \(remaining.hours) hours remaining")
@@ -68,47 +72,118 @@ public struct CountdownWidgetView: View {
         }
     }
 
-    private func header(remaining: TimeRemaining) -> some View {
+    private var header: some View {
         HStack(spacing: 8) {
-            Circle()
-                .fill(MedxTheme.primaryPink)
-                .frame(width: 7, height: 7)
+            Image(systemName: "graduationcap.fill")
+                .font(.footnote.weight(.bold))
 
-            Text("\(title) · \(targetDate.formatted(.dateTime.day().month(.abbreviated).year()))")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(MedxTheme.primaryPink)
+            Text(title)
+                .font(.footnote.weight(.heavy))
+                .textCase(.uppercase)
+                .tracking(0.8)
+                .lineLimit(1)
 
             Spacer(minLength: 8)
 
-            Text("\(remaining.weeks) weeks left")
-                .font(.caption.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.secondary)
+            Text(targetDate.formatted(.dateTime.day().month(.abbreviated).year()))
+                .font(.caption.weight(.bold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Color.white.opacity(0.2), in: Capsule())
         }
     }
 
     private func clock(remaining: TimeRemaining) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
             unit(String(format: "%02d", remaining.hours), label: "hr")
-            Text(":")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.tertiary)
+            Text(":").font(.subheadline.weight(.bold)).opacity(0.6)
             unit(String(format: "%02d", remaining.minutes), label: "min")
-            Text(":")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.tertiary)
+            Text(":").font(.subheadline.weight(.bold)).opacity(0.6)
             unit(String(format: "%02d", remaining.seconds), label: "sec")
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .fixedSize()
     }
 
     private func unit(_ value: String, label: String) -> some View {
-        VStack(spacing: 1) {
+        VStack(spacing: 0) {
             Text(value)
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.primary)
+                .font(.system(.subheadline, design: .rounded).weight(.bold).monospacedDigit())
+                .contentTransition(.numericText())
             Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 9, weight: .semibold))
+                .textCase(.uppercase)
+                .opacity(0.75)
         }
+    }
+
+    private func progress(remaining: TimeRemaining) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.24))
+                    Capsule()
+                        .fill(Color.white)
+                        .frame(width: max(8, geo.size.width * remaining.elapsedFraction))
+                }
+            }
+            .frame(height: 6)
+
+            HStack {
+                Text("\(remaining.weeks) weeks left")
+                Spacer(minLength: 8)
+                Text("\(Int((remaining.elapsedFraction * 100).rounded()))% of the run-up done")
+            }
+            .font(.caption.weight(.semibold).monospacedDigit())
+            .opacity(0.85)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Hero surface
+
+/// The one coloured surface on a browse screen: a hero card washed in a section's two hues, lit
+/// from the top-left. It is opaque content, not glass — nothing samples through it — and it is
+/// used once per screen at most, so it reads as the headline rather than as decoration.
+public struct MedxHeroBackground: View {
+    public static let radius: CGFloat = 28
+
+    private let colors: [Color]
+    @Environment(\.colorScheme) private var scheme
+
+    public init(colors: [Color]) {
+        self.colors = colors
+    }
+
+    public var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+        shape
+            .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+            .overlay {
+                shape.fill(
+                    RadialGradient(
+                        colors: [Color.white.opacity(0.28), Color.white.opacity(0)],
+                        center: UnitPoint(x: 0.08, y: 0.0),
+                        startRadius: 0,
+                        endRadius: 260
+                    )
+                )
+            }
+            .overlay {
+                // A slightly darker floor keeps white text legible over the lighter hue.
+                shape.fill(
+                    LinearGradient(
+                        colors: [Color.black.opacity(0), Color.black.opacity(scheme == .dark ? 0.22 : 0.12)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            }
+            .overlay { shape.strokeBorder(Color.white.opacity(0.22), lineWidth: 0.75) }
+            .shadow(color: (colors.first ?? .clear).opacity(scheme == .dark ? 0.28 : 0.32), radius: 18, y: 10)
     }
 }
 

@@ -24,9 +24,7 @@ public struct FlashcardsSubjectListView: View {
             Group {
                 switch loadState {
                 case .loading:
-                    ProgressView("Loading flashcards…")
-                        .controlSize(.large)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    MedxSkeleton("Loading flashcards…")
                 case .failed(let message):
                     ContentUnavailableView {
                         Label {
@@ -61,7 +59,7 @@ public struct FlashcardsSubjectListView: View {
                     }
                 }
             }
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxBackdrop(.cards)
             .medxScrollEdge()
         }
         .navigationTitle("Cards")

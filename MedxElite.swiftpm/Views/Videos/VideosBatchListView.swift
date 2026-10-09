@@ -54,7 +54,7 @@ public struct VideosBatchListView: View {
                 }
             }
         }
-        .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxBackdrop(.videos)
         .medxScrollEdge()
         .navigationTitle("Classes")
         .navigationBarTitleDisplayMode(.large)

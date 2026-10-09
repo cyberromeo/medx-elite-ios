@@ -43,7 +43,7 @@ public struct ProfileSelectView: View {
                     .padding(.bottom, 20)
             }
             .frame(maxWidth: .infinity)
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxBackdrop(.home, intensity: 1.5)
             .sheet(item: $selectedProfile) { profile in
                 PasswordPromptView(profile: profile)
             }

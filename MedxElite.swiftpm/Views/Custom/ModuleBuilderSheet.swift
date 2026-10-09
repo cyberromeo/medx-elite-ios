@@ -170,7 +170,7 @@ public struct ModuleBuilderSheet: View {
 
                 saveBar
             }
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxBackdrop(.custom)
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

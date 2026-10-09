@@ -68,7 +68,7 @@ public struct CustomModulesView: View {
             .padding(.top, 6)
             .padding(.bottom, 28)
         }
-        .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxBackdrop(.custom)
         .medxScrollEdge()
         .navigationTitle("Custom modules")
         .navigationBarTitleDisplayMode(.large)
@@ -426,7 +426,7 @@ struct MedxCustomRunSheet: View {
                 .padding(.top, 12)
                 .padding(.bottom, 28)
             }
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxBackdrop(.custom)
             .navigationTitle(module.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

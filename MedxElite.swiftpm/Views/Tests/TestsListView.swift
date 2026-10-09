@@ -54,7 +54,7 @@ public struct TestsListView: View {
                 content
             }
         }
-        .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxBackdrop(.tests)
         .medxScrollEdge()
         .navigationTitle("Tests")
         .navigationBarTitleDisplayMode(.large)
@@ -450,7 +450,7 @@ struct MedxPaperModeSheet: View {
                 .padding(.top, 12)
                 .padding(.bottom, 28)
             }
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .medxBackdrop(.tests)
             .navigationTitle(paper.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

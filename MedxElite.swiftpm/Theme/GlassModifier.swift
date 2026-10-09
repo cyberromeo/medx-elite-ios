@@ -17,8 +17,10 @@ import SwiftUI
 
 public enum MedxSurface {
     /// Corner radii. Matched to the system's own grouped-list and widget geometry.
-    public static let cardRadius: CGFloat = 16
-    public static let tileRadius: CGFloat = 12
+    /// iOS 26 rounded every grouped surface up — Settings' cells, widgets, sheets — and a 16 pt
+    /// card next to the system's own now reads as a different app. 22 / 14 sit with them.
+    public static let cardRadius: CGFloat = 22
+    public static let tileRadius: CGFloat = 14
     public static let hairline: CGFloat = 0.5
 
     public static var cardFill: Color { Color(uiColor: .secondarySystemGroupedBackground) }
@@ -48,6 +50,7 @@ public struct MedxCardModifier: ViewModifier {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
         content
+            .environment(\.medxInsideCard, true)
             .background(shape.fill(MedxSurface.cardFill))
             .overlay(
                 shape.strokeBorder(
@@ -143,11 +146,17 @@ public extension View {
 
     /// Everything a card `List` sets, so it reads as the same page a `ScrollView` screen does:
     /// plain rows, no system grouped background, the app's own underneath. Pair with `medxCardRow()`.
-    func medxCardList() -> some View {
+    func medxCardList(_ section: MedxSection? = nil) -> some View {
         self
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .background(MedxSurface.groupedBackground.ignoresSafeArea())
+            .background {
+                if let section {
+                    MedxBackdrop(section: section)
+                } else {
+                    MedxSurface.groupedBackground.ignoresSafeArea()
+                }
+            }
             .medxScrollEdge()
             .scrollIndicators(.automatic)
     }
@@ -236,7 +245,7 @@ public struct MedxSectionHeader<Trailing: View>: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.title3.weight(.semibold))
+                    .font(.title3.weight(.bold))
                     .foregroundStyle(.primary)
 
                 if let subtitle, !subtitle.isEmpty {
@@ -272,6 +281,8 @@ public struct MedxMetric: View {
     public let color: Color
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.medxInsideCard) private var nested
 
     public init(icon: String, value: String, label: String, color: Color) {
         self.icon = icon
@@ -295,18 +306,22 @@ public struct MedxMetric: View {
                     Spacer(minLength: 0)
                 }
             } else {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
                     Image(systemName: icon)
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(color)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(color.medxInk(in: scheme))
+                        .frame(width: 24, height: 24)
+                        .background(color.gradient, in: Circle())
 
                     Text(value)
-                        .font(.title3.monospacedDigit().weight(.semibold))
+                        .font(.system(.title2, design: .rounded).weight(.bold))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
                         .lineLimit(1)
-                        .minimumScaleFactor(0.65)
+                        .minimumScaleFactor(0.6)
 
                     Text(label.capitalized)
-                        .font(.caption)
+                        .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -314,13 +329,39 @@ public struct MedxMetric: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 13)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .medxTile()
+        .modifier(MedxMetricSurface(nested: nested))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
         .accessibilityValue(value)
+    }
+}
+
+/// A metric on the page is a small card of its own; inside a card it drops to a tile, so a summary
+/// card does not grow a second border around each figure.
+private struct MedxMetricSurface: ViewModifier {
+    let nested: Bool
+
+    func body(content: Content) -> some View {
+        if nested {
+            content.medxTile()
+        } else {
+            content.medxCard(cornerRadius: 18)
+        }
+    }
+}
+
+private struct MedxInsideCardKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+public extension EnvironmentValues {
+    /// Set by `medxCard()` on everything it wraps.
+    var medxInsideCard: Bool {
+        get { self[MedxInsideCardKey.self] }
+        set { self[MedxInsideCardKey.self] = newValue }
     }
 }
 
@@ -427,5 +468,86 @@ public struct MedxDisclosure: View {
             .font(.footnote.weight(.semibold))
             .foregroundStyle(.tertiary)
             .accessibilityHidden(true)
+    }
+}
+
+
+// MARK: - Loading placeholder
+
+/// What a list screen shows while its first fetch is in flight: the shape of the page it is about
+/// to become — a header block and a run of card rows — breathing gently, instead of a spinner in
+/// the middle of an empty screen. The pulse animates opacity only, and stops under Reduce Motion.
+public struct MedxSkeleton: View {
+    private let rows: Int
+    private let label: String
+    private let showsHeader: Bool
+
+    @State private var dimmed = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    public init(_ label: String, rows: Int = 7, showsHeader: Bool = true) {
+        self.label = label
+        self.rows = rows
+        self.showsHeader = showsHeader
+    }
+
+    private var fill: Color { Color(uiColor: .tertiarySystemFill) }
+    private let titleWidths: [CGFloat] = [150, 190, 120, 170, 140, 200, 130]
+    private let detailWidths: [CGFloat] = [90, 120, 70, 110, 100, 80, 115]
+
+    public var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                if showsHeader {
+                    HStack(alignment: .top, spacing: 12) {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(fill)
+                            .frame(width: 44, height: 44)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Capsule().fill(fill).frame(width: 90, height: 9)
+                            Capsule().fill(fill).frame(height: 11)
+                            Capsule().fill(fill).frame(width: 180, height: 11)
+                        }
+                    }
+                    .padding(.bottom, 6)
+
+                    HStack(spacing: 10) {
+                        ForEach(0..<3, id: \.self) { _ in
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(MedxSurface.cardFill)
+                                .frame(height: 84)
+                        }
+                    }
+                }
+
+                ForEach(0..<rows, id: \.self) { index in
+                    HStack(spacing: 12) {
+                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            .fill(fill)
+                            .frame(width: 40, height: 40)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Capsule().fill(fill)
+                                .frame(width: titleWidths[index % titleWidths.count], height: 11)
+                            Capsule().fill(fill.opacity(0.7))
+                                .frame(width: detailWidths[index % detailWidths.count], height: 9)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(14)
+                    .medxCard()
+                }
+            }
+            .padding(.horizontal, MedxSurface.gutter)
+            .padding(.top, 8)
+        }
+        .scrollDisabled(true)
+        .opacity(dimmed ? 0.5 : 1)
+        .animation(
+            reduceMotion ? nil : .easeInOut(duration: 0.85).repeatForever(autoreverses: true),
+            value: dimmed
+        )
+        .onAppear { dimmed = true }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
     }
 }

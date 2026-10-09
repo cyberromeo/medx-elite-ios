@@ -41,6 +41,7 @@ public struct HomeView: View {
     private var openLobbies: [MedxDuelGame] { lobbyWatcher.theirs }
 
     public var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 22) {
                 greetingLine
@@ -62,16 +63,28 @@ public struct HomeView: View {
                 }
 
                 thisWeekSection
+                    .id("home.week")
 
                 progressSection
 
                 syllabusRow
+                    .id("home.end")
             }
             .padding(.horizontal, MedxSurface.gutter)
             .padding(.top, 4)
             .padding(.bottom, 28)
         }
-        .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        #if DEBUG
+        // Screenshot runs only: `-medxScroll 1|2` scrolls to the middle or the end of the page.
+        .task {
+            let target = UserDefaults.standard.integer(forKey: "medxScroll")
+            guard target > 0 else { return }
+            try? await Task.sleep(nanoseconds: 3_500_000_000)
+            proxy.scrollTo(target == 1 ? "home.week" : "home.end", anchor: target == 1 ? .top : .bottom)
+        }
+        #endif
+        }
+        .medxBackdrop(.home)
         .medxScrollEdge()
         .scrollIndicators(.automatic)
         // The greeting *is* the title. It used to be a `.title3` line at the top of the scroll under
@@ -173,32 +186,35 @@ public struct HomeView: View {
     /// thing on the page: the countdown says how much time is left, this says whether today
     /// is being used.
     private var goalSection: some View {
-        HStack(spacing: 18) {
+        HStack(spacing: 16) {
             goalRing
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(stats.isGoalMet ? "Goal met" : "Today's goal")
+                    .font(.caption.weight(.bold))
+                    .textCase(.uppercase)
+                    .tracking(0.6)
+                    .foregroundStyle(stats.isGoalMet ? MedxTheme.successGreen : .secondary)
+
                 Text(goalHeadline)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.headline)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                HStack(spacing: 14) {
-                    Label("\(stats.streakDays)", systemImage: "flame.fill")
-                        .font(.footnote.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(MedxTheme.warningOrange)
-                        .contentTransition(.numericText())
-                        .symbolEffect(.bounce, value: stats.streakDays)
+                HStack(spacing: 6) {
+                    goalPill(
+                        icon: "flame.fill",
+                        text: stats.streakDays == 1 ? "1-day streak" : "\(stats.streakDays)-day streak",
+                        tint: MedxTheme.warningOrange
+                    )
+                    .symbolEffect(.bounce, value: stats.streakDays)
 
-                    Label("\(summary.weekAnswered)", systemImage: "calendar")
-                        .font(.footnote.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
+                    goalPill(
+                        icon: "calendar",
+                        text: "\(summary.weekAnswered) this week",
+                        tint: MedxTheme.primaryBlue
+                    )
                 }
-
-                Text("\(stats.streakDays == 1 ? "1 day" : "\(stats.streakDays) days") in a row · \(summary.weekAnswered) this week")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
             }
 
             Spacer(minLength: 0)
@@ -233,35 +249,58 @@ public struct HomeView: View {
         return "\(stats.remainingToGoal) more to reach today's \(stats.dailyGoal)."
     }
 
+    private func goalPill(icon: String, text: String, tint: Color) -> some View {
+        Label {
+            Text(text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        } icon: {
+            Image(systemName: icon)
+        }
+        .font(.caption.weight(.semibold).monospacedDigit())
+        .foregroundStyle(tint)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(tint.opacity(0.14), in: Capsule())
+        .contentTransition(.numericText())
+    }
+
     private var goalRing: some View {
-        ZStack {
+        let ringColor = stats.isGoalMet ? MedxTheme.successGreen : MedxTheme.accent
+
+        return ZStack {
             Circle()
-                .stroke(MedxTheme.accent.opacity(0.16), lineWidth: 9)
+                .stroke(ringColor.opacity(0.16), lineWidth: 10)
 
             Circle()
                 .trim(from: 0, to: max(stats.goalFraction, 0.004))
                 .stroke(
-                    stats.isGoalMet ? MedxTheme.successGreen : MedxTheme.accent,
-                    style: StrokeStyle(lineWidth: 9, lineCap: .round)
+                    AngularGradient(
+                        colors: [ringColor.opacity(0.55), ringColor],
+                        center: .center,
+                        startAngle: .degrees(0),
+                        endAngle: .degrees(360 * max(stats.goalFraction, 0.004))
+                    ),
+                    style: StrokeStyle(lineWidth: 10, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
                 .animation(reduceMotion ? nil : .snappy(duration: 0.45), value: stats.goalFraction)
 
             VStack(spacing: 0) {
                 Text("\(stats.answeredToday)")
-                    .font(.system(.title2, design: .rounded).weight(.bold))
+                    .font(.system(.title2, design: .rounded).weight(.heavy))
                     .monospacedDigit()
                     .contentTransition(.numericText())
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
 
                 Text("of \(stats.dailyGoal)")
-                    .font(.caption2)
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
-            .padding(6)
+            .padding(8)
         }
-        .frame(width: 82, height: 82)
+        .frame(width: 88, height: 88)
         .accessibilityHidden(true)
     }
 
@@ -292,26 +331,31 @@ public struct HomeView: View {
     }
 
     private func shortcutTile(_ shortcut: HomeShortcut) -> some View {
-        HStack(spacing: 12) {
-            MedxSymbolMark(shortcut.icon, hue: shortcut.tint, size: 34)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                MedxSymbolMark(shortcut.icon, hue: shortcut.tint, size: 38, solid: true)
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.up.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
+            }
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(shortcut.title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                 Text(detail(for: shortcut))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-
-            Spacer(minLength: 0)
         }
-        .padding(12)
-        .frame(minHeight: 62)
-        .medxCard(cornerRadius: 14)
-        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .medxCard(cornerRadius: 20)
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private func detail(for shortcut: HomeShortcut) -> String {

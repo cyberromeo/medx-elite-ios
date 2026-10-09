@@ -117,7 +117,7 @@ public struct VodImportView: View {
                     .medxCardRow(vertical: 8)
             }
         }
-        .medxCardList()
+        .medxCardList(.videos)
         .navigationTitle("Import to Classes")
         .navigationBarTitleDisplayMode(.large)
         .refreshable { await reload() }

@@ -29,6 +29,10 @@ public struct QBankSubjectListView: View {
 
     private static let bankKey = "medx.qbank.bank"
 
+    #if DEBUG
+    @State private var debugSubject: MedxBankSubject?
+    #endif
+
     private var uid: String? { authService.currentSession?.uid }
 
     private func subjects(in bank: MedxBank) -> [MedxBankSubject] {
@@ -57,9 +61,7 @@ public struct QBankSubjectListView: View {
         Group {
             switch loadState {
             case .loading:
-                ProgressView("Loading both banks…")
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                MedxSkeleton("Loading both banks…")
             case .failed(let message):
                 failedState(message: message)
             case .loaded:
@@ -74,7 +76,7 @@ public struct QBankSubjectListView: View {
                 }
             }
         }
-        .background(MedxSurface.groupedBackground.ignoresSafeArea())
+        .medxBackdrop(.qbank)
         .medxScrollEdge()
         .navigationTitle("Question Bank")
         .navigationBarTitleDisplayMode(.large)
@@ -114,6 +116,19 @@ public struct QBankSubjectListView: View {
                 Task { await loadData() }
             }
         }
+        #if DEBUG
+        // Screenshot runs only (`-medxScreen subject`): walks into the first subject once the
+        // bank has loaded, so the chapter screen can be captured without a tap.
+        .navigationDestination(item: $debugSubject) { subject in
+            chapterView(subject)
+        }
+        .onChange(of: subjects.count) { _, count in
+            guard count > 0, debugSubject == nil,
+                  UserDefaults.standard.string(forKey: "medxScreen") == "subject" else { return }
+            let pool = subjects(in: bank)
+            debugSubject = pool.first { $0.name.localizedCaseInsensitiveContains("micro") } ?? pool.first
+        }
+        #endif
     }
 
     // MARK: - Content
@@ -184,20 +199,24 @@ public struct QBankSubjectListView: View {
         }
     }
 
+    private func chapterView(_ subject: MedxBankSubject) -> some View {
+        QBankChapterView(
+            subject: subject,
+            practisedModuleIds: practisedModuleIds,
+            attempts: attempts
+        ) { module, mode in
+            startSession(
+                moduleId: module.id,
+                subjectName: subject.name,
+                moduleName: module.name,
+                mode: mode
+            )
+        }
+    }
+
     private func subjectLink(_ subject: MedxBankSubject) -> some View {
         NavigationLink {
-            QBankChapterView(
-                subject: subject,
-                practisedModuleIds: practisedModuleIds,
-                attempts: attempts
-            ) { module, mode in
-                startSession(
-                    moduleId: module.id,
-                    subjectName: subject.name,
-                    moduleName: module.name,
-                    mode: mode
-                )
-            }
+            chapterView(subject)
         } label: {
             subjectRow(subject)
         }

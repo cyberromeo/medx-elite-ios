@@ -60,7 +60,7 @@ public struct VideoSubjectView: View {
                     )
             }
         }
-        .medxCardList()
+        .medxCardList(.videos)
         .navigationTitle(subjectGroup.name)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {

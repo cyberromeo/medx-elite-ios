@@ -18,6 +18,9 @@ struct MedxEliteApp: App {
     /// first frame. It also traps if the identifier is missing from
     /// `Info.plist ▸ BGTaskSchedulerPermittedIdentifiers`, which is why both live together.
     init() {
+        // DEBUG builds launched with `-medxDemo YES` (the simulator screenshot job) answer every
+        // backend call from fixtures; in Release this is an empty stub.
+        MedxDemoMode.install()
         MedxVodWatcher.registerBackgroundTask()
     }
 
@@ -85,14 +88,72 @@ struct MedxEliteApp: App {
         // The Firebase SDK is configured for one feature — Faceoff's snapshot listeners — and its
         // sign-in is separate from the REST one, so a restored session has to re-do it. Both are
         // fire-and-forget: the rest of the app is on the REST path either way.
-        MedxFirebaseBridge.shared.configure()
-        Task { await authService.restoreSDKSession() }
+        if !MedxDemoMode.isOn {
+            MedxFirebaseBridge.shared.configure()
+            Task { await authService.restoreSDKSession() }
+        }
 
         // Long enough for the mark to read as an entrance rather than a flicker, short
         // enough that it never becomes a wait.
         try? await Task.sleep(nanoseconds: 1_100_000_000)
         withAnimation(.easeOut(duration: 0.35)) { showSplash = false }
+
+        #if DEBUG
+        await runScreenshotDirector()
+        #endif
     }
+
+    #if DEBUG
+    /// Screenshot runs only: `-medxScreen <name>` opens one screen after launch, so the simulator
+    /// job can capture each of them without a tap. Every route is one the app already has.
+    @MainActor
+    private func runScreenshotDirector() async {
+        guard MedxDemoMode.isOn,
+              let screen = UserDefaults.standard.string(forKey: "medxScreen")
+        else { return }
+
+        let demoModule = MedxModulePick(
+            id: "qb_375",
+            name: "Gram-Positive Cocci: Staphylococcus & Streptococcus",
+            subject: "Microbiology",
+            questionCount: 12
+        )
+
+        switch screen {
+        case "home": appState.open(route: .home)
+        case "qbank", "subject":
+            UserDefaults.standard.set(MedxBank.arise.rawValue, forKey: "medx.qbank.bank")
+            appState.open(route: .qbank)
+        case "qbank-marrow":
+            UserDefaults.standard.set(MedxBank.marrow.rawValue, forKey: "medx.qbank.bank")
+            appState.open(route: .qbank)
+        case "tests": appState.open(route: .tests)
+        case "classes": appState.open(route: .classes)
+        case "library": appState.open(route: .library)
+        case "flashcards": appState.open(route: .flashcards)
+        case "vod": appState.open(route: .vodFeed)
+        case "batch": appState.open(route: .batchPapers)
+        case "search": appState.open(route: .search(nil))
+        case "custom": appState.open(route: .customModules)
+        case "faceoff": appState.open(route: .faceoff)
+        case "bookmarks": appState.open(route: .bookmarks)
+        case "downloads": appState.open(route: .downloads)
+        case "settings": appState.open(route: .settings)
+        case "module": appState.open(route: .module(demoModule))
+        case "runner", "runner-revision":
+            appState.startSitting(
+                RunnerPayload(
+                    kind: "qbank",
+                    id: demoModule.id,
+                    name: demoModule.name,
+                    subject: demoModule.subject,
+                    mode: screen == "runner" ? .exam : .revision
+                )
+            )
+        default: break
+        }
+    }
+    #endif
 
     // MARK: - Scene phase
 
