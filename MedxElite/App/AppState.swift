@@ -240,6 +240,11 @@ public enum MedxLibraryDestination: Hashable, Sendable {
     case vodFeed
     case importVod
     case batchPapers
+    /// iPad only: these open in the content column beside the sidebar instead of as a sheet
+    /// floating over it.
+    case customModules
+    case bookmarks
+    case downloads
 }
 
 

@@ -282,7 +282,7 @@ public struct FaceoffLobbyView: View {
         MedxPageHeader(
             section: .duel,
             lead: "One question, one minute, two of you. A right answer is 40 points plus whatever "
-                + "is still on the clock — \(MedxDuelRules.maxPoints) if you are instant, "
+                + "is still on the clock, \(MedxDuelRules.maxPoints) if you are instant, "
                 + "\(MedxDuelRules.basePoints) if you scrape it, nothing if you are wrong."
         )
     }
@@ -705,7 +705,7 @@ struct FaceoffHostSheet: View {
             if customStore.isLoading, matches.isEmpty {
                 ProgressView().frame(maxWidth: .infinity).padding(.vertical, 20)
             } else if matches.isEmpty {
-                Text("No custom modules yet — build one above, or pick a Marrow paper from the "
+                Text("No custom modules yet, build one above, or pick a Marrow paper from the "
                      + "other tabs.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -763,7 +763,7 @@ struct FaceoffHostSheet: View {
             }
 
             if papers.count > Self.listCap {
-                Text("\(papers.count - Self.listCap) more — search to narrow it down.")
+                Text("\(papers.count - Self.listCap) more, search to narrow it down.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -841,7 +841,7 @@ struct FaceoffHostSheet: View {
                     .foregroundStyle(MedxTheme.warningOrange)
                     .fixedSize(horizontal: false, vertical: true)
             } else if picked != nil {
-                Text("\(dealt) question\(dealt == 1 ? "" : "s"), shuffled, a minute each — "
+                Text("\(dealt) question\(dealt == 1 ? "" : "s"), shuffled, a minute each, "
                      + "\(MedxDuelRules.possiblePoints(dealt)) points on the table. "
                      + "Both of you see the same deck.")
                     .font(.caption)

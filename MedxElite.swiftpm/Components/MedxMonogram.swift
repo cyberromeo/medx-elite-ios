@@ -101,7 +101,7 @@ public struct MedxProfileButton: View {
     }
 
     public var body: some View {
-        control.sheet(isPresented: $showSettings) { SettingsView() }
+        control.sheet(isPresented: $showSettings) { SettingsView().medxPageSheet() }
     }
 
     @ViewBuilder

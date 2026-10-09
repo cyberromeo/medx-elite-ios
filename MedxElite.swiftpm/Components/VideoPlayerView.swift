@@ -315,7 +315,7 @@ public struct VideoPlayerView: View {
 
     /// Enough detail for the diagnostics row to be worth reading.
     private var playbackContext: String {
-        proxy.isRunning ? "stream via proxy port \(proxy.port)" : "stream with no proxy — direct URL"
+        proxy.isRunning ? "stream via proxy port \(proxy.port)" : "stream with no proxy, direct URL"
     }
 
     // MARK: - Observers

@@ -39,7 +39,7 @@ public final class MedxNotificationManager: NSObject, ObservableObject {
             case .revisionDue: return "At 8 am, only when the spaced schedule has modules waiting."
             case .vodDrops:
                 return "When something new lands in the ARISE VOD bucket. Checked on every launch, "
-                    + "and in the background when iOS allows it — there is no push, so a launch is "
+                    + "and in the background when iOS allows it, there is no push, so a launch is "
                     + "the only guarantee."
             }
         }
@@ -208,7 +208,7 @@ public final class MedxNotificationManager: NSObject, ObservableObject {
             content.body = "\(snapshot.remainingToGoal) to go for your goal of \(snapshot.dailyGoal). "
                 + "\(snapshot.daysRemaining()) days to \(snapshot.examName)."
         } else {
-            content.body = "Goal of \(snapshot.dailyGoal) already met — anything more is a bonus. "
+            content.body = "Goal of \(snapshot.dailyGoal) already met, anything more is a bonus. "
                 + "\(snapshot.daysRemaining()) days to \(snapshot.examName)."
         }
         content.sound = .default

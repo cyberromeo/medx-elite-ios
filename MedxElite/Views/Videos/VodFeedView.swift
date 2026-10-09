@@ -303,7 +303,7 @@ public struct VodFeedView: View {
                 // Said out loud, because a filter that silently only covers part of a collection
                 // is worse than no filter: the bucket has no text index, so `folder` is the only
                 // field a server-side search could use and it needs an exact code.
-                Text("Searching the \(items.count.formatted()) loaded so far — the bucket has no "
+                Text("Searching the \(items.count.formatted()) loaded so far, the bucket has no "
                      + "text index, so load more to widen it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -514,7 +514,7 @@ public struct VodFeedView: View {
         }
 
         if isDone, !items.isEmpty {
-            Text("That is the whole bucket — \(items.count.formatted()) recordings.")
+            Text("That is the whole bucket, \(items.count.formatted()) recordings.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity)

@@ -176,7 +176,7 @@ public struct MedxCustomModuleSheet: View {
             if availableCount == nil {
                 Text("The question index has not been built, so questions are sampled from a handful of modules instead. Build it in Settings to filter across the whole bank.")
             } else if let availableCount, availableCount < length {
-                Text("Only \(availableCount) match — the sitting will be that long.")
+                Text("Only \(availableCount) match, the sitting will be that long.")
             }
         }
     }

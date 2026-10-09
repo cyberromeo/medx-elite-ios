@@ -163,14 +163,28 @@ struct MedxEliteApp: App {
                     gradable: true
                 )
             )
-        case "runner", "runner-revision", "review", "runner-navigator":
+        case "runner-custom", "review-custom":
+            // A mixed paper: every question says which paper it came from.
+            let papers = ["FMGE June 2023", "FMGE Dec 2022", "FMGE June 2022", "FMGE Jan 2023"]
+            appState.startSitting(
+                RunnerPayload(
+                    kind: "qbank",
+                    id: demoModule.id,
+                    name: "Weak spots mix",
+                    subject: "Custom",
+                    mode: .exam,
+                    questionTags: (0..<200).map { papers[$0 % papers.count] }
+                )
+            )
+        case "runner", "runner-revision", "review", "runner-navigator", "runner-answered", "runner-lowtime",
+             "runner-submit", "runner-resume", "runner-leave", "review-question", "runner-revision-pick":
             appState.startSitting(
                 RunnerPayload(
                     kind: "qbank",
                     id: demoModule.id,
                     name: demoModule.name,
                     subject: demoModule.subject,
-                    mode: screen == "runner-revision" ? .revision : .exam
+                    mode: screen.hasPrefix("runner-revision") ? .revision : .exam
                 )
             )
         default: break

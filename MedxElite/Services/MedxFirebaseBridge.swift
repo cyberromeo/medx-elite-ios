@@ -83,8 +83,8 @@ public final class MedxFirebaseBridge: ObservableObject {
         let appId = FirebaseConfig.iosAppId
         guard Self.isAcceptableAppId(appId) else {
             status = appId.isEmpty
-                ? "No iOS app ID in FirebaseConfig — Faceoff polls instead"
-                : "iOS app ID is not in Firebase's 1:…:ios:… form — Faceoff polls instead"
+                ? "No iOS app ID in FirebaseConfig, Faceoff polls instead"
+                : "iOS app ID is not in Firebase's 1:…:ios:… form, Faceoff polls instead"
             return
         }
 
@@ -102,7 +102,7 @@ public final class MedxFirebaseBridge: ObservableObject {
         isConfigured = true
         status = "Configured, not signed in"
         #else
-        status = "Built without the Firebase package — Faceoff polls instead"
+        status = "Built without the Firebase package, Faceoff polls instead"
         #endif
     }
 
@@ -122,7 +122,7 @@ public final class MedxFirebaseBridge: ObservableObject {
             status = "Signed in as \(result.user.uid)"
         } catch {
             isReady = false
-            status = "SDK sign-in refused — Faceoff polls instead"
+            status = "SDK sign-in refused, Faceoff polls instead"
             print("[FirebaseBridge] SDK sign-in failed: \(error)")
         }
         #endif

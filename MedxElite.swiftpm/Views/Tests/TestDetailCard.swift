@@ -51,7 +51,7 @@ public struct TestDetailCard: View {
             }
 
             if !test.gradable {
-                Text("Not scored — the source app withheld this paper's answer key, so it can be answered for practice only.")
+                Text("Not scored, the source app withheld this paper's answer key, so it can be answered for practice only.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

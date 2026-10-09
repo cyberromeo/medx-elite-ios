@@ -26,24 +26,25 @@ public struct LibraryView: View {
     /// Two up on a phone, four on an iPad. At an accessibility text size the grid collapses to one
     /// column: a tile whose title has wrapped to three lines is not a grid any more, and `List`
     /// would have been the honest layout at that size all along.
-    private var columns: [GridItem] {
-        let count = typeSize.isAccessibilitySize ? 1 : (sizeClass == .regular ? 4 : 2)
+    /// iPad: three across in portrait (a 3 x 4 grid of the twelve doors) and four across in
+    /// landscape, every tile the same size. A fixed four in portrait left 105 pt tiles with
+    /// "Flashcar…" titles and a "12 new" badge broken over three lines.
+    private func columns(for size: CGSize) -> [GridItem] {
+        if typeSize.isAccessibilitySize { return [GridItem(.flexible(), spacing: 12)] }
+        let count: Int
+        if sizeClass == .regular {
+            count = size.width > size.height ? 4 : 3
+        } else {
+            count = 2
+        }
         return Array(repeating: GridItem(.flexible(), spacing: 12), count: count)
     }
 
     public var body: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(tiles) { tile in
-                    LibraryTile(tile: tile)
-                }
-            }
-            .padding(.horizontal, MedxSurface.gutter)
-            .padding(.top, 8)
-            .padding(.bottom, 28)
+        GeometryReader { geo in
+            grid(columns: columns(for: geo.size))
         }
         .medxBackdrop(.library)
-        .medxScrollEdge()
         .navigationTitle("Library")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -56,6 +57,9 @@ public struct LibraryView: View {
             case .vodFeed: VodFeedView()
             case .importVod: VodImportView()
             case .batchPapers: BatchPapersView()
+            case .customModules: CustomModulesView()
+            case .bookmarks: BookmarkedQuestionsView(uid: uid)
+            case .downloads: DownloadsView()
             }
         }
         .task {
@@ -63,6 +67,20 @@ public struct LibraryView: View {
             await vod.refreshFromForeground()
             lobbyWatcher.start()
         }
+    }
+
+    private func grid(columns: [GridItem]) -> some View {
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(tiles) { tile in
+                    LibraryTile(tile: tile)
+                }
+            }
+            .padding(.horizontal, MedxSurface.gutter)
+            .padding(.top, 8)
+            .padding(.bottom, 28)
+        }
+        .medxScrollEdge()
     }
 
     // MARK: - The grid
@@ -117,11 +135,17 @@ public struct LibraryView: View {
             LibraryTileModel(
                 id: "custom",
                 title: "Custom modules",
-                detail: "Papers either of you saved",
+                detail: "Your saved mixes",
                 symbol: "slider.horizontal.3",
                 hue: MedxCandy.violet,
                 badge: customModules.modules.isEmpty ? nil : "\(customModules.modules.count)"
-            ) { appState.open(route: .customModules) },
+            ) {
+                if sizeClass == .regular {
+                    appState.libraryDestination = .customModules
+                } else {
+                    appState.open(route: .customModules)
+                }
+            },
 
             LibraryTileModel(
                 id: "quick",
@@ -148,7 +172,13 @@ public struct LibraryView: View {
                 symbol: "bookmark.fill",
                 hue: MedxCandy.butter,
                 badge: bookmarkCount > 0 ? "\(bookmarkCount)" : nil
-            ) { appState.showBookmarks = true },
+            ) {
+                if sizeClass == .regular {
+                    appState.libraryDestination = .bookmarks
+                } else {
+                    appState.showBookmarks = true
+                }
+            },
 
             LibraryTileModel(
                 id: "downloads",
@@ -157,7 +187,13 @@ public struct LibraryView: View {
                 symbol: "arrow.down.circle.fill",
                 hue: MedxCandy.sky,
                 badge: downloadBadge
-            ) { appState.showDownloads = true },
+            ) {
+                if sizeClass == .regular {
+                    appState.libraryDestination = .downloads
+                } else {
+                    appState.showDownloads = true
+                }
+            },
 
             LibraryTileModel(
                 id: "log",
@@ -229,6 +265,7 @@ struct LibraryTile: View {
 
                     if let badge = tile.badge {
                         MedxPill(badge, hue: tile.hue, weight: .solid)
+                            .fixedSize()
                     }
                 }
 
@@ -238,6 +275,7 @@ struct LibraryTile: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.85)
 
                 Text(tile.detail)
                     .font(.caption)

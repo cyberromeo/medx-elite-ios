@@ -43,14 +43,17 @@ public struct MainTabView: View {
             }
             .sheet(isPresented: $appState.showSearch) {
                 MedxQuestionSearchView(seed: appState.searchSeed)
+                    .medxPageSheet()
             }
             .sheet(isPresented: $appState.showQuickSitting) {
                 MedxCustomModuleSheet()
+                    .medxPageSheet()
             }
             .sheet(isPresented: $appState.showSettings) {
                 SettingsView()
+                    .medxPageSheet()
             }
-            .sheet(isPresented: $appState.showCustomModules) {
+            .sheet(isPresented: padAware(\.showCustomModules)) {
                 NavigationStack {
                     CustomModulesView()
                         .toolbar {
@@ -65,11 +68,12 @@ public struct MainTabView: View {
                             }
                         }
                 }
+                .medxPageSheet()
             }
             .fullScreenCover(isPresented: $appState.showFaceoff) {
                 FaceoffLobbyView()
             }
-            .sheet(isPresented: $appState.showBookmarks) {
+            .sheet(isPresented: padAware(\.showBookmarks)) {
                 NavigationStack {
                     BookmarkedQuestionsView(uid: uid)
                         .toolbar {
@@ -84,26 +88,31 @@ public struct MainTabView: View {
                             }
                         }
                 }
+                .medxPageSheet()
             }
-            .sheet(isPresented: $appState.showDownloads) {
+            .sheet(isPresented: padAware(\.showDownloads)) {
                 NavigationStack {
                     DownloadsView()
                         .toolbar {
-                            ToolbarItem(placement: .topBarLeading) {
+                            ToolbarItem(placement: .topBarTrailing) {
                                 Button("Done") { appState.showDownloads = false }
+                                    .font(.body.weight(.semibold))
                             }
                         }
                 }
+                .medxPageSheet()
             }
-            .sheet(isPresented: $appState.showActivityLog) {
+            .sheet(isPresented: padAware(\.showActivityLog)) {
                 NavigationStack {
                     MedxActivityLogHost(uid: uid)
                         .toolbar {
-                            ToolbarItem(placement: .topBarLeading) {
+                            ToolbarItem(placement: .topBarTrailing) {
                                 Button("Done") { appState.showActivityLog = false }
+                                    .font(.body.weight(.semibold))
                             }
                         }
                 }
+                .medxPageSheet()
             }
             .sheet(item: $appState.pendingModulePick) { pick in
                 StartSessionSheet(
@@ -130,6 +139,26 @@ public struct MainTabView: View {
             .task(id: appState.revisionRequestedAt) {
                 await startTodaysRevision()
             }
+            // iPad: these four open in the detail column beside the sidebar (the sidebar already
+            // lists them) instead of as a sheet dropped over it.
+            .onChange(of: appState.showCustomModules) { _, on in padRoute(on, \.showCustomModules, to: .customModules) }
+            .onChange(of: appState.showBookmarks) { _, on in padRoute(on, \.showBookmarks, to: .bookmarks) }
+            .onChange(of: appState.showDownloads) { _, on in padRoute(on, \.showDownloads, to: .downloads) }
+            .onChange(of: appState.showActivityLog) { _, on in padRoute(on, \.showActivityLog, to: .activityLog) }
+    }
+
+    /// A sheet flag that never presents on iPad, where `padRoute` turns it into a detail pick.
+    private func padAware(_ flag: ReferenceWritableKeyPath<AppState, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { sizeClass != .regular && appState[keyPath: flag] },
+            set: { appState[keyPath: flag] = $0 }
+        )
+    }
+
+    private func padRoute(_ on: Bool, _ flag: ReferenceWritableKeyPath<AppState, Bool>, to tab: MedxPadLibraryTab) {
+        guard on, sizeClass == .regular else { return }
+        padLibrarySelection = tab
+        appState[keyPath: flag] = false
     }
 
     @ViewBuilder
@@ -413,11 +442,12 @@ public struct ProfileAvatarView: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                profile.gradient
+                // Neutral, with the initials in the accent: no per-profile gradient.
+                Color(uiColor: .tertiarySystemFill)
 
                 Text(profile.initials)
                     .font(.system(size: size * 0.4, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(MedxTheme.accent)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
             }
@@ -427,7 +457,7 @@ public struct ProfileAvatarView: View {
         .overlay {
             if showsRing {
                 Circle()
-                    .strokeBorder(profile.accentColor.opacity(0.45), lineWidth: max(1, size * 0.04))
+                    .strokeBorder(Color.primary.opacity(0.14), lineWidth: max(1, size * 0.04))
             }
         }
         .accessibilityHidden(true)

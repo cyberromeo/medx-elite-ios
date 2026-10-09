@@ -161,8 +161,10 @@ public struct SettingsView: View {
         // Read here, in `body`'s isolation: `PhotosPicker`'s label closure is not main-actor
         // isolated, so it must not reach into `AvatarStore` itself.
         let hasPhoto = avatars.hasImage(for: profile.id)
-        let start = Color(hex: profile.gradientStart)
-        let end = Color(hex: profile.gradientEnd)
+        // Neutral glass with the accent used once, on the countdown's glyph and the sittings
+        // figure. The profile's own blue gradient (ring, camera badge, pill, card wash) read as
+        // a second and third colour on a page that should have one.
+        let accent = MedxTheme.accent
         let days = max(stats.daysToExam, 0)
 
         return VStack(spacing: 14) {
@@ -170,19 +172,16 @@ public struct SettingsView: View {
                 ProfileAvatarView(profile: profile, size: 92, showsRing: false)
                     .padding(5)
                     .background(
-                        Circle().strokeBorder(
-                            AngularGradient(colors: [start, end, start], center: .center),
-                            lineWidth: 3.5
-                        )
+                        Circle().strokeBorder(Color.primary.opacity(0.14), lineWidth: 1.5)
                     )
-                    .shadow(color: end.opacity(0.35), radius: 16, y: 6)
 
                 PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
                     Image(systemName: "camera.fill")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.primary)
                         .frame(width: 32, height: 32)
-                        .background(Circle().fill(LinearGradient(colors: [start, end], startPoint: .topLeading, endPoint: .bottomTrailing)))
+                        .background(Circle().fill(Color(uiColor: .tertiarySystemFill)))
+                        .background(Circle().fill(Color(uiColor: .secondarySystemGroupedBackground)))
                         .overlay(Circle().strokeBorder(Color(uiColor: .systemBackground), lineWidth: 3))
                 }
                 .buttonStyle(.plain)
@@ -215,25 +214,23 @@ public struct SettingsView: View {
             HStack(spacing: 8) {
                 Image(systemName: "hourglass")
                     .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(accent)
                 Text("\(days)")
                     .font(MedxType.figure(17, weight: .heavy))
+                    .foregroundStyle(Color.primary)
                 Text(days == 1 ? "day to \(stats.examName)" : "days to \(stats.examName)")
                     .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.secondary)
                     .lineLimit(1)
             }
-            .foregroundStyle(.white)
             .padding(.horizontal, 16)
             .frame(height: 38)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(LinearGradient(colors: [start, end], startPoint: .leading, endPoint: .trailing))
-            )
-            .shadow(color: end.opacity(0.3), radius: 10, y: 4)
+            .background(Capsule(style: .continuous).fill(Color.primary.opacity(0.07)))
 
             HStack(spacing: 10) {
                 identityStat(value: "\(stats.streakDays)", label: "day streak", icon: "flame.fill", tint: MedxDS.warn)
                 identityStat(value: overallAccuracy.map { "\($0)%" } ?? "–", label: "accuracy", icon: "scope", tint: MedxDS.correct)
-                identityStat(value: "\(attempts.count)", label: "sittings", icon: "checklist", tint: start)
+                identityStat(value: "\(attempts.count)", label: "sittings", icon: "checklist", tint: accent)
             }
         }
         .padding(.vertical, 22)
@@ -244,17 +241,7 @@ public struct SettingsView: View {
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
                 .overlay {
                     RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [start.opacity(0.30), end.opacity(0.14), .clear],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .strokeBorder(start.opacity(0.25), lineWidth: 1)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
                 }
         }
     }
@@ -303,7 +290,7 @@ public struct SettingsView: View {
             return String(day.formatted(.dateTime.weekday(.narrow)))
         }
 
-        return ProfileCard(title: "This week", icon: "chart.bar.fill", tint: MedxCandy.tangerine) {
+        return ProfileCard(title: "This week", icon: "chart.bar.fill", tint: MedxTheme.accent) {
             HStack(alignment: .center, spacing: 18) {
                 ZStack {
                     Circle()
@@ -335,13 +322,13 @@ public struct SettingsView: View {
                     ForEach(0..<7, id: \.self) { index in
                         let value = index < week.count ? week[index] : 0
                         VStack(spacing: 5) {
-                            Capsule(style: .continuous)
-                                .fill(
-                                    index == 6
-                                        ? AnyShapeStyle(LinearGradient(colors: [MedxTheme.accent.opacity(0.7), MedxTheme.accent], startPoint: .bottom, endPoint: .top))
-                                        : AnyShapeStyle(MedxTheme.accent.opacity(0.32))
-                                )
-                                .frame(height: max(6, 72 * CGFloat(value) / CGFloat(peak)))
+                            // One width for every bar and a fixed corner, so a short bar is a
+                            // short bar. The capsule took its radius from whichever side was
+                            // shorter, which made a low day a wide oval and a high one a blob.
+                            Spacer(minLength: 0)
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(index == 6 ? MedxTheme.accent : Color.primary.opacity(0.16))
+                                .frame(width: 14, height: max(6, 72 * CGFloat(value) / CGFloat(peak)))
                             Text(labels[index])
                                 .font(.caption2.weight(index == 6 ? .heavy : .semibold))
                                 .foregroundStyle(index == 6 ? Color.primary : Color.secondary)
@@ -441,7 +428,7 @@ public struct SettingsView: View {
                 HStack(alignment: .top) {
                     Image(systemName: icon)
                         .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(MedxCandy.onSolid)
+                        .foregroundStyle(MedxCandy.ink(on: tint))
                         .frame(width: 38, height: 38)
                         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(tint))
                     Spacer(minLength: 4)
@@ -929,8 +916,8 @@ public struct SettingsView: View {
             // Both banks, so the split is worth naming: "32,467 questions" on its own does not
             // tell you whether the Marrow half actually landed.
             Text(index.isComplete
-                 ? "All \(index.indexedCount.formatted()) questions are searchable offline — \(index.indexedCount(bank: .arise).formatted()) ARISE and \(index.indexedCount(bank: .marrow).formatted()) Marrow."
-                 : "Searching every question needs their text on this device. Building fetches all \(max(index.expectedModules, 2171)) modules across both banks once — it is resumable, and it also makes those modules playable offline.")
+                 ? "All \(index.indexedCount.formatted()) questions are searchable offline, \(index.indexedCount(bank: .arise).formatted()) ARISE and \(index.indexedCount(bank: .marrow).formatted()) Marrow."
+                 : "Searching every question needs their text on this device. Building fetches all \(max(index.expectedModules, 2171)) modules across both banks once, it is resumable, and it also makes those modules playable offline.")
                 .font(.caption)
         }
     }
@@ -995,7 +982,7 @@ public struct SettingsView: View {
         } header: {
             MedxSettingsHeader("Siri, Spotlight & widgets", symbol: "sparkles", hue: MedxCandy.sky)
         } footer: {
-            Text("Nothing is uploaded — Spotlight's index lives on this device and is removed when the switch is off.")
+            Text("Nothing is uploaded, Spotlight's index lives on this device and is removed when the switch is off.")
                 .font(.caption)
         }
         .tint(MedxTheme.accent)
@@ -1037,7 +1024,7 @@ public struct SettingsView: View {
             diagnosticRow(
                 title: "Built against",
                 detail: MedxInstallInfo.usesLegacyAppearance
-                    ? "\(MedxInstallInfo.builtWithSDK) — legacy appearance"
+                    ? "\(MedxInstallInfo.builtWithSDK), legacy appearance"
                     : MedxInstallInfo.builtWithSDK,
                 ok: !MedxInstallInfo.usesLegacyAppearance
             )
@@ -1046,7 +1033,7 @@ public struct SettingsView: View {
                 title: "Widget extension",
                 detail: MedxInstallInfo.hasWidgetExtension
                     ? MedxInstallInfo.installedExtensions.joined(separator: ", ")
-                    : "Missing — reinstall and keep app extensions",
+                    : "Missing, reinstall and keep app extensions",
                 ok: MedxInstallInfo.hasWidgetExtension
             )
 
@@ -1054,7 +1041,7 @@ public struct SettingsView: View {
                 title: "Live Activities",
                 detail: MedxLiveActivityController.shared.isAvailable
                     ? "Allowed"
-                    : "Off — Settings ▸ MedX Elite ▸ Live Activities",
+                    : "Off, Settings ▸ MedX Elite ▸ Live Activities",
                 ok: MedxLiveActivityController.shared.isAvailable
             )
 
@@ -1112,8 +1099,8 @@ public struct SettingsView: View {
             MedxSettingsHeader("Diagnostics", symbol: "stethoscope", hue: MedxCandy.violet)
         } footer: {
             Text(MedxInstallInfo.usesLegacyAppearance
-                 ? "This build was compiled against an older iOS SDK, which is why the interface uses the previous system style — iOS only applies the current design language to apps linked against the iOS 26 SDK or newer. Rebuild with the updated CI workflow."
-                 : "Tap a failed row to clear it. The VOD check runs on every launch and, when iOS agrees to it, roughly every two hours in the background — there is no push, so opening the app is the guarantee.")
+                 ? "This build was compiled against an older iOS SDK, which is why the interface uses the previous system style, iOS only applies the current design language to apps linked against the iOS 26 SDK or newer. Rebuild with the updated CI workflow."
+                 : "Tap a failed row to clear it. The VOD check runs on every launch and, when iOS agrees to it, roughly every two hours in the background, there is no push, so opening the app is the guarantee.")
                 .font(.caption)
         }
     }
@@ -1130,7 +1117,7 @@ public struct SettingsView: View {
                 title: "Stream proxy",
                 detail: proxy.isRunning
                     ? "Bound to port \(proxy.port)"
-                    : "Not bound — classes will not stream",
+                    : "Not bound, classes will not stream",
                 ok: proxy.isRunning
             )
 
@@ -1160,9 +1147,9 @@ public struct SettingsView: View {
     /// stream where there is one, and falls back to the bridge's own reason where there is not.
     private var faceoffTransportDetail: String {
         guard let name = MedxLobbyWatcher.shared.activeTransportName else {
-            return "No stream open — \(MedxFirebaseBridge.shared.status)"
+            return "No stream open, \(MedxFirebaseBridge.shared.status)"
         }
-        return "\(name) — \(MedxFirebaseBridge.shared.status)"
+        return "\(name), \(MedxFirebaseBridge.shared.status)"
     }
 
     /// One line for the drop watcher: when it last looked, and what it found there. `count` in
@@ -1174,13 +1161,13 @@ public struct SettingsView: View {
         }
         let when = checked.formatted(date: .omitted, time: .shortened)
         guard let newest = vod.meta?.lastUploadedAt else {
-            return "Checked at \(when) — the bucket reported no uploads"
+            return "Checked at \(when), the bucket reported no uploads"
         }
         let drop = newest.formatted(date: .abbreviated, time: .shortened)
         if vod.unseenCount > 0 {
-            return "Checked at \(when) — \(vod.unseenCount) unseen, newest \(drop)"
+            return "Checked at \(when), \(vod.unseenCount) unseen, newest \(drop)"
         }
-        return "Checked at \(when) — up to date, newest \(drop)"
+        return "Checked at \(when), up to date, newest \(drop)"
     }
 
     private func diagnosticRow(title: String, detail: String, ok: Bool) -> some View {
@@ -1470,7 +1457,7 @@ private struct BookmarkedQuestionDetailView: View {
                         let option = pair.element
                         let isCorrect = bookmark.question.correctIds.contains(option.id) || option.correct == true
 
-                        HStack(alignment: .center, spacing: 12) {
+                        HStack(alignment: .medxFirstLine, spacing: 12) {
                             Text(MedxOptionLetter.of(option, at: pair.offset))
                                 .font(.footnote.weight(.bold).monospacedDigit())
                                 .foregroundColor(isCorrect ? .white : .primary)
@@ -1480,6 +1467,7 @@ private struct BookmarkedQuestionDetailView: View {
 
                             HTMLRichTextView(html: option.text, fontSize: 14, weight: .regular)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                .medxFirstLineGuide(fontSize: 14)
                                 .layoutPriority(1)
 
                             Spacer(minLength: 0)
@@ -1965,7 +1953,7 @@ struct ProfileCard<Content: View>: View {
             HStack(spacing: 10) {
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(MedxCandy.onSolid)
+                    .foregroundStyle(MedxCandy.ink(on: tint))
                     .frame(width: 28, height: 28)
                     .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tint))
                 Text(title)

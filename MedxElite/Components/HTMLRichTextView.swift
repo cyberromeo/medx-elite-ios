@@ -112,7 +112,9 @@ public struct HTMLRichTextView: View {
 
     @ViewBuilder
     private func textRun(_ string: AttributedString) -> some View {
-        let base = Text(string)
+        // A paragraph's own closing newline made a one-line option two lines tall, so the words
+        // sat at the top of a box that the letter badge beside them was centred on.
+        let base = Text(Self.trimmed(string))
             .lineSpacing(3)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
@@ -122,6 +124,17 @@ public struct HTMLRichTextView: View {
         } else {
             base
         }
+    }
+
+    private static func trimmed(_ string: AttributedString) -> AttributedString {
+        var out = string
+        while let last = out.characters.last, last.isWhitespace || last.isNewline {
+            out.characters.removeLast()
+        }
+        while let first = out.characters.first, first.isWhitespace || first.isNewline {
+            out.characters.removeFirst()
+        }
+        return out
     }
 
     @ViewBuilder
@@ -1045,3 +1058,27 @@ private let cssNamedColors: [String: String] = [
     "forestgreen": "228b22", "yellowgreen": "9acd32", "chocolate": "d2691e"
 ]
 
+
+
+// MARK: - First-line alignment
+
+public extension VerticalAlignment {
+    /// The vertical centre of the first line of text in a row: what an option's letter badge,
+    /// its words and its tick or cross all line up on. A one-line option is centred as a whole;
+    /// a three-line one keeps the badge and the tick level with its first line.
+    private enum MedxFirstLine: AlignmentID {
+        static func defaultValue(in d: ViewDimensions) -> CGFloat { d[VerticalAlignment.center] }
+    }
+
+    static let medxFirstLine = VerticalAlignment(MedxFirstLine.self)
+}
+
+public extension View {
+    /// For rich text set at `fontSize`: places `.medxFirstLine` at the middle of its first line's
+    /// capitals, just above the first baseline.
+    func medxFirstLineGuide(fontSize: CGFloat) -> some View {
+        alignmentGuide(.medxFirstLine) { d in
+            d[.firstTextBaseline] - UIFontMetrics(forTextStyle: .body).scaledValue(for: fontSize) * 0.36
+        }
+    }
+}

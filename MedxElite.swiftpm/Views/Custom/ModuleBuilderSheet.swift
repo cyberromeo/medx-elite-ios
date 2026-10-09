@@ -185,7 +185,7 @@ public struct ModuleBuilderSheet: View {
     }
 
     private var nameField: some View {
-        TextField("Name it — “Weak spots”, “Ortho + Anat”", text: $draft.name)
+        TextField("Name it, “Weak spots”, “Ortho + Anat”", text: $draft.name)
             .font(.body.weight(.semibold))
             .textInputAutocapitalization(.sentences)
             .submitLabel(.done)

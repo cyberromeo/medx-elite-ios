@@ -159,31 +159,16 @@ public struct MedxHeroBackground: View {
     }
 
     public var body: some View {
+        // One flat fill of the accent (the first colour handed in), no washes, glows or shadow:
+        // the countdown is the one solid surface on Home and it should read as the accent, not as
+        // a purple-to-blue sunset.
         let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
         shape
-            .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+            .fill(colors.first ?? MedxTheme.accent)
             .overlay {
-                shape.fill(
-                    RadialGradient(
-                        colors: [Color.white.opacity(0.28), Color.white.opacity(0)],
-                        center: UnitPoint(x: 0.08, y: 0.0),
-                        startRadius: 0,
-                        endRadius: 260
-                    )
-                )
+                // A slightly darker floor keeps white text legible on a light accent.
+                shape.fill(Color.black.opacity(scheme == .dark ? 0.18 : 0.08))
             }
-            .overlay {
-                // A slightly darker floor keeps white text legible over the lighter hue.
-                shape.fill(
-                    LinearGradient(
-                        colors: [Color.black.opacity(0), Color.black.opacity(scheme == .dark ? 0.22 : 0.12)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-            }
-            .overlay { shape.strokeBorder(Color.white.opacity(0.22), lineWidth: 0.75) }
-            .shadow(color: (colors.first ?? .clear).opacity(scheme == .dark ? 0.28 : 0.32), radius: 18, y: 10)
     }
 }
 

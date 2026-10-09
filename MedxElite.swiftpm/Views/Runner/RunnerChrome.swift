@@ -481,16 +481,19 @@ struct RunnerTimerRing: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Time left over the time the clock was wound to: the ring drains as the paper runs.
     private var fraction: Double {
         guard capacitySeconds > 0 else { return 0 }
         return min(max(Double(remainingSeconds) / Double(capacitySeconds), 0), 1)
     }
 
+    /// The accent while there is time, orange under a fifth, red for the last twentieth (or the
+    /// last minute of a long paper). Paused keeps the colour it had, just quieter.
     private var tint: Color {
-        if isPaused { return MedxDS.correct }
-        if remainingSeconds <= 10 || fraction <= 0.2 { return MedxDS.wrong }
-        if fraction <= 0.34 { return MedxDS.warn }
-        return MedxDS.correct
+        let lastMinute = capacitySeconds >= 600 && remainingSeconds <= 60
+        if fraction <= 0.05 || lastMinute || remainingSeconds <= 5 { return MedxDS.wrong }
+        if fraction <= 0.2 { return MedxDS.warn }
+        return MedxTheme.accent
     }
 
     private var clock: String {
@@ -502,24 +505,28 @@ struct RunnerTimerRing: View {
     }
 
     var body: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: 8) {
             ZStack {
                 Circle()
-                    .stroke(tint.opacity(0.22), lineWidth: 3)
+                    .stroke(tint.opacity(0.2), lineWidth: 3.5)
                 Circle()
-                    .trim(from: 0, to: isPaused ? 1 : fraction)
-                    .stroke(tint, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .trim(from: 0, to: fraction)
+                    .stroke(tint, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                    .animation(reduceMotion ? nil : .linear(duration: 0.9), value: fraction)
-                Image(systemName: isPaused ? "checkmark" : "clock")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(tint)
+                    .animation(reduceMotion ? nil : .linear(duration: 1), value: fraction)
+                if isPaused {
+                    Image(systemName: "pause.fill")
+                        .font(.system(size: 8, weight: .heavy))
+                        .foregroundStyle(tint)
+                }
             }
-            .frame(width: 20, height: 20)
+            .frame(width: 24, height: 24)
+            .opacity(isPaused ? 0.6 : 1)
 
-            Text(isPaused ? "Done" : clock)
+            Text(clock)
                 .font(MedxType.figure(16, weight: .bold))
-                .foregroundStyle(remainingSeconds <= 10 && !isPaused ? MedxDS.wrong : .primary)
+                .monospacedDigit()
+                .foregroundStyle(fraction <= 0.2 || remainingSeconds <= 60 && capacitySeconds >= 600 ? tint : Color.primary)
                 .contentTransition(.numericText(countsDown: true))
                 .lineLimit(1)
         }
@@ -527,7 +534,7 @@ struct RunnerTimerRing: View {
         .frame(height: height)
         .modifier(RunnerCapsuleGlass())
         .accessibilityElement()
-        .accessibilityLabel(isPaused ? "Answer revealed, timer paused" : "Time remaining \(clock)")
+        .accessibilityLabel(isPaused ? "Timer paused, \(clock) left" : "Time remaining \(clock)")
     }
 }
 
@@ -668,7 +675,10 @@ struct RunnerActionBar: View {
                         .font(.system(size: 15, weight: .bold))
                 }
                 .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
+                // A compact Next on iPad, sized to its label, rather than a bar the width of
+                // the page; the phone keeps the full-width thumb target.
+                .frame(width: isPad ? 140 : nil)
+                .frame(maxWidth: isPad ? nil : .infinity)
                 .frame(height: controlHeight)
                 .background {
                     Capsule(style: .continuous)
@@ -690,11 +700,292 @@ struct RunnerActionBar: View {
         }
         .padding(6)
         .modifier(RunnerCapsuleGlass())
-        .frame(maxWidth: isPad ? 560 : CGFloat.infinity)
+        .fixedSize(horizontal: isPad, vertical: false)
+        .frame(maxWidth: isPad ? CGFloat.infinity : CGFloat.infinity)
         .padding(.horizontal, isPad ? MedxDS.gutter : TabBarLine.side)
         .padding(.top, 4)
         .padding(.bottom, bottomPadding)
         .animation(reduceMotion ? nil : MedxDS.snap, value: isLastQuestion)
         .animation(reduceMotion ? nil : MedxDS.snap, value: canAdvance)
+    }
+}
+
+
+// MARK: - iPad landscape: navigator sidebar
+
+/// The navigator as a standing panel beside the question on an iPad in landscape: what is
+/// answered, what is open, what is flagged, every question one tap away, and Submit always in
+/// reach. The phone (and iPad portrait) gets the same grid as a sheet from the action bar.
+struct RunnerSidebarNavigator: View {
+    let range: Range<Int>
+    let currentIndex: Int
+    let furthestIndex: Int
+    let statuses: [RunnerQuestionStatus]
+    /// Bookmarked questions (absolute indices): a small dot on the pill.
+    let marked: Set<Int>
+    let lockAhead: Bool
+    let sectionLabel: String?
+    let submitLabel: String
+    let onSelect: (Int) -> Void
+    let onSubmit: () -> Void
+
+    private func status(_ index: Int) -> RunnerQuestionStatus {
+        statuses.indices.contains(index) ? statuses[index] : .unanswered
+    }
+
+    private var answered: Int { range.filter { status($0) != .unanswered }.count }
+    private var open: Int { range.count - answered }
+    private var flagged: Int { range.filter { marked.contains($0) }.count }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(sectionLabel ?? "Questions")
+                    .font(.headline.weight(.bold))
+                Spacer(minLength: 0)
+                Text("\(answered)/\(range.count)")
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 8) {
+                count(answered, "answered", MedxTheme.accent)
+                count(open, "open", .secondary)
+                count(flagged, "flagged", MedxDS.warn)
+            }
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 5), spacing: 8) {
+                        ForEach(Array(range), id: \.self) { index in
+                            pill(index).id(index)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .scrollIndicators(.hidden)
+                .onAppear { proxy.scrollTo(currentIndex, anchor: .center) }
+                .onChange(of: currentIndex) { _, index in
+                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(index, anchor: .center) }
+                }
+            }
+
+            Button(action: onSubmit) {
+                Label(submitLabel, systemImage: "checkmark.circle.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(MedxCandy.ink(on: MedxTheme.accent))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 46)
+                    .background(Capsule(style: .continuous).fill(MedxTheme.accent))
+                    .contentShape(Capsule(style: .continuous))
+            }
+            .buttonStyle(MedxPressStyle())
+        }
+        .padding(16)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(MedxDS.raised))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+        )
+    }
+
+    private func count(_ value: Int, _ label: String, _ tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text("\(value)")
+                .font(MedxType.figure(18, weight: .bold))
+                .foregroundStyle(tint)
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(MedxDS.sunken))
+    }
+
+    private func pill(_ index: Int) -> some View {
+        let state = status(index)
+        let isCurrent = index == currentIndex
+        let isLocked = lockAhead && index > furthestIndex
+        let hue = state.tileHue
+
+        return Button {
+            onSelect(index)
+        } label: {
+            Text("\(index + 1)")
+                .font(.footnote.weight(.bold).monospacedDigit())
+                .foregroundStyle(isCurrent ? MedxDS.page : (hue ?? Color.primary))
+                .frame(maxWidth: .infinity)
+                .frame(height: 34)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(isCurrent ? Color.primary : (hue?.opacity(0.26) ?? MedxDS.sunken))
+                )
+                .overlay(alignment: .topTrailing) {
+                    if marked.contains(index) {
+                        Circle()
+                            .fill(MedxDS.warn)
+                            .frame(width: 7, height: 7)
+                            .offset(x: -3, y: 3)
+                    }
+                }
+                .opacity(isLocked ? 0.35 : 1)
+                .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(MedxPressStyle())
+        .disabled(isLocked)
+        .accessibilityLabel("Question \(index + 1)")
+        .accessibilityValue(isCurrent ? "Current, \(state.legendLabel)" : state.legendLabel)
+    }
+}
+
+// MARK: - iPad landscape: explanation beside the question
+
+/// Revision on an iPad in landscape: the explanation lives in its own panel to the right of
+/// the options instead of pushing them up the screen, and says what it is waiting for until
+/// an answer is picked.
+struct RunnerExplanationPanel: View {
+    let question: Question
+    let response: QuestionResponse?
+    let isRevealed: Bool
+
+    var body: some View {
+        ScrollView {
+            if isRevealed {
+                RunnerExplanationCard(question: question, response: response)
+                    .transition(.opacity)
+            } else {
+                VStack(spacing: 10) {
+                    Image(systemName: "text.book.closed")
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                    Text("Pick an answer")
+                        .font(.headline)
+                    Text("The key and the explanation open here.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 60)
+                .padding(.horizontal, 20)
+                .background(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.1), style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
+                )
+            }
+        }
+        .scrollIndicators(.hidden)
+    }
+}
+
+// MARK: - Submit confirmation
+
+/// What is about to be handed in: answered, still open, flagged, the clock, and a way back to
+/// the first open question before committing.
+struct RunnerSubmitSheet: View {
+    let answered: Int
+    let unanswered: Int
+    let flagged: Int
+    /// Time left, for a timed paper.
+    let clock: String?
+    let title: String
+    let detail: String
+    let onReviewUnanswered: (() -> Void)?
+    let onSubmit: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    static func clock(_ seconds: Int) -> String {
+        let clamped = max(seconds, 0)
+        if clamped >= 3600 {
+            return String(format: "%d:%02d:%02d", clamped / 3600, (clamped % 3600) / 60, clamped % 60)
+        }
+        return String(format: "%02d:%02d", clamped / 60, clamped % 60)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.title2.weight(.bold))
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 8) {
+                tile("\(answered)", "answered", MedxTheme.accent)
+                tile("\(unanswered)", "unanswered", unanswered > 0 ? MedxDS.wrong : .secondary)
+                tile("\(flagged)", "flagged", flagged > 0 ? MedxDS.warn : .secondary)
+                if let clock {
+                    tile(clock, "left", .primary)
+                }
+            }
+
+            VStack(spacing: 10) {
+                Button {
+                    HapticManager.success()
+                    onSubmit()
+                } label: {
+                    Text("Submit")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(MedxCandy.ink(on: MedxTheme.accent))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(Capsule(style: .continuous).fill(MedxTheme.accent))
+                        .contentShape(Capsule(style: .continuous))
+                }
+                .buttonStyle(MedxPressStyle())
+
+                if unanswered > 0, let onReviewUnanswered {
+                    Button {
+                        HapticManager.light()
+                        onReviewUnanswered()
+                    } label: {
+                        Text("Go to first unanswered")
+                            .font(.headline)
+                            .foregroundStyle(Color.primary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(Capsule(style: .continuous).fill(MedxDS.sunken))
+                            .contentShape(Capsule(style: .continuous))
+                    }
+                    .buttonStyle(MedxPressStyle())
+                }
+
+                Button("Keep going") { dismiss() }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 2)
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: 520)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func tile(_ value: String, _ label: String, _ tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(MedxType.figure(20, weight: .bold))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(MedxDS.sunken))
     }
 }

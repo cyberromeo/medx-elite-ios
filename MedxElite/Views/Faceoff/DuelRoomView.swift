@@ -362,7 +362,7 @@ public struct DuelRoomView: View {
                 // The host owns `qIndex`, so if their app is asleep nothing advances. Said plainly
                 // rather than refereed, because refereeing would mean writing their document.
                 Text("Waiting for \(room.theirProfile?.displayName ?? "the host") to open the next "
-                     + "question — their app has to be awake.")
+                     + "question, their app has to be awake.")
                     .font(.caption)
                     .foregroundStyle(MedxTheme.warningOrange)
                     .fixedSize(horizontal: false, vertical: true)

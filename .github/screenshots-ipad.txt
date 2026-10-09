@@ -20,6 +20,13 @@ P18-batch -medxScreen batch
 P19-search -medxScreen search
 P20-downloads -medxScreen downloads
 P21-login -medxDemoSignedOut YES
+P22-videosubject-swipe -medxScreen videosubject -medxSwipeOpen YES
+P23-runner-answered -medxScreen runner-answered
+P24-runner-lowtime -medxScreen runner-lowtime
+P25-runner-submit -medxScreen runner-submit
+P26-runner-resume -medxScreen runner-resume
+P27-runner-leave -medxScreen runner-leave
+P28-runner-custom -medxScreen runner-custom
 L01-home -medxScreen home -medxLandscape YES
 L02-qbank -medxScreen qbank -medxLandscape YES
 L03-runner -medxScreen runner -medxLandscape YES
@@ -28,4 +35,7 @@ L05-tests -medxScreen tests -medxLandscape YES
 L06-settings -medxScreen settings -medxLandscape YES
 L07-library -medxScreen library -medxLandscape YES
 L08-classes -medxScreen classes -medxLandscape YES
-P22-videosubject-swipe -medxScreen videosubject -medxSwipeOpen YES
+L09-runner-revision -medxScreen runner-revision -medxLandscape YES
+L10-runner-submit -medxScreen runner-submit -medxLandscape YES
+L11-runner-answered -medxScreen runner-answered -medxLandscape YES
+L12-custom -medxScreen custom -medxLandscape YES

@@ -217,9 +217,9 @@ public final class MedxCustomModuleStore: ObservableObject {
     /// instead of playing them in blocks.
     public func buildQuestions(
         for module: MedxCustomModule
-    ) async -> (questions: [Question], missing: [MedxModuleSource]) {
+    ) async -> (questions: [Question], missing: [MedxModuleSource], tags: [String]) {
         guard let token = try? await AuthService.shared.getValidIdToken() else {
-            return ([], module.sources)
+            return ([], module.sources, [])
         }
         let sources = Self.sourcesForRun(module)
 
@@ -248,9 +248,13 @@ public final class MedxCustomModuleStore: ObservableObject {
         // Reassembled in the *selection's* order rather than the order the fetches happened to
         // finish in: an unshuffled paper is expected to play its chapters in the order they were
         // picked, and a task group answers whenever it likes.
-        var pool: [Question] = []
+        // Each question keeps the name of the module it came from ("FMGE June 2023"), so the
+        // runner can say where a question in a mixed paper is from.
+        var pool: [(question: Question, tag: String)] = []
         for source in sources {
-            pool.append(contentsOf: fetched[source.moduleId] ?? [])
+            let name = source.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let tag = name.isEmpty ? source.subject : name
+            pool.append(contentsOf: (fetched[source.moduleId] ?? []).map { ($0, tag) })
         }
 
         if module.shuffle {
@@ -259,6 +263,6 @@ public final class MedxCustomModuleStore: ObservableObject {
         if let limit = module.limit, limit > 0 {
             pool = Array(pool.prefix(limit))
         }
-        return (pool, missing)
+        return (pool.map(\.question), missing, pool.map(\.tag))
     }
 }

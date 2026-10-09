@@ -193,6 +193,18 @@ public extension View {
         }
     }
 
+    /// A sheet that reads as a page on iPad: full height and a page's width, centred and
+    /// scrollable, rather than the small form card that sat over the sidebar with its bottom cut
+    /// off. iPhone sheets are unchanged.
+    @ViewBuilder
+    func medxPageSheet() -> some View {
+        if #available(iOS 18.0, *) {
+            self.presentationSizing(.page)
+        } else {
+            self
+        }
+    }
+
     /// Softens a scroll view's edges so content dissolves under the bars instead of sliding
     /// under a hard line.
     @ViewBuilder

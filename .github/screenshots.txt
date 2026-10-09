@@ -32,3 +32,10 @@
 31-runner-explanation -medxScreen runner-revision -medxScroll 1
 32-runner-batch -medxScreen runner-batch
 33-videosubject-swipe -medxScreen videosubject -medxSwipeOpen YES
+34-runner-answered -medxScreen runner-answered
+35-runner-lowtime -medxScreen runner-lowtime
+36-runner-submit -medxScreen runner-submit
+37-runner-leave -medxScreen runner-leave
+38-runner-resume -medxScreen runner-resume
+39-runner-custom -medxScreen runner-custom
+40-review-custom -medxScreen review-custom

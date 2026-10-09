@@ -231,7 +231,7 @@ public enum MedxSharedStore {
     /// One line for Settings, so "why is my widget empty" is answerable without a debugger.
     public static var containerDescription: String {
         guard let group = MedxAppGroup.resolvedIdentifier else {
-            return "No shared container — widgets show the countdown only"
+            return "No shared container, widgets show the countdown only"
         }
         return group
     }

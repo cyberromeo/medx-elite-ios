@@ -15,26 +15,37 @@ import UIKit
 // here; these are wayfinding, not status.
 
 public enum MedxCandy {
-    public static let pink = dynamic(light: 0xFF4D8D, dark: 0xFF3D85)
-    public static let lime = dynamic(light: 0xB8EE3C, dark: 0xC2F53F)
-    public static let violet = dynamic(light: 0x8B5CF6, dark: 0x9B6CFF)
-    public static let blue = dynamic(light: 0x3D7DFF, dark: 0x4B86FF)
-    public static let tangerine = dynamic(light: 0xFF8A3D, dark: 0xFF9440)
-    public static let mint = dynamic(light: 0x14CFAE, dark: 0x17E0BB)
-    public static let butter = dynamic(light: 0xFFD84D, dark: 0xFFDF55)
-    /// Sri's duel colour. Their profile blue is what the VOD feed owns and it sits too
-    /// close to the violet of Classes to read at chip size next to Mathu's pink — and a
-    /// duel is two colours on one row, which is the one place they must be unmistakable.
-    public static let sky = dynamic(light: 0x23C3F5, dark: 0x3AD3FF)
+    // One accent (Sri, 9 Oct 2026: no pink + blue + purple + lime mix). The palette's names stay
+    // so every call site keeps compiling, but each wayfinding hue now resolves to the accent
+    // chosen in Settings, and the two that carry meaning resolve to their semantic colour:
+    // mint is "done / correct" (system green) and tangerine is "streak / attention" (orange).
+    public static var pink: Color { MedxTheme.accent }
+    public static var lime: Color { MedxTheme.accent }
+    public static var violet: Color { MedxTheme.accent }
+    public static var blue: Color { MedxTheme.accent }
+    public static var tangerine: Color { MedxTheme.accent }
+    public static var mint: Color { MedxTheme.successGreen }
+    public static var butter: Color { MedxTheme.accent }
+    /// Sri's duel colour: the accent. Mathu's is the one other hue the app keeps (see
+    /// `Profile.duelFill`), because a duel is two players on one row.
+    public static var sky: Color { MedxTheme.accent }
 
-    public static let pinkSoft = soft(light: 0xFFE1EC, dark: 0xFF3D85, darkAlpha: 0.17)
-    public static let limeSoft = soft(light: 0xEEFBCD, dark: 0xC2F53F, darkAlpha: 0.15)
-    public static let violetSoft = soft(light: 0xEAE2FF, dark: 0x9B6CFF, darkAlpha: 0.19)
-    public static let blueSoft = soft(light: 0xDFE9FF, dark: 0x4B86FF, darkAlpha: 0.19)
-    public static let tangerineSoft = soft(light: 0xFFE8D6, dark: 0xFF9440, darkAlpha: 0.17)
-    public static let mintSoft = soft(light: 0xD3F8F0, dark: 0x17E0BB, darkAlpha: 0.17)
-    public static let butterSoft = soft(light: 0xFFF3CC, dark: 0xFFDF55, darkAlpha: 0.15)
-    public static let skySoft = soft(light: 0xD6F2FD, dark: 0x3AD3FF, darkAlpha: 0.18)
+    public static var pinkSoft: Color { wash(MedxTheme.accent) }
+    public static var limeSoft: Color { wash(MedxTheme.accent) }
+    public static var violetSoft: Color { wash(MedxTheme.accent) }
+    public static var blueSoft: Color { wash(MedxTheme.accent) }
+    public static var tangerineSoft: Color { wash(MedxTheme.accent) }
+    public static var mintSoft: Color { wash(MedxTheme.successGreen) }
+    public static var butterSoft: Color { wash(MedxTheme.accent) }
+    public static var skySoft: Color { wash(MedxTheme.accent) }
+
+    /// The soft version of a hue: a light alpha wash of it in either appearance.
+    private static func wash(_ hue: Color) -> Color {
+        Color(uiColor: UIColor { traits in
+            UIColor(hue).resolvedColor(with: traits)
+                .withAlphaComponent(traits.userInterfaceStyle == .dark ? 0.18 : 0.14)
+        })
+    }
 
     // MARK: Builders
 
@@ -71,6 +82,18 @@ public enum MedxCandy {
     /// that inverted with the appearance would put white on lime. Near-black rather than pure
     /// black so it reads as ink on the hue rather than as a hole in it.
     public static let onSolid = Color(red: 0.08, green: 0.07, blue: 0.06)
+
+    /// Ink for a label on a solid fill of `hue`: near-black on a light hue (a teal, green or
+    /// orange accent), white on a dark one (blue, indigo, purple).
+    public static func ink(on hue: Color) -> Color {
+        Color(uiColor: UIColor { traits in
+            let base = UIColor(hue).resolvedColor(with: traits)
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            guard base.getRed(&r, green: &g, blue: &b, alpha: &a) else { return .white }
+            let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+            return luminance > 0.62 ? UIColor(red: 0.08, green: 0.07, blue: 0.06, alpha: 1) : .white
+        })
+    }
 
     /// How far a candy hue has to be pulled toward the label colour to be legible on its
     /// *own* soft wash — 52% hue, 48% label.
@@ -194,7 +217,7 @@ public enum MedxSection: String, CaseIterable, Identifiable, Sendable {
         case .vod: return "ARISE · raw bucket"
         case .library: return "Everything else"
         case .duel: return "Head to head"
-        case .custom: return "Papers you both build"
+        case .custom: return "Your mixes"
         }
     }
 }
@@ -209,11 +232,11 @@ public extension Profile {
     /// Mathu runs hot, Sri runs electric. Sri's is deliberately not their profile blue —
     /// see the note on `MedxCandy.sky`.
     var duelFill: Color {
-        id == Profile.graveyard.id ? MedxCandy.pink : MedxCandy.sky
+        id == Profile.graveyard.id ? MedxTheme.warningOrange : MedxTheme.accent
     }
 
     var duelSoft: Color {
-        id == Profile.graveyard.id ? MedxCandy.pinkSoft : MedxCandy.skySoft
+        id == Profile.graveyard.id ? MedxTheme.warningOrange.opacity(0.16) : MedxCandy.skySoft
     }
 
     /// The sticker that stands in for a player on a lobby card or a reveal row.
@@ -308,48 +331,10 @@ public struct MedxBackdrop: View {
     }
 
     public var body: some View {
-        let dark = scheme == .dark
-        // Increase Contrast asks for less decoration behind text, so the wash steps back.
-        // The pale hues (lime, butter, mint, sky) read twice as loud as pink or violet at the same
-        // opacity, and lime over black turns olive — so they wash at two thirds.
-        let k = intensity
-            * (contrast == .increased ? 0.5 : 1)
-            * (section.fill.medxIsLight(in: scheme) ? 0.62 : 1)
-
+        // Flat: no wash at all (Sri, 9 Oct 2026: no gradient behind sheets and pages). The bars'
+        // glass and the cards' own surfaces give the depth.
         ZStack(alignment: .top) {
             MedxSurface.groupedBackground
-
-            GeometryReader { geo in
-                let w = geo.size.width
-                let h = min(max(geo.size.height * 0.5, 320), 520)
-
-                ZStack {
-                    RadialGradient(
-                        colors: [section.fill.opacity((dark ? 0.42 : 0.34) * k), section.fill.opacity(0)],
-                        center: UnitPoint(x: 0.1, y: 0.0),
-                        startRadius: 0,
-                        endRadius: w * 1.0
-                    )
-                    RadialGradient(
-                        colors: [section.partner.opacity((dark ? 0.30 : 0.24) * k), section.partner.opacity(0)],
-                        center: UnitPoint(x: 0.98, y: 0.12),
-                        startRadius: 0,
-                        endRadius: w * 0.8
-                    )
-                }
-                .frame(width: w, height: h)
-                .mask(
-                    LinearGradient(
-                        stops: [
-                            .init(color: .black, location: 0),
-                            .init(color: .black.opacity(0.6), location: 0.55),
-                            .init(color: .black.opacity(0), location: 1)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-            }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)

@@ -105,6 +105,10 @@ public struct RunnerPayload: Identifiable, Hashable, Sendable {
     /// one minute a question — Marrow's mini tests are 25 questions in 25 minutes either way,
     /// but a subject paper is not always.
     public let examSeconds: Int?
+    /// Where each question came from, in question order, for a paper assembled from several
+    /// sources (a custom module): "FMGE June 2023", "Gram-Positive Cocci". Shown as a small chip
+    /// over each question in the runner and the review. `nil` for a single-source paper.
+    public let questionTags: [String]?
 
     public init(
         kind: String,
@@ -115,7 +119,8 @@ public struct RunnerPayload: Identifiable, Hashable, Sendable {
         gradable: Bool = true,
         questions: [Question]? = nil,
         sections: [MedxRunnerSection]? = nil,
-        examSeconds: Int? = nil
+        examSeconds: Int? = nil,
+        questionTags: [String]? = nil
     ) {
         self.kind = kind
         self.id = id
@@ -126,6 +131,7 @@ public struct RunnerPayload: Identifiable, Hashable, Sendable {
         self.questions = questions
         self.sections = sections
         self.examSeconds = examSeconds
+        self.questionTags = questionTags
     }
 }
 

@@ -29,9 +29,7 @@ public struct CustomModulesView: View {
             LazyVStack(alignment: .leading, spacing: 16) {
                 MedxPageHeader(
                     section: .custom,
-                    lead: "Pick any modules from either bank, shuffle them together, cap the "
-                        + "length. It runs exactly like a QBank sitting — and whatever either of "
-                        + "you saves shows up here for both."
+                    lead: "Mix modules from both banks into one paper and run it like any QBank sitting."
                 )
 
                 newButton
@@ -128,7 +126,7 @@ public struct CustomModulesView: View {
     private var deleteMessage: String {
         var lines: [String] = []
         if let target = confirmDelete, target.uid != uid, let author = target.author {
-            lines.append("\(author.displayName) built this one — deleting it removes it for both of you.")
+            lines.append("\(author.displayName) built this one, deleting it removes it for both of you.")
         }
         lines.append("Only the selection goes. The questions belong to the bank, and any sittings you have already run stay in your log.")
         return lines.joined(separator: " ")
@@ -162,7 +160,7 @@ public struct CustomModulesView: View {
             Text("No custom modules yet")
                 .font(.headline)
 
-            Text("Build one out of the chapters you keep getting wrong — a 40-question mixed paper takes about six taps.")
+            Text("Build one out of the chapters you keep getting wrong, a 40-question mixed paper takes about six taps.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -176,7 +174,7 @@ public struct CustomModulesView: View {
     private var syncFooter: some View {
         noteRow(
             store.remoteWorks == false
-                ? "Firestore would not take these, so they live on this device only. Everything still works — they just will not appear on the other one."
+                ? "Firestore would not take these, so they live on this device only. Everything still works, they just will not appear on the other one."
                 : "Mirrored to medx_custom_modules, so both of you see the same list on every device.",
             icon: store.remoteWorks == false ? "icloud.slash" : "checkmark.icloud",
             tint: store.remoteWorks == false ? MedxTheme.warningOrange : .secondary
@@ -241,7 +239,8 @@ public struct CustomModulesView: View {
                     subject: module.sources.count == 1 ? module.sources[0].subject : "Custom",
                     mode: mode,
                     gradable: true,
-                    questions: built.questions
+                    questions: built.questions,
+                    questionTags: built.tags
                 )
             )
         }
@@ -339,7 +338,7 @@ struct CustomModuleCard: View {
                     Text("Run")
                         .font(.subheadline.weight(.bold))
                 }
-                .foregroundStyle(MedxCandy.onSolid)
+                .foregroundStyle(MedxCandy.ink(on: MedxSection.custom.fill))
                 .padding(.horizontal, 16)
                 .frame(height: 40)
                 .background(Capsule(style: .continuous).fill(MedxSection.custom.fill))

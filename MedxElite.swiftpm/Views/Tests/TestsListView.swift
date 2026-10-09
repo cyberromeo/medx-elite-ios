@@ -153,7 +153,7 @@ public struct TestsListView: View {
                 "\($0.papers.count.formatted()) papers, "
                     + "\($0.papers.reduce(0) { $0 + $1.questions }.formatted()) questions. "
                     + "Every one of them is keyed, so every one can be scored."
-            } ?? "The Marrow FMGE test series — grand, mini and subject papers.",
+            } ?? "The Marrow FMGE test series, grand, mini and subject papers.",
             symbol: "trophy.fill"
         )
     }

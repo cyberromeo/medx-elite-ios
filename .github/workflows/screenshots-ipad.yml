@@ -103,7 +103,13 @@ jobs:
           LOGPID=$!
           # Warm-up launch: lets remote images land in the on-disk cache.
           xcrun simctl launch "$UDID" "$BID" -medxDemo YES -medxScreen home
-          sleep 20
+          sleep 30
+          # A second warm-up: on a cold iPad simulator the first two captures were still the
+          # launch screen 14 seconds in, so the first real shot waits until the app has painted
+          # twice already.
+          xcrun simctl terminate "$UDID" "$BID" >/dev/null 2>&1 || true
+          xcrun simctl launch "$UDID" "$BID" -medxDemo YES -medxScreen qbank
+          sleep 25
           shoot() {
             name="$1"; shift
             xcrun simctl terminate "$UDID" "$BID" >/dev/null 2>&1 || true
@@ -113,7 +119,7 @@ jobs:
             # runner: bounded to 15 seconds, and the app also asks its scene to turn itself.
             case "$*" in *medxLandscape*) [ -z "$ROTATED" ] && { perl -e 'alarm 15; exec @ARGV' osascript -e 'tell application "Simulator" to activate' -e 'delay 1' -e 'tell application "System Events" to key code 124 using {command down}' 2>&1 || true; ROTATED=1; };; esac
             PID=$(echo "$OUT" | awk -F': ' '{print $2}' | tr -d '[:space:]')
-            sleep "${WAIT:-14}"
+            sleep "${WAIT:-18}"
             xcrun simctl io "$UDID" screenshot --type=png "shots/$name.png" >/dev/null 2>&1
             if [ -n "$PID" ] && ! ps -p "$PID" >/dev/null 2>&1; then echo "CRASH? $name: process $PID is gone" | tee -a shots/crashes.txt; fi
           }

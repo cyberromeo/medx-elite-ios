@@ -354,7 +354,7 @@ public struct MedxQuestionSearchView: View {
             Label("Nothing indexed yet", systemImage: "magnifyingglass")
         } description: {
             Text("Searching every question needs their text on this device once. "
-                 + "Building the index fetches all 2,171 modules across both banks — it can be paused and resumed.")
+                 + "Building the index fetches all 2,171 modules across both banks, it can be paused and resumed.")
         } actions: {
             Button {
                 HapticManager.medium()
@@ -376,7 +376,7 @@ public struct MedxQuestionSearchView: View {
             Label(query.isEmpty && !filters.isActive ? "Search the bank" : "No matches", systemImage: "magnifyingglass")
         } description: {
             if query.isEmpty && !filters.isActive {
-                Text("Type at least two letters, or pick a filter to browse — "
+                Text("Type at least two letters, or pick a filter to browse, "
                      + "for example every image-based question you have got wrong.")
             } else {
                 Text("Nothing in the indexed \(index.indexedCount.formatted()) questions matches that.")
@@ -590,7 +590,7 @@ struct MedxSearchResultDetailView: View {
                     let option = pair.element
                     let isCorrect = option.correct == true || question.correctIds.contains(option.id)
 
-                    HStack(alignment: .top, spacing: 12) {
+                    HStack(alignment: .medxFirstLine, spacing: 12) {
                         Text(MedxOptionLetter.of(option, at: pair.offset))
                             .font(.footnote.weight(.bold).monospacedDigit())
                             .foregroundStyle(isCorrect ? Color.white : Color.primary)
@@ -599,6 +599,7 @@ struct MedxSearchResultDetailView: View {
 
                         HTMLRichTextView(html: option.text, fontSize: 15, weight: .regular)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .medxFirstLineGuide(fontSize: 15)
 
                         if isCorrect {
                             Image(systemName: "checkmark.circle.fill")

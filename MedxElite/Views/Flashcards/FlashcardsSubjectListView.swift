@@ -108,7 +108,7 @@ public struct FlashcardsSubjectListView: View {
             LazyVStack(alignment: .leading, spacing: 16) {
                 MedxPageHeader(
                     section: .cards,
-                    lead: "Image decks, tapped through one at a time. Nothing here is scored — "
+                    lead: "Image decks, tapped through one at a time. Nothing here is scored, "
                         + "these are the pictures you either recognise or you do not."
                 )
 

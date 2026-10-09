@@ -343,7 +343,7 @@ public struct MedxPill: View {
     /// candy — so a foreground that inverts with the appearance would put white on lime.
     private var foreground: Color {
         switch weight {
-        case .solid: return MedxCandy.onSolid
+        case .solid: return MedxCandy.ink(on: hue)
         case .soft: return MedxCandy.onSoft(hue)
         case .outline: return .secondary
         }

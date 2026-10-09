@@ -97,7 +97,7 @@ public struct MedxFilledButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .foregroundStyle(isEnabled ? MedxCandy.onSolid : Color.secondary)
+                .foregroundStyle(isEnabled ? MedxCandy.ink(on: hue) : Color.secondary)
                 .background(Capsule().fill(isEnabled ? hue : MedxSurface.fieldFill))
                 .contentShape(Capsule())
                 .opacity(configuration.isPressed ? 0.86 : 1)

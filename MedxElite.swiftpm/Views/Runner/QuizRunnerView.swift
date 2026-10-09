@@ -28,6 +28,11 @@ public struct QuizRunnerView: View {
     @State private var isFinished = false
     @State private var showExitAlert = false
     @State private var showNavigator = false
+    @State private var showSubmitConfirm = false
+    /// A saved, unfinished sitting of this same paper, offered back when it is opened again.
+    @State private var resumeOffer: MedxSittingSnapshot?
+    @State private var ticksSinceSave = 0
+    @Environment(\.scenePhase) private var scenePhase
     @State private var startedAt = Date()
     /// The blocks this paper is sat in. Always at least one element once loaded — an
     /// unsectioned paper is a single block over the whole thing, which is what lets every
@@ -72,7 +77,8 @@ public struct QuizRunnerView: View {
                     gradable: payload.gradable,
                     elapsedSeconds: completedSeconds,
                     sections: sectionLog,
-                    section: payload.section
+                    section: payload.section,
+                    questionTags: reviewTags
                 ) {
                     onFinishedSession()
                     dismiss()
@@ -109,11 +115,60 @@ public struct QuizRunnerView: View {
             .toolbar(.hidden, for: .navigationBar)
             .alert("Leave sitting?", isPresented: $showExitAlert) {
                 Button("Keep Going", role: .cancel) {}
-                Button("Leave", role: .destructive) { dismiss() }
+                Button("Save and Leave") {
+                    persistSnapshot()
+                    dismiss()
+                }
+                Button("Discard", role: .destructive) {
+                    MedxSittingSnapshot.clear(kind: payload.kind, id: payload.id)
+                    dismiss()
+                }
             } message: {
-                Text(isSectioned
-                     ? "Nothing is saved — including the \(sectionLog.count == 1 ? "block" : "blocks") you have already submitted."
-                     : "Your progress in this sitting will not be saved.")
+                Text("Save and Leave keeps your answers and the clock where they are, so opening this paper again picks up at question \(currentIndex + 1).")
+            }
+            .alert(
+                "Pick up where you left off?",
+                isPresented: Binding(get: { resumeOffer != nil }, set: { if !$0 { resumeOffer = nil } })
+            ) {
+                Button("Resume") {
+                    if let snapshot = resumeOffer { applySnapshot(snapshot) }
+                    resumeOffer = nil
+                }
+                Button("Start Over", role: .destructive) {
+                    MedxSittingSnapshot.clear(kind: payload.kind, id: payload.id)
+                    resumeOffer = nil
+                }
+            } message: {
+                if let snapshot = resumeOffer {
+                    Text(snapshot.summary(total: questions.count))
+                }
+            }
+            .sheet(isPresented: $showSubmitConfirm) {
+                RunnerSubmitSheet(
+                    answered: sectionAnsweredCount,
+                    unanswered: questionsInSection.count - sectionAnsweredCount,
+                    flagged: questionsInSection.filter { isBookmarked($0) }.count,
+                    clock: payload.mode == .exam ? RunnerSubmitSheet.clock(remainingSeconds) : nil,
+                    title: isSectioned && !isFinalSection ? "Submit \(activeSection.label)?" : "Submit paper?",
+                    detail: isSectioned && !isFinalSection
+                        ? "A submitted block cannot be reopened. The next block's clock starts when you open it."
+                        : "Your answers are scored and saved to your history.",
+                    onReviewUnanswered: firstUnansweredInSection.map { index -> () -> Void in
+                        return {
+                            showSubmitConfirm = false
+                            jump(to: index)
+                        }
+                    },
+                    onSubmit: {
+                        showSubmitConfirm = false
+                        submitSection()
+                    }
+                )
+                .presentationDetents([.height(430)])
+                .presentationDragIndicator(.visible)
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase != .active { persistSnapshot() }
             }
             .sheet(isPresented: $showNavigator) {
                 QuestionNavigatorSheet(
@@ -160,6 +215,14 @@ public struct QuizRunnerView: View {
     }
 
     // MARK: - Derived state
+
+    /// The per-question source tags keyed by question id, for the review.
+    private var reviewTags: [Int: String] {
+        guard let tags = payload.questionTags else { return [:] }
+        var out: [Int: String] = [:]
+        for (question, tag) in zip(questions, tags) { out[question.id] = tag }
+        return out
+    }
 
     private var currentQuestion: Question? {
         questions.indices.contains(currentIndex) ? questions[currentIndex] : nil
@@ -214,6 +277,76 @@ public struct QuizRunnerView: View {
     }
 
     /// Exam mode never blocks navigation; revision requires the answer to be revealed first.
+    /// Answered (an option picked, not just timed out) in the block on screen.
+    private var sectionAnsweredCount: Int {
+        questionsInSection.reduce(0) { $0 + (responses[$1.id]?.chosenId != nil ? 1 : 0) }
+    }
+
+    /// The first question in this block with no option picked, for the submit sheet's way back.
+    private var firstUnansweredInSection: Int? {
+        let range = activeSection.start..<min(activeSection.end, questions.count)
+        return range.first { responses[questions[$0].id]?.chosenId == nil }
+    }
+
+    // MARK: - Leave and resume
+
+    /// Demo screenshot runs never write a sitting: one screen's answers would otherwise be
+    /// offered back on the next screen's launch.
+    private var persistsSittings: Bool {
+        #if DEBUG
+        return !MedxDemoMode.isOn
+        #else
+        return true
+        #endif
+    }
+
+    /// Saves where the sitting is, so leaving (on purpose, or because iOS closed the app) can
+    /// be picked up later. Keyed to this paper and fingerprinted by its question ids, so a
+    /// paper that has since been re-uploaded with different questions never inherits answers.
+    private func persistSnapshot() {
+        guard persistsSittings, loadState == .ready, !isFinished, !questions.isEmpty else { return }
+        guard !responses.isEmpty || currentIndex > 0 else { return }
+        MedxSittingSnapshot(
+            fingerprint: MedxSittingSnapshot.fingerprint(questions),
+            mode: payload.mode.rawValue,
+            currentIndex: currentIndex,
+            furthestIndex: furthestIndex,
+            responses: Array(responses.values),
+            revealed: revealedQuestions.compactMap { $0.value ? $0.key : nil },
+            remainingSeconds: remainingSeconds,
+            sectionIndex: sectionIndex,
+            sectionLog: sectionLog,
+            elapsedSeconds: Int(Date().timeIntervalSince(startedAt)),
+            savedAt: Date()
+        )
+        .save(kind: payload.kind, id: payload.id)
+    }
+
+    private func applySnapshot(_ snapshot: MedxSittingSnapshot) {
+        var restored: [Int: QuestionResponse] = [:]
+        let known = Set(questions.map(\.id))
+        for response in snapshot.responses where known.contains(response.questionId) {
+            restored[response.questionId] = response
+        }
+        responses = restored
+        revealedQuestions = Dictionary(
+            snapshot.revealed.filter { known.contains($0) }.map { ($0, true) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        sectionIndex = min(max(snapshot.sectionIndex, 0), max(sections.count - 1, 0))
+        sectionLog = snapshot.sectionLog
+        let range = activeSection.start..<max(activeSection.end, activeSection.start + 1)
+        currentIndex = min(max(snapshot.currentIndex, range.lowerBound), range.upperBound - 1)
+        furthestIndex = max(snapshot.furthestIndex, currentIndex)
+        remainingSeconds = max(snapshot.remainingSeconds, 1)
+        startedAt = Date().addingTimeInterval(-Double(max(snapshot.elapsedSeconds, 0)))
+        let spent = payload.mode == .exam ? max(activeSection.seconds - remainingSeconds, 0) : 0
+        sectionStartedAt = Date().addingTimeInterval(-Double(spent))
+        armTimeHaptics()
+        refreshStatuses()
+        HapticManager.success()
+    }
+
     private func canAdvance(isRevealed: Bool) -> Bool {
         payload.mode == .exam || isRevealed
     }
@@ -281,7 +414,7 @@ public struct QuizRunnerView: View {
 
     /// The floating HUD: everything the navigation bar and the hairline progress strip used to
     /// hold, in one pane of glass over the question.
-    private var hud: some View {
+    private func hud(showsTrack: Bool) -> some View {
         RunnerHUD(
             number: currentIndex + 1,
             total: questions.count,
@@ -294,7 +427,8 @@ public struct QuizRunnerView: View {
             isPad: sizeClass == .regular,
             title: payload.name,
             modeLabel: payload.mode == .exam ? "Exam" : "Revision",
-            trackCells: hudTrackCells,
+            // iPad landscape lists the questions in the sidebar, so the strip would be a copy.
+            trackCells: showsTrack ? hudTrackCells : [],
             trackCurrent: currentIndex - navigatorRange.lowerBound,
             trackStart: navigatorRange.lowerBound,
             trackMarked: hudMarkedPills,
@@ -356,11 +490,88 @@ public struct QuizRunnerView: View {
     // MARK: - Active runner
 
     private func activeRunner(question: Question) -> some View {
+        // iPad in landscape gets three panes: the navigator as a sidebar, the question as a
+        // readable column, and in revision the explanation beside it. Everything else (iPhone,
+        // iPad portrait) is the single column with the navigator in the HUD's pill strip.
+        GeometryReader { geo in
+            runnerLayout(
+                question: question,
+                wide: sizeClass == .regular && geo.size.width > geo.size.height
+            )
+        }
+    }
+
+    private func runnerLayout(question: Question, wide: Bool) -> some View {
         let response = responses[question.id]
         let isRevealed = payload.mode == .revision && revealedQuestions[question.id] == true
         let isLocked = payload.mode == .revision && response != nil
+        let explanationBeside = wide && payload.mode == .revision
 
-        return ScrollViewReader { proxy in
+        return HStack(alignment: .top, spacing: 0) {
+            if wide {
+                RunnerSidebarNavigator(
+                    range: navigatorRange,
+                    currentIndex: currentIndex,
+                    furthestIndex: furthestIndex,
+                    statuses: statuses,
+                    marked: Set(navigatorRange.filter { $0 < questions.count && isBookmarked(questions[$0]) }),
+                    lockAhead: payload.mode == .revision,
+                    sectionLabel: isSectioned ? activeSection.label : nil,
+                    submitLabel: isSectioned && !isFinalSection ? "Submit block" : "Submit",
+                    onSelect: { index in
+                        if payload.mode == .revision, index > furthestIndex {
+                            HapticManager.warning()
+                            return
+                        }
+                        jump(to: index)
+                    },
+                    onSubmit: {
+                        HapticManager.medium()
+                        showSubmitConfirm = true
+                    }
+                )
+                .frame(width: 290)
+                .padding(.leading, 20)
+                .padding(.vertical, 12)
+            }
+
+            questionColumn(
+                question: question,
+                response: response,
+                isRevealed: isRevealed,
+                isLocked: isLocked,
+                inlineExplanation: !explanationBeside
+            )
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                runnerActionBar(question: question, isRevealed: isRevealed)
+            }
+
+            if explanationBeside {
+                RunnerExplanationPanel(question: question, response: response, isRevealed: isRevealed)
+                    .frame(width: 360)
+                    .padding(.trailing, 20)
+                    .padding(.vertical, 12)
+            }
+        }
+        // The faint dot grid from the mockup, behind the question and under both bars.
+        .background {
+            // Flat near-black with the faint dot grid: no coloured glow behind the HUD.
+            RunnerDotField()
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            hud(showsTrack: !wide)
+        }
+        .animation(reduceMotion ? nil : MedxDS.settle, value: isRevealed)
+    }
+
+    private func questionColumn(
+        question: Question,
+        response: QuestionResponse?,
+        isRevealed: Bool,
+        isLocked: Bool,
+        inlineExplanation: Bool
+    ) -> some View {
+        ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Color.clear
@@ -370,7 +581,10 @@ public struct QuizRunnerView: View {
                     RunnerQuestionCard(
                         question: question,
                         showsUngradedNotice: !payload.gradable,
-                        number: currentIndex + 1
+                        number: currentIndex + 1,
+                        sourceTag: payload.questionTags.flatMap { tags in
+                            tags.indices.contains(currentIndex) ? tags[currentIndex] : nil
+                        }
                     )
                     // Double-tap the stem to bookmark, the way Photos favourites a picture.
                     // The HUD button stays the discoverable route; VoiceOver gets the same thing
@@ -389,13 +603,10 @@ public struct QuizRunnerView: View {
                         isLocked: isLocked
                     )
 
-                    if isRevealed {
+                    if isRevealed, inlineExplanation {
                         RunnerExplanationCard(question: question, response: response)
                             .id("medx.explanation")
-                            // Fades up into the space the layout opens below the options, settling
-                            // from its own top edge. The old `.move(edge: .top)` slid the card *down
-                            // from above*, straight over the answer rows — the overlap the reveal
-                            // was never meant to have.
+                            // Fades up into the space the layout opens below the options.
                             .transition(
                                 .opacity.combined(with: .scale(scale: 0.97, anchor: .top))
                             )
@@ -405,7 +616,7 @@ public struct QuizRunnerView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 24)
                 // iPad: a readable column rather than lines the width of a landscape screen.
-                .frame(maxWidth: 760)
+                .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
             }
             .scrollIndicators(.hidden)
@@ -428,29 +639,6 @@ public struct QuizRunnerView: View {
             }
             #endif
         }
-        // The faint dot grid from the mockup, behind the question and under both bars.
-        .background {
-            ZStack(alignment: .top) {
-                RunnerDotField()
-                // A low glow of the accent behind the HUD, so the black page has a light source.
-                RadialGradient(
-                    colors: [MedxTheme.accent.opacity(0.22), MedxTheme.accent.opacity(0)],
-                    center: .top,
-                    startRadius: 0,
-                    endRadius: 340
-                )
-                .frame(height: 380)
-                .ignoresSafeArea(edges: .top)
-                .allowsHitTesting(false)
-            }
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            hud
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            runnerActionBar(question: question, isRevealed: isRevealed)
-        }
-        .animation(reduceMotion ? nil : MedxDS.settle, value: isRevealed)
     }
 
     // MARK: - Answers
@@ -508,7 +696,9 @@ public struct QuizRunnerView: View {
             },
             onAdvance: {
                 HapticManager.medium()
-                if isLastQuestion { submitSection() } else { nextQuestion() }
+                // The last question asks first: what is still open and what was flagged, with a
+                // way back to the first unanswered one, instead of ending the paper on one tap.
+                if isLastQuestion { showSubmitConfirm = true } else { nextQuestion() }
             }
         )
     }
@@ -618,6 +808,7 @@ public struct QuizRunnerView: View {
             HapticManager.selection()
         }
         refreshStatuses()
+        persistSnapshot()
     }
 
     private func handleTimeout() {
@@ -641,7 +832,12 @@ public struct QuizRunnerView: View {
     private func tick() {
         // The handover between blocks holds the clock: the next section's minutes start when
         // it is actually opened, not while its summary is being read.
-        guard loadState == .ready, !isFinished, handover == nil, !isTimerPaused else { return }
+        guard loadState == .ready, !isFinished, handover == nil, resumeOffer == nil, !isTimerPaused else { return }
+        ticksSinceSave += 1
+        if ticksSinceSave >= 15 {
+            ticksSinceSave = 0
+            persistSnapshot()
+        }
         if remainingSeconds > 0 {
             remainingSeconds -= 1
             fireTimeHaptics()
@@ -713,6 +909,7 @@ public struct QuizRunnerView: View {
     }
 
     private func finishSitting() {
+        MedxSittingSnapshot.clear(kind: payload.kind, id: payload.id)
         // The block that was still open when the paper ended is scored too, so a paper
         // submitted early does not lose the section it was in.
         logSection()
@@ -736,6 +933,7 @@ public struct QuizRunnerView: View {
         logSection()
 
         guard !isFinalSection else {
+            MedxSittingSnapshot.clear(kind: payload.kind, id: payload.id)
             completedSeconds = Int(Date().timeIntervalSince(startedAt))
             isFinished = true
             HapticManager.success()
@@ -877,6 +1075,17 @@ public struct QuizRunnerView: View {
             loadState = .ready
             refreshStatuses()
 
+            // An unfinished sitting of this exact paper (same questions, same mode) is offered
+            // back. A different upload under the same id fails the fingerprint and is dropped.
+            if persistsSittings, let saved = MedxSittingSnapshot.load(kind: payload.kind, id: payload.id) {
+                if saved.fingerprint == MedxSittingSnapshot.fingerprint(questions),
+                   saved.mode == payload.mode.rawValue {
+                    resumeOffer = saved
+                } else {
+                    MedxSittingSnapshot.clear(kind: payload.kind, id: payload.id)
+                }
+            }
+
             if payload.mode == .exam {
                 MedxLiveActivityController.shared.startExam(
                     name: payload.name,
@@ -931,7 +1140,59 @@ public struct QuizRunnerView: View {
             }
             try? await Task.sleep(nanoseconds: 500_000_000)
             showNavigator = true
-        case "review":
+        case "runner-answered":
+            // Exam mode, three picked, the third on screen with its pick showing.
+            for question in questions.prefix(3) {
+                guard let pick = question.options.dropFirst().first?.id ?? question.options.first?.id else { continue }
+                handlePickOption(question: question, chosenId: pick)
+            }
+            if questions.count > 2 { jump(to: 2) }
+            if let question = currentQuestion { toggleBookmark(question) }
+        case "runner-lowtime":
+            // The last fifth of the clock: the ring drains orange.
+            for question in questions.prefix(4) {
+                guard let pick = question.correctIds.first ?? question.options.first?.id else { continue }
+                handlePickOption(question: question, chosenId: pick)
+            }
+            if questions.count > 4 { jump(to: 4) }
+            remainingSeconds = max(capacitySeconds / 7, 30)
+        case "runner-submit":
+            // Most answered, two flagged, three left open, then Submit on the last question.
+            for (index, question) in questions.enumerated() where index % 4 != 1 || index > 11 {
+                guard let pick = question.correctIds.first ?? question.options.first?.id else { continue }
+                handlePickOption(question: question, chosenId: pick)
+            }
+            for question in questions.prefix(6).suffix(2) { toggleBookmark(question) }
+            jump(to: max(activeSection.end - 1, 0))
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            showSubmitConfirm = true
+        case "runner-leave":
+            for question in questions.prefix(2) {
+                guard let pick = question.correctIds.first ?? question.options.first?.id else { continue }
+                handlePickOption(question: question, chosenId: pick)
+            }
+            if questions.count > 2 { jump(to: 2) }
+            showExitAlert = true
+        case "runner-resume":
+            // What opening a paper left half-way looks like.
+            let picks = questions.prefix(12).compactMap { question -> QuestionResponse? in
+                guard let pick = question.correctIds.first ?? question.options.first?.id else { return nil }
+                return QuestionResponse(questionId: question.id, chosenId: pick, correct: question.correctIds.contains(pick))
+            }
+            resumeOffer = MedxSittingSnapshot(
+                fingerprint: MedxSittingSnapshot.fingerprint(questions),
+                mode: payload.mode.rawValue,
+                currentIndex: min(12, questions.count - 1),
+                furthestIndex: min(12, questions.count - 1),
+                responses: picks,
+                revealed: [],
+                remainingSeconds: max(remainingSeconds - 754, 60),
+                sectionIndex: 0,
+                sectionLog: [],
+                elapsedSeconds: 754,
+                savedAt: Date()
+            )
+        case "review", "review-question", "review-custom":
             for (index, question) in questions.enumerated() {
                 let wrong = question.options.first(where: { !question.correctIds.contains($0.id) })?.id
                 let pick: Int? = index % 3 == 2 ? wrong : question.correctIds.first
@@ -987,10 +1248,12 @@ struct RunnerQuestionCard: View {
     let showsUngradedNotice: Bool
     /// The question's number in the paper, for the label over the stem.
     var number: Int? = nil
+    /// Where a question in a mixed paper came from ("FMGE June 2023"): a neutral chip.
+    var sourceTag: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if number != nil || showsUngradedNotice {
+            if number != nil || showsUngradedNotice || sourceTag != nil {
                 HStack(spacing: 8) {
                     if let number {
                         Text("QUESTION \(number)")
@@ -1000,6 +1263,9 @@ struct RunnerQuestionCard: View {
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
                             .background(Capsule(style: .continuous).fill(MedxTheme.accent.opacity(0.14)))
+                    }
+                    if let sourceTag, !sourceTag.isEmpty {
+                        MedxSourceTag(sourceTag)
                     }
                     if showsUngradedNotice {
                         MedxBadge("No official key", tint: MedxDS.warn)
@@ -1495,7 +1761,7 @@ struct MedxSectionHandoverSheet: View {
                     }
 
                     if !summary.gradable {
-                        Text("This paper came through without an answer key, so nothing here is scored — only what you attempted is recorded.")
+                        Text("This paper came through without an answer key, so nothing here is scored, only what you attempted is recorded.")
                             .font(MedxType.body)
                             .foregroundStyle(.secondary)
                     }
@@ -1521,5 +1787,90 @@ struct MedxSectionHandoverSheet: View {
         // at — the block it would show is closed — and a swipe-to-dismiss would start the next
         // section's clock by accident.
         .interactiveDismissDisabled()
+    }
+}
+
+
+// MARK: - Saved sitting
+
+/// An unfinished sitting, kept on the device so leaving is not losing.
+///
+/// Keyed by the paper (`kind` + `id`) and fingerprinted by the question ids actually loaded, so a
+/// paper that was re-uploaded under the same id with different questions never has an old
+/// sitting's answers laid over it. One per paper; finishing or discarding removes it.
+struct MedxSittingSnapshot: Codable, Equatable {
+    let fingerprint: String
+    let mode: String
+    let currentIndex: Int
+    let furthestIndex: Int
+    let responses: [QuestionResponse]
+    let revealed: [Int]
+    let remainingSeconds: Int
+    let sectionIndex: Int
+    let sectionLog: [MedxAttemptSection]
+    let elapsedSeconds: Int
+    let savedAt: Date
+
+    private static func key(kind: String, id: String) -> String { "medx.sitting.\(kind).\(id)" }
+
+    static func fingerprint(_ questions: [Question]) -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for question in questions {
+            hash = (hash ^ UInt64(bitPattern: Int64(question.id))) &* 1_099_511_628_211
+        }
+        return "\(questions.count)-\(String(hash, radix: 16))"
+    }
+
+    static func load(kind: String, id: String) -> MedxSittingSnapshot? {
+        guard let data = UserDefaults.standard.data(forKey: key(kind: kind, id: id)) else { return nil }
+        return try? JSONDecoder().decode(MedxSittingSnapshot.self, from: data)
+    }
+
+    func save(kind: String, id: String) {
+        guard let data = try? JSONEncoder().encode(self) else { return }
+        UserDefaults.standard.set(data, forKey: Self.key(kind: kind, id: id))
+    }
+
+    static func clear(kind: String, id: String) {
+        UserDefaults.standard.removeObject(forKey: key(kind: kind, id: id))
+    }
+
+    /// "Question 14 of 50 · 12 answered · 31:20 left"
+    func summary(total: Int) -> String {
+        let answered = responses.filter { $0.chosenId != nil }.count
+        let clamped = max(remainingSeconds, 0)
+        let clock = clamped >= 3600
+            ? String(format: "%d:%02d:%02d", clamped / 3600, (clamped % 3600) / 60, clamped % 60)
+            : String(format: "%02d:%02d", clamped / 60, clamped % 60)
+        return "Question \(currentIndex + 1) of \(total) · \(answered) answered · \(clock) left on the clock."
+    }
+}
+
+
+// MARK: - Source tag
+
+/// A small neutral chip naming where a question came from, on one line, truncating in the
+/// middle so both the paper and the session stay readable ("FMGE…June 2023").
+struct MedxSourceTag: View {
+    let text: String
+
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 9, weight: .bold))
+            Text(text)
+                .font(.caption2.weight(.semibold))
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(Capsule(style: .continuous).fill(Color.primary.opacity(0.08)))
+        .frame(maxWidth: 220, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityLabel("From \(text)")
     }
 }

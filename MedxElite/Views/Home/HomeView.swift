@@ -160,7 +160,7 @@ public struct HomeView: View {
 
                 Text("Join")
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(MedxCandy.onSolid)
+                    .foregroundStyle(MedxCandy.ink(on: hue))
                     .padding(.horizontal, 14)
                     .frame(height: 34)
                     .background(hue, in: Capsule())
@@ -264,7 +264,7 @@ public struct HomeView: View {
 
     private var goalHeadline: String {
         if stats.isGoalMet {
-            return "Today's goal is done — \(stats.answeredToday) answered."
+            return "Today's goal is done, \(stats.answeredToday) answered."
         }
         if stats.answeredToday == 0 {
             return "Nothing answered yet today. \(stats.dailyGoal) is the target."

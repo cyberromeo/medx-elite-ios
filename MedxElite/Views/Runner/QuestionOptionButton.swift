@@ -41,7 +41,7 @@ public struct QuestionOptionButton: View {
     public var body: some View {
         // Haptics are owned by the runner so revision mode doesn't buzz twice.
         Button(action: onSelect) {
-            HStack(alignment: .center, spacing: 12) {
+            HStack(alignment: .medxFirstLine, spacing: 12) {
                 letterBadge
 
                 // `interactive: false` — a button nested inside this one would never fire,
@@ -55,10 +55,12 @@ public struct QuestionOptionButton: View {
                 )
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .medxFirstLineGuide(fontSize: 16)
                 .layoutPriority(1)
 
+                // Always the same 24 pt slot, so the words do not shift when a tick pops in.
                 trailingGlyph
-                    .padding(.top, 2)
+                    .frame(width: 24, height: 24)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 14)
@@ -87,7 +89,7 @@ public struct QuestionOptionButton: View {
         let badge = RoundedRectangle(cornerRadius: 10, style: .continuous)
         return Text(letter)
             .font(MedxType.lead)
-            .foregroundStyle(isFilledBadge ? MedxCandy.onSolid : Color.primary)
+            .foregroundStyle(stateColor.map { MedxCandy.ink(on: $0) } ?? Color.primary)
             .frame(width: 32, height: 32)
             .background {
                 if let tint = stateColor {

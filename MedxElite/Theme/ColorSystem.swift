@@ -41,15 +41,19 @@ public extension Color {
 /// UI accents use `MedxTheme.accent`, which follows the accent chosen in Settings; see
 /// `AccentTheme.swift`.
 public enum MedxTheme {
-    public static let primaryBlue = Color(uiColor: .systemBlue)
-    public static let primaryPurple = Color(uiColor: .systemPurple)
-    public static let primaryPink = Color(uiColor: .systemPink)
+    // One accent. The old blue / purple / pink / cyan / indigo / teal "accents" all resolve to
+    // the accent chosen in Settings now, so a screen can no longer put three of them side by
+    // side. Only the semantic colours below keep their own hue: green is correct, red is wrong
+    // or destructive, orange is a streak, a warning or an ungraded paper.
+    public static var primaryBlue: Color { accent }
+    public static var primaryPurple: Color { accent }
+    public static var primaryPink: Color { accent }
     public static let successGreen = Color(uiColor: .systemGreen)
     public static let warningOrange = Color(uiColor: .systemOrange)
     public static let destructiveRed = Color(uiColor: .systemRed)
-    public static let cyanAccent = Color(uiColor: .systemCyan)
-    public static let indigoAccent = Color(uiColor: .systemIndigo)
-    public static let tealAccent = Color(uiColor: .systemTeal)
+    public static var cyanAccent: Color { accent }
+    public static var indigoAccent: Color { accent }
+    public static var tealAccent: Color { accent }
 
     // MARK: - Rich-text colours
     //
