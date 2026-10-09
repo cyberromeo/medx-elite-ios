@@ -352,13 +352,19 @@ struct RunnerHUD: View {
         .padding(.top, 4)
         .padding(.bottom, 10)
         .frame(maxWidth: .infinity)
-        // A soft fade from the page colour so the stem scrolling underneath never fights the row.
-        .background {
-            LinearGradient(
-                colors: [MedxDS.page, MedxDS.page.opacity(0.92), MedxDS.page.opacity(0)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+        // Solid page colour behind the row (through the status bar), then a short fade, so the stem
+        // scrolling underneath never shows through the controls.
+        .background(alignment: .top) {
+            VStack(spacing: 0) {
+                MedxDS.page
+                LinearGradient(
+                    colors: [MedxDS.page, MedxDS.page.opacity(0)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 18)
+            }
+            .padding(.bottom, -18)
             .ignoresSafeArea(edges: .top)
             .allowsHitTesting(false)
         }

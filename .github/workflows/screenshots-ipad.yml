@@ -113,7 +113,7 @@ jobs:
             # runner: bounded to 15 seconds, and the app also asks its scene to turn itself.
             case "$*" in *medxLandscape*) [ -z "$ROTATED" ] && { perl -e 'alarm 15; exec @ARGV' osascript -e 'tell application "Simulator" to activate' -e 'delay 1' -e 'tell application "System Events" to key code 124 using {command down}' 2>&1 || true; ROTATED=1; };; esac
             PID=$(echo "$OUT" | awk -F': ' '{print $2}' | tr -d '[:space:]')
-            sleep "${WAIT:-8}"
+            sleep "${WAIT:-14}"
             xcrun simctl io "$UDID" screenshot --type=png "shots/$name.png" >/dev/null 2>&1
             if [ -n "$PID" ] && ! ps -p "$PID" >/dev/null 2>&1; then echo "CRASH? $name: process $PID is gone" | tee -a shots/crashes.txt; fi
           }
