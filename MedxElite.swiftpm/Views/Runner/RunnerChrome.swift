@@ -226,6 +226,12 @@ struct RunnerHUD: View {
     var trackCells: [MedxSheetCell] = []
     /// Index into `trackCells` of the question on screen.
     var trackCurrent: Int? = nil
+    /// The paper number of `trackCells[0]`, so the pills are labelled the way the key numbers them.
+    var trackStart: Int = 0
+    /// Indices into `trackCells` the student has bookmarked: a small dot on the pill.
+    var trackMarked: Set<Int> = []
+    /// Tapping a pill jumps to that question (index into `trackCells`).
+    var onJump: ((Int) -> Void)? = nil
     let onClose: () -> Void
     let onNavigator: () -> Void
     let onBookmark: () -> Void
@@ -311,12 +317,16 @@ struct RunnerHUD: View {
                 .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark question")
             }
 
-            // Progress: the block's own answer sheet when the runner hands it over, otherwise a
-            // plain position bar. Either way it is the full width under the row.
+            // Progress: one small numbered pill per question, coloured by state. The question on
+            // screen is the same size as the rest and only changes colour.
             if trackCells.count > 1 {
-                MedxAnswerSheet(cells: trackCells, scale: .track, current: trackCurrent)
-                    .frame(height: 6)
-                    .allowsHitTesting(false)
+                RunnerQuestionPills(
+                    cells: trackCells,
+                    current: trackCurrent,
+                    start: trackStart,
+                    marked: trackMarked,
+                    onJump: onJump
+                )
             } else {
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
@@ -351,6 +361,101 @@ struct RunnerHUD: View {
             )
             .ignoresSafeArea(edges: .top)
             .allowsHitTesting(false)
+        }
+    }
+}
+
+// MARK: - Question pills
+
+/// The HUD's progress: a scrolling row of small numbered capsules, one per question in the block.
+/// Colour alone carries state (answered, right, wrong, timed out, untouched), the current question
+/// is the one solid light pill at the same size as the others, and a bookmarked one carries a dot.
+struct RunnerQuestionPills: View {
+    let cells: [MedxSheetCell]
+    let current: Int?
+    let start: Int
+    let marked: Set<Int>
+    let onJump: ((Int) -> Void)?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 6) {
+                    ForEach(cells.indices, id: \.self) { index in
+                        pill(index)
+                            .id(index)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .scrollIndicators(.hidden)
+            .frame(height: 30)
+            .onAppear {
+                if let current { proxy.scrollTo(current, anchor: .center) }
+            }
+            .onChange(of: current) { _, next in
+                guard let next else { return }
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
+                    proxy.scrollTo(next, anchor: .center)
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Questions")
+    }
+
+    private func pill(_ index: Int) -> some View {
+        let isCurrent = index == current
+        let style = Self.style(for: cells[index])
+
+        return Button {
+            guard !isCurrent else { return }
+            HapticManager.selection()
+            onJump?(index)
+        } label: {
+            Text("\(start + index + 1)")
+                .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
+                .foregroundStyle(isCurrent ? MedxDS.page : style.ink)
+                .lineLimit(1)
+                .padding(.horizontal, 8)
+                .frame(minWidth: 34)
+                .frame(height: 24)
+                .background(Capsule(style: .continuous).fill(isCurrent ? Color.primary : style.fill))
+                .overlay(alignment: .topTrailing) {
+                    if marked.contains(index) {
+                        Circle()
+                            .fill(MedxDS.warn)
+                            .frame(width: 7, height: 7)
+                            .offset(x: 1, y: -1)
+                    }
+                }
+                .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(onJump == nil)
+        .accessibilityLabel("Question \(start + index + 1)")
+        .accessibilityValue(isCurrent ? "Current" : Self.label(for: cells[index]))
+    }
+
+    private static func style(for cell: MedxSheetCell) -> (fill: Color, ink: Color) {
+        switch cell {
+        case .answered: return (MedxTheme.accent.opacity(0.30), MedxTheme.accent)
+        case .correct: return (MedxDS.correct.opacity(0.28), MedxDS.correct)
+        case .wrong: return (MedxDS.wrong.opacity(0.28), MedxDS.wrong)
+        case .missed: return (MedxDS.warn.opacity(0.28), MedxDS.warn)
+        case .pending: return (MedxDS.sunken, Color.secondary)
+        }
+    }
+
+    private static func label(for cell: MedxSheetCell) -> String {
+        switch cell {
+        case .answered: return "Answered"
+        case .correct: return "Correct"
+        case .wrong: return "Wrong"
+        case .missed: return "Timed out"
+        case .pending: return "Not answered"
         }
     }
 }

@@ -296,6 +296,17 @@ public struct QuizRunnerView: View {
             modeLabel: payload.mode == .exam ? "Exam" : "Revision",
             trackCells: hudTrackCells,
             trackCurrent: currentIndex - navigatorRange.lowerBound,
+            trackStart: navigatorRange.lowerBound,
+            trackMarked: hudMarkedPills,
+            onJump: { offset in
+                let target = navigatorRange.lowerBound + offset
+                // Revision reveals as it goes, so it never jumps past the furthest question seen.
+                if payload.mode == .revision, target > furthestIndex {
+                    HapticManager.warning()
+                    return
+                }
+                jump(to: target)
+            },
             onClose: {
                 HapticManager.light()
                 if loadState == .ready, !responses.isEmpty {
@@ -314,6 +325,13 @@ public struct QuizRunnerView: View {
                 toggleBookmark(question)
             }
         )
+    }
+
+    /// Bookmarked questions in the block, as offsets into `hudTrackCells`.
+    private var hudMarkedPills: Set<Int> {
+        let range = navigatorRange
+        guard !range.isEmpty, range.upperBound <= questions.count else { return [] }
+        return Set(range.filter { isBookmarked(questions[$0]) }.map { $0 - range.lowerBound })
     }
 
     /// The block on screen as answer-sheet cells, for the HUD's progress track.
@@ -1303,7 +1321,7 @@ struct QuestionNavigatorSheet: View {
                         }
                     }
 
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 50), spacing: 10)], spacing: 10) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 56), spacing: 8)], spacing: 8) {
                         ForEach(Array(range), id: \.self) { index in
                             tile(for: index)
                         }
@@ -1370,21 +1388,15 @@ struct QuestionNavigatorSheet: View {
         } label: {
             Text("\(index + 1)")
                 .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(hue == nil ? Color.primary : Color.white)
-                .frame(width: 46, height: 46)
+                .foregroundStyle(isCurrent ? MedxDS.page : (hue ?? Color.primary))
+                .frame(maxWidth: .infinity)
+                .frame(height: 38)
                 .background {
-                    Circle().fill(hue ?? MedxDS.sunken)
-                }
-                .overlay {
-                    if isCurrent {
-                        Circle()
-                            .strokeBorder(MedxTheme.accent, lineWidth: 2.5)
-                            .padding(-4)
-                    }
+                    Capsule(style: .continuous)
+                        .fill(isCurrent ? Color.primary : (hue?.opacity(0.28) ?? MedxDS.sunken))
                 }
                 .opacity(isLocked ? 0.35 : 1)
-                .frame(width: 54, height: 54)
-                .contentShape(Circle())
+                .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(MedxPressStyle())
         .disabled(isLocked)
