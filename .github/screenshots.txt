@@ -20,3 +20,8 @@
 19-bookmarks -medxScreen bookmarks
 20-batch -medxScreen batch
 21-login -medxDemoSignedOut YES
+22-downloads -medxScreen downloads
+23-import -medxScreen import
+24-syllabus -medxScreen syllabus
+25-videosubject -medxScreen videosubject
+26-deck -medxScreen deck

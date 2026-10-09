@@ -107,7 +107,7 @@ public struct AnalyticsCard: View {
     private func figure(value: String, label: String) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(value)
-                .font(.title3.weight(.semibold).monospacedDigit())
+                .font(.system(.title3, design: .rounded).weight(.bold).monospacedDigit())
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)

@@ -77,6 +77,10 @@ public struct HomeView: View {
         #if DEBUG
         // Screenshot runs only: `-medxScroll 1|2` scrolls to the middle or the end of the page.
         .task {
+            if UserDefaults.standard.string(forKey: "medxScreen") == "syllabus" {
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                showTrackerSheet = true
+            }
             let target = UserDefaults.standard.integer(forKey: "medxScroll")
             guard target > 0 else { return }
             try? await Task.sleep(nanoseconds: 3_500_000_000)
@@ -186,38 +190,51 @@ public struct HomeView: View {
     /// thing on the page: the countdown says how much time is left, this says whether today
     /// is being used.
     private var goalSection: some View {
-        HStack(spacing: 16) {
-            goalRing
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 16) {
+                goalRing
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(stats.isGoalMet ? "Goal met" : "Today's goal")
-                    .font(.caption.weight(.bold))
-                    .textCase(.uppercase)
-                    .tracking(0.6)
-                    .foregroundStyle(stats.isGoalMet ? MedxTheme.successGreen : .secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(stats.isGoalMet ? "Goal met" : "Today's goal")
+                        .font(.caption.weight(.bold))
+                        .textCase(.uppercase)
+                        .tracking(0.6)
+                        .foregroundStyle(stats.isGoalMet ? MedxTheme.successGreen : .secondary)
 
-                Text(goalHeadline)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(spacing: 6) {
-                    goalPill(
-                        icon: "flame.fill",
-                        text: stats.streakDays == 1 ? "1-day streak" : "\(stats.streakDays)-day streak",
-                        tint: MedxTheme.warningOrange
-                    )
-                    .symbolEffect(.bounce, value: stats.streakDays)
-
-                    goalPill(
-                        icon: "calendar",
-                        text: "\(summary.weekAnswered) this week",
-                        tint: MedxTheme.primaryBlue
-                    )
+                    Text(goalHeadline)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+
+                Spacer(minLength: 0)
             }
 
-            Spacer(minLength: 0)
+            HStack(spacing: 8) {
+                goalPill(
+                    icon: "flame.fill",
+                    value: "\(stats.streakDays)",
+                    label: "day streak",
+                    tint: MedxTheme.warningOrange
+                )
+                .symbolEffect(.bounce, value: stats.streakDays)
+
+                goalPill(
+                    icon: "checkmark.circle.fill",
+                    value: "\(stats.correctToday)",
+                    label: "correct today",
+                    tint: MedxTheme.successGreen
+                )
+
+                goalPill(
+                    icon: "scope",
+                    value: stats.answeredToday > 0
+                        ? "\(Int((Double(stats.correctToday) / Double(stats.answeredToday) * 100).rounded()))%"
+                        : "—",
+                    label: "today's accuracy",
+                    tint: MedxTheme.primaryBlue
+                )
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -249,20 +266,30 @@ public struct HomeView: View {
         return "\(stats.remainingToGoal) more to reach today's \(stats.dailyGoal)."
     }
 
-    private func goalPill(icon: String, text: String, tint: Color) -> some View {
-        Label {
-            Text(text)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        } icon: {
+    private func goalPill(icon: String, value: String, label: String, tint: Color) -> some View {
+        HStack(spacing: 6) {
             Image(systemName: icon)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(tint)
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text(value)
+                    .font(.system(.subheadline, design: .rounded).weight(.bold).monospacedDigit())
+                    .foregroundStyle(.primary)
+                    .contentTransition(.numericText())
+                Text(label)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+
+            Spacer(minLength: 0)
         }
-        .font(.caption.weight(.semibold).monospacedDigit())
-        .foregroundStyle(tint)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 5)
-        .background(tint.opacity(0.14), in: Capsule())
-        .contentTransition(.numericText())
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var goalRing: some View {

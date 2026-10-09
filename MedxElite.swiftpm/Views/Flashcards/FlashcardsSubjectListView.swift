@@ -6,6 +6,9 @@ public struct FlashcardsSubjectListView: View {
     @State private var subjects: [FlashcardSubject] = []
     @State private var searchText = ""
     @State private var loadState: MedxLoadState = .loading
+    #if DEBUG
+    @State private var debugPick: FlashcardSubject?
+    #endif
 
     public init() {}
 
@@ -64,6 +67,17 @@ public struct FlashcardsSubjectListView: View {
         }
         .navigationTitle("Cards")
         .navigationBarTitleDisplayMode(.large)
+        #if DEBUG
+        // Screenshot runs only (`-medxScreen deck`): opens the first item once loaded.
+        .navigationDestination(item: $debugPick) { item in
+            FlashcardStudyView(subject: item)
+        }
+        .onChange(of: subjects.count) { _, count in
+            guard count > 0, debugPick == nil,
+                  UserDefaults.standard.string(forKey: "medxScreen") == "deck" else { return }
+            debugPick = subjects.first
+        }
+        #endif
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 FlashcardArtworkMenu {

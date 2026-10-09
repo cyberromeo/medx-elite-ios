@@ -314,7 +314,7 @@ public struct MedxMetric: View {
                         .background(color.gradient, in: Circle())
 
                     Text(value)
-                        .font(.system(.title2, design: .rounded).weight(.bold))
+                        .font(.system(nested ? .title3 : .title2, design: .rounded).weight(.bold))
                         .monospacedDigit()
                         .contentTransition(.numericText())
                         .lineLimit(1)
@@ -329,8 +329,8 @@ public struct MedxMetric: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 12)
+        .padding(.horizontal, nested ? 10 : 13)
+        .padding(.vertical, nested ? 10 : 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .modifier(MedxMetricSurface(nested: nested))
         .accessibilityElement(children: .ignore)

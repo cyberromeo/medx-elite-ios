@@ -149,7 +149,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           [ -f simbuild.log ] || exit 0
-          grep -E "error:|warning: .*MedxElite/" simbuild.log | sort -u > simbuild-errors.txt || true
+          { grep -E "error:|warning: .*MedxElite/" simbuild.log | sort -u; echo "(end of list, ${{ github.sha }})"; } > simbuild-errors.txt
           tail -n 300 simbuild.log > simbuild-tail.txt
-          gh release view sim-buildlog >/dev/null 2>&1 || gh release create sim-buildlog --title "Simulator build log" --notes "Latest simulator build log." --prerelease --target ${{ github.sha }}
-          gh release upload sim-buildlog simbuild-errors.txt simbuild-tail.txt --clobber
+          gh release view sim-buildlog >/dev/null 2>&1 || gh release create sim-buildlog --title "Simulator build log" --notes "Latest simulator build log." --prerelease --target ${{ github.sha }} || true
+          gh release upload sim-buildlog simbuild-errors.txt simbuild-tail.txt --clobber || true

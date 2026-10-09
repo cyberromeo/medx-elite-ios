@@ -10,6 +10,9 @@ public struct VideosBatchListView: View {
     @State private var loadState: MedxLoadState = .loading
     @State private var searchText = ""
     @State private var activeVideo: RecordedVideo?
+    #if DEBUG
+    @State private var debugPick: VideoSubjectGroup?
+    #endif
 
     public init() {}
 
@@ -57,6 +60,18 @@ public struct VideosBatchListView: View {
         .medxBackdrop(.videos)
         .medxScrollEdge()
         .navigationTitle("Classes")
+        #if DEBUG
+        // Screenshot runs only (`-medxScreen videosubject`): opens the first item once loaded.
+        .navigationDestination(item: $debugPick) { item in
+            VideoSubjectView(subjectGroup: item)
+        }
+        .onChange(of: groups.count) { _, count in
+            guard count > 0, debugPick == nil,
+                  UserDefaults.standard.string(forKey: "medxScreen") == "videosubject" else { return }
+            let all = groups.flatMap { $0.subjects }
+            debugPick = all.first(where: { $0.name.localizedCaseInsensitiveContains("micro") }) ?? all.first
+        }
+        #endif
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

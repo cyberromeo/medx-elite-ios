@@ -82,9 +82,14 @@ public struct ProfileSelectView: View {
                         .font(.headline)
                         .foregroundStyle(.primary)
 
-                    Text("@\(profile.handle) · \(profile.tag)")
+                    Text("@\(profile.handle)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Text(profile.tag)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(profile.duelFill)
                         .lineLimit(1)
                 }
 

@@ -310,7 +310,11 @@ public struct MedxBackdrop: View {
     public var body: some View {
         let dark = scheme == .dark
         // Increase Contrast asks for less decoration behind text, so the wash steps back.
-        let k = intensity * (contrast == .increased ? 0.5 : 1)
+        // The pale hues (lime, butter, mint, sky) read twice as loud as pink or violet at the same
+        // opacity, and lime over black turns olive — so they wash at two thirds.
+        let k = intensity
+            * (contrast == .increased ? 0.5 : 1)
+            * (section.fill.medxIsLight(in: scheme) ? 0.62 : 1)
 
         ZStack(alignment: .top) {
             MedxSurface.groupedBackground

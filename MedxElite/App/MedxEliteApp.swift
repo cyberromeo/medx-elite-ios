@@ -120,7 +120,7 @@ struct MedxEliteApp: App {
         )
 
         switch screen {
-        case "home": appState.open(route: .home)
+        case "home", "syllabus": appState.open(route: .home)
         case "qbank", "subject":
             UserDefaults.standard.set(MedxBank.arise.rawValue, forKey: "medx.qbank.bank")
             appState.open(route: .qbank)
@@ -128,9 +128,10 @@ struct MedxEliteApp: App {
             UserDefaults.standard.set(MedxBank.marrow.rawValue, forKey: "medx.qbank.bank")
             appState.open(route: .qbank)
         case "tests": appState.open(route: .tests)
-        case "classes": appState.open(route: .classes)
+        case "classes", "videosubject": appState.open(route: .classes)
+        case "import": appState.open(route: .importVod)
         case "library": appState.open(route: .library)
-        case "flashcards": appState.open(route: .flashcards)
+        case "flashcards", "deck": appState.open(route: .flashcards)
         case "vod": appState.open(route: .vodFeed)
         case "batch": appState.open(route: .batchPapers)
         case "search": appState.open(route: .search(nil))

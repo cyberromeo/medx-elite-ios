@@ -159,10 +159,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           [ -f build.log ] || exit 0
-          grep -E "error:" build.log | sort -u > ipa-build-errors.txt || true
+          { grep -E "error:" build.log | sort -u; echo "(end of list, $GITHUB_SHA)"; } > ipa-build-errors.txt
           tail -n 300 build.log > ipa-build-tail.txt
           gh release view ipa-buildlog >/dev/null 2>&1 || gh release create ipa-buildlog --title "IPA build log" --notes "Latest failed IPA build log." --prerelease --target "$GITHUB_SHA"
-          gh release upload ipa-buildlog ipa-build-errors.txt ipa-build-tail.txt --clobber
+          gh release upload ipa-buildlog ipa-build-errors.txt ipa-build-tail.txt --clobber || true
 
       - name: Attach to the release
         if: startsWith(github.ref, 'refs/tags/v')

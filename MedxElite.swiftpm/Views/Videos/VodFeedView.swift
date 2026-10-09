@@ -205,7 +205,7 @@ public struct VodFeedView: View {
                 )
                 MedxMetric(
                     icon: "clock.arrow.circlepath",
-                    value: watcher.meta?.updatedAt?.formatted(.relative(presentation: .numeric)) ?? "—",
+                    value: watcher.meta?.updatedAt?.formatted(.relative(presentation: .numeric, unitsStyle: .narrow)) ?? "—",
                     label: "bucket scanned",
                     color: MedxTheme.indigoAccent
                 )

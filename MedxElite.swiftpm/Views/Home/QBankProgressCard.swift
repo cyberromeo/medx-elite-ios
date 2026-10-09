@@ -71,11 +71,11 @@ public struct QBankProgressCard: View {
                     progress: coverage,
                     strokeWidth: 8,
                     size: 88,
-                    tint: .accentColor,
+                    tint: MedxTheme.accent,
                     centerContent: AnyView(
                         VStack(spacing: 0) {
                             Text("\(Int((coverage * 100).rounded()))%")
-                                .font(.headline.weight(.bold).monospacedDigit())
+                                .font(.system(.title3, design: .rounded).weight(.heavy).monospacedDigit())
                             Text("seen")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
@@ -87,7 +87,7 @@ public struct QBankProgressCard: View {
                     VStack(alignment: .leading, spacing: 1) {
                         HStack(alignment: .lastTextBaseline, spacing: 4) {
                             Text(current.unique.formatted())
-                                .font(.title3.weight(.semibold).monospacedDigit())
+                                .font(.system(.title2, design: .rounded).weight(.bold).monospacedDigit())
                             Text("of \(totalQuestions.formatted())")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
@@ -114,7 +114,7 @@ public struct QBankProgressCard: View {
     private func figure(value: String, label: String) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(value)
-                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .font(.system(.headline, design: .rounded).weight(.bold).monospacedDigit())
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
