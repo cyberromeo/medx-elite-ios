@@ -372,6 +372,48 @@ public struct MedxBackdrop: View {
     }
 }
 
+/// Home's page background, and Home's only (Sri, 10 Oct 2026): the flat page with one soft glow
+/// of the accent behind the top, fading to the near-black page by the time the first cards
+/// scroll in. One colour, the accent chosen in Settings; every other page stays flat.
+public struct MedxHomeBackdrop: View {
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    public init() {}
+
+    public var body: some View {
+        let strength: Double = contrast == .increased ? 0.5 : 1
+        let top = (scheme == .dark ? 0.30 : 0.16) * strength
+        ZStack(alignment: .top) {
+            MedxSurface.groupedBackground
+
+            GeometryReader { proxy in
+                let width = proxy.size.width
+                ZStack(alignment: .top) {
+                    LinearGradient(
+                        colors: [MedxTheme.accent.opacity(top * 0.55), .clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 360)
+
+                    RadialGradient(
+                        colors: [MedxTheme.accent.opacity(top), MedxTheme.accent.opacity(top * 0.3), .clear],
+                        center: .top,
+                        startRadius: 0,
+                        endRadius: max(width, 420) * 0.75
+                    )
+                    .frame(height: 460)
+                }
+                .frame(width: width, alignment: .top)
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 public extension View {
     /// The page background for a screen that belongs to `section`: the grouped background with
     /// the section's wash at the top. Replaces `.background(MedxSurface.groupedBackground…)`.

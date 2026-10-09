@@ -88,7 +88,7 @@ public struct HomeView: View {
         }
         #endif
         }
-        .medxBackdrop(.home)
+        .background { MedxHomeBackdrop() }
         .medxScrollEdge()
         .scrollIndicators(.automatic)
         // The greeting *is* the title. It used to be a `.title3` line at the top of the scroll under

@@ -171,7 +171,7 @@ public struct TestsListView: View {
                     Text("ARISE batch papers")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
-                    Text("The batch's own four, keyed and unkeyed")
+                    Text("The batch's own four papers")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
