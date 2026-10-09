@@ -150,6 +150,10 @@ public struct SittingReviewView: View {
                 }
             }
             .medxList()
+            // iPad: the review reads as a column, not a landscape-wide form.
+            .frame(maxWidth: 860)
+            .frame(maxWidth: .infinity)
+            .medxPage()
             .navigationTitle(name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

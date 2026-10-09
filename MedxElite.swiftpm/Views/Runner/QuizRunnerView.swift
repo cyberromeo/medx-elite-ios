@@ -404,6 +404,9 @@ public struct QuizRunnerView: View {
                 .padding(.horizontal, MedxDS.gutter)
                 .padding(.top, 12)
                 .padding(.bottom, 24)
+                // iPad: a readable column rather than lines the width of a landscape screen.
+                .frame(maxWidth: 760)
+                .frame(maxWidth: .infinity)
             }
             .scrollIndicators(.hidden)
             .medxScrollEdge()

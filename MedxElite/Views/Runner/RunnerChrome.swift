@@ -348,6 +348,7 @@ struct RunnerHUD: View {
                 .accessibilityHidden(true)
             }
         }
+        .frame(maxWidth: 760)
         .padding(.horizontal, MedxDS.gutter)
         .padding(.top, 4)
         .padding(.bottom, 10)
