@@ -91,7 +91,7 @@ final class MedxFaceoffLobby: ObservableObject {
             try await transport.joinGame(gameId: game.id, uid: uid, profile: profile.id)
             return game.id
         } catch {
-            failure = "Joining did not go through. Firestore refused the write."
+            failure = "Joining did not go through. Check your connection and try again."
             return nil
         }
     }
@@ -154,7 +154,7 @@ final class MedxFaceoffLobby: ObservableObject {
                 parts: dealt.parts
             )
         } catch {
-            failure = "Firestore would not take the deal."
+            failure = "That game could not be started. Check your connection and try again."
             return nil
         }
     }
@@ -292,7 +292,7 @@ public struct FaceoffLobbyView: View {
             Image(systemName: "icloud.slash")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(MedxTheme.warningOrange)
-            Text("Firestore would not take the duel collections, so Faceoff cannot run. Nothing "
+            Text("Faceoff cannot reach its game server right now, so it cannot run. Nothing "
                  + "else in the app is affected.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

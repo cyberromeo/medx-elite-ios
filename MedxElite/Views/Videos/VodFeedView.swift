@@ -174,8 +174,7 @@ public struct VodFeedView: View {
     private var header: some View {
         MedxPageHeader(
             section: .vod,
-            lead: "Every recording in the ARISE bucket, newest upload first. Scroll down to go "
-                + "back in time."
+            lead: "Every ARISE recording, newest first. Scroll down to go back in time."
         )
     }
 
@@ -199,19 +198,19 @@ public struct VodFeedView: View {
                     icon: "square.stack.3d.down.right.fill",
                     value: "\(items.count.formatted())\(isDone ? "" : "+")",
                     label: "loaded here",
-                    color: MedxCandy.blue
+                    color: MedxIconHue.blue
                 )
                 MedxMetric(
                     icon: "clock.arrow.circlepath",
-                    value: watcher.meta?.updatedAt?.formatted(.relative(presentation: .numeric, unitsStyle: .narrow)) ?? "—",
-                    label: "bucket scanned",
-                    color: MedxTheme.indigoAccent
+                    value: watcher.meta?.updatedAt?.formatted(.relative(presentation: .numeric, unitsStyle: .narrow)) ?? "-",
+                    label: "last checked",
+                    color: MedxIconHue.purple
                 )
                 MedxMetric(
                     icon: "plus.circle.fill",
                     value: (watcher.meta?.count ?? 0).formatted(),
                     label: "added by sync",
-                    color: MedxTheme.tealAccent
+                    color: MedxIconHue.teal
                 )
             }
 
@@ -246,7 +245,7 @@ public struct VodFeedView: View {
 
     private var latestDropLine: String {
         let newest = items.first?.uploadedAt ?? watcher.meta?.lastUploadedAt
-        guard let newest else { return "—" }
+        guard let newest else { return "-" }
         return newest.formatted(.dateTime.day().month(.wide).year())
     }
 
@@ -303,8 +302,8 @@ public struct VodFeedView: View {
                 // Said out loud, because a filter that silently only covers part of a collection
                 // is worse than no filter: the bucket has no text index, so `folder` is the only
                 // field a server-side search could use and it needs an exact code.
-                Text("Searching the \(items.count.formatted()) loaded so far, the bucket has no "
-                     + "text index, so load more to widen it.")
+                Text("Searching the \(items.count.formatted()) recordings loaded so far. "
+                     + "Load more to search further back.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 4)
@@ -514,7 +513,7 @@ public struct VodFeedView: View {
         }
 
         if isDone, !items.isEmpty {
-            Text("That is the whole bucket, \(items.count.formatted()) recordings.")
+            Text("That is everything, \(items.count.formatted()) recordings.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity)
@@ -525,12 +524,12 @@ public struct VodFeedView: View {
     private var emptyState: some View {
         ContentUnavailableView {
             Label(
-                query.isEmpty && !onlyCC ? "The bucket index is empty" : "Nothing loaded matches",
+                query.isEmpty && !onlyCC ? "No recordings yet" : "Nothing loaded matches",
                 systemImage: query.isEmpty && !onlyCC ? "antenna.radiowaves.left.and.right.slash" : "magnifyingglass"
             )
         } description: {
             Text(query.isEmpty && !onlyCC
-                 ? "medx_vod has no documents with an uploadedAt to order by."
+                 ? "Nothing has been uploaded yet."
                  : "Load another page, or clear the filter.")
         }
         .frame(maxWidth: .infinity)
@@ -572,7 +571,7 @@ public struct VodFeedView: View {
         defer { isLoading = false }
 
         guard let token = try? await authService.getValidIdToken() else {
-            failure = "Sign in again to read the bucket."
+            failure = "Sign in again to load recordings."
             return
         }
 

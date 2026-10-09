@@ -98,7 +98,7 @@ public struct QBankProgressCard: View {
                     }
 
                     HStack(spacing: 18) {
-                        figure(value: current.answered > 0 ? "\(accuracy)%" : "—", label: "accuracy")
+                        figure(value: current.answered > 0 ? "\(accuracy)%" : "-", label: "accuracy")
                         figure(value: "\(current.sittings)", label: "sittings")
                     }
                 }

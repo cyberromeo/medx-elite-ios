@@ -66,7 +66,7 @@ public struct FlashcardsSubjectListView: View {
             .medxScrollEdge()
         }
         .navigationTitle("Cards")
-        .toolbarTitleDisplayMode(.inlineLarge)
+        .navigationBarTitleDisplayMode(.large)
         #if DEBUG
         // Screenshot runs only (`-medxScreen deck`): opens the first item once loaded.
         .navigationDestination(item: $debugPick) { item in
@@ -108,8 +108,7 @@ public struct FlashcardsSubjectListView: View {
             LazyVStack(alignment: .leading, spacing: 16) {
                 MedxPageHeader(
                     section: .cards,
-                    lead: "Image decks, tapped through one at a time. Nothing here is scored, "
-                        + "these are the pictures you either recognise or you do not."
+                    lead: "Image decks, one card at a time. Nothing here is scored."
                 )
 
                 MedxMetricsRow {
@@ -117,13 +116,13 @@ public struct FlashcardsSubjectListView: View {
                         icon: "rectangle.stack.fill",
                         value: totalCards.formatted(),
                         label: "cards",
-                        color: MedxCandy.butter
+                        color: MedxIconHue.yellow
                     )
                     MedxMetric(
                         icon: "books.vertical.fill",
                         value: "\(subjects.count)",
                         label: "subjects",
-                        color: MedxCandy.sky
+                        color: MedxIconHue.sky
                     )
                 }
 

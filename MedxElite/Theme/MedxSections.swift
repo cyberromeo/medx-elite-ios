@@ -244,7 +244,7 @@ public enum MedxSection: String, CaseIterable, Identifiable, Sendable {
         case .tests: return "Marrow · FMGE"
         case .cards: return "High-yield visuals"
         case .videos: return "ARISE · recorded classes"
-        case .vod: return "ARISE · raw bucket"
+        case .vod: return "ARISE · all recordings"
         case .library: return "Everything else"
         case .duel: return "Head to head"
         case .custom: return "Your mixes"

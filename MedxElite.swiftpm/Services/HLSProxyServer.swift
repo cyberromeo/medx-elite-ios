@@ -469,7 +469,7 @@ public struct DownloadedVideo: Identifiable, Codable, Hashable, Sendable {
     public var isActive: Bool { state == .queued || state == .downloading }
 
     public var formattedSize: String {
-        guard bytesOnDisk > 0 else { return "—" }
+        guard bytesOnDisk > 0 else { return "-" }
         return ByteCountFormatter.string(fromByteCount: bytesOnDisk, countStyle: .file)
     }
 

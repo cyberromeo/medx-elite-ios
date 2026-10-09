@@ -122,8 +122,8 @@ struct DuelResultView: View {
                 )
                 statRow(
                     label: "Fastest right",
-                    mine: room.myScore.fastest.map { "\($0)s" } ?? "—",
-                    theirs: room.theirScore.fastest.map { "\($0)s" } ?? "—"
+                    mine: room.myScore.fastest.map { "\($0)s" } ?? "-",
+                    theirs: room.theirScore.fastest.map { "\($0)s" } ?? "-"
                 )
             }
         }

@@ -38,9 +38,8 @@ public final class MedxNotificationManager: NSObject, ObservableObject {
             case .streakProtection: return "At 9 pm, only when nothing has been logged yet."
             case .revisionDue: return "At 8 am, only when the spaced schedule has modules waiting."
             case .vodDrops:
-                return "When something new lands in the ARISE VOD bucket. Checked on every launch, "
-                    + "and in the background when iOS allows it, there is no push, so a launch is "
-                    + "the only guarantee."
+                return "When a new ARISE recording is uploaded. Checked every time you open the app, "
+                    + "and in the background when iOS allows it."
             }
         }
 
@@ -177,8 +176,8 @@ public final class MedxNotificationManager: NSObject, ObservableObject {
 
         let content = UNMutableNotificationContent()
         content.title = items.count == 1
-            ? "1 new recording in the bucket"
-            : "\(items.count) new recordings in the bucket"
+            ? "1 new ARISE recording"
+            : "\(items.count) new ARISE recordings"
 
         let headline = items[0].display.title
         content.body = items.count == 1

@@ -69,7 +69,7 @@ public struct TestsListView: View {
         .medxBackdrop(.tests)
         .medxScrollEdge()
         .navigationTitle("Tests")
-        .toolbarTitleDisplayMode(.inlineLarge)
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 MedxProfileButton()
@@ -151,8 +151,7 @@ public struct TestsListView: View {
             // the search count, so the three numbers on this screen always agree.
             lead: index.map {
                 "\($0.papers.count.formatted()) papers, "
-                    + "\($0.papers.reduce(0) { $0 + $1.questions }.formatted()) questions. "
-                    + "Every one of them is keyed, so every one can be scored."
+                    + "\($0.papers.reduce(0) { $0 + $1.questions }.formatted()) questions, all scored."
             } ?? "The Marrow FMGE test series, grand, mini and subject papers.",
             symbol: "trophy.fill"
         )

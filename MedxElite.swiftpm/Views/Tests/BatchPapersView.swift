@@ -84,8 +84,8 @@ public struct BatchPapersView: View {
                 MedxPageHeader(
                     section: .tests,
                     eyebrow: "ARISE · batch",
-                    lead: "The batch's own four papers. Most exported without an answer key, so "
-                        + "they are answerable but not all of them can be scored.",
+                    lead: "The batch's own papers. Some came without an answer key, so you can "
+                        + "practise them but not every one is scored.",
                     symbol: "flag.pattern.checkered"
                 )
 
@@ -152,7 +152,7 @@ public struct BatchPapersView: View {
                 icon: "flag.pattern.checkered",
                 value: "\(Set(attempts.map(\.sourceId)).count)",
                 label: "attempted",
-                color: MedxCandy.tangerine
+                color: MedxIconHue.tangerine
             )
         }
     }

@@ -174,8 +174,8 @@ public struct CustomModulesView: View {
     private var syncFooter: some View {
         noteRow(
             store.remoteWorks == false
-                ? "Firestore would not take these, so they live on this device only. Everything still works, they just will not appear on the other one."
-                : "Mirrored to medx_custom_modules, so both of you see the same list on every device.",
+                ? "These could not be saved online, so they live on this device only. Everything still works; they just will not appear on the other phone."
+                : "Saved online, so both of you see the same list on every device.",
             icon: store.remoteWorks == false ? "icloud.slash" : "checkmark.icloud",
             tint: store.remoteWorks == false ? MedxTheme.warningOrange : .secondary
         )

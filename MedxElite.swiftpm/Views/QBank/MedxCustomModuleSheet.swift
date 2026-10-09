@@ -83,7 +83,7 @@ public struct MedxCustomModuleSheet: View {
             .alert("Couldn't build that sitting", isPresented: $buildFailed) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Nothing matched those choices. Try a wider scope, or build the question index in Settings so the whole bank is available.")
+                Text("Nothing matched those choices. Try a wider scope, or turn on offline search in Settings so the whole bank is available.")
             }
             .task { await load() }
         }
@@ -174,7 +174,7 @@ public struct MedxCustomModuleSheet: View {
             }
         } footer: {
             if availableCount == nil {
-                Text("The question index has not been built, so questions are sampled from a handful of modules instead. Build it in Settings to filter across the whole bank.")
+                Text("Offline search is not set up yet, so questions come from a handful of modules. Turn it on in Settings to pick from the whole bank.")
             } else if let availableCount, availableCount < length {
                 Text("Only \(availableCount) match, the sitting will be that long.")
             }

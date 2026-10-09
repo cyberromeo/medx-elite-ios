@@ -136,8 +136,8 @@ public struct VodImportView: View {
         MedxPageHeader(
             section: .videos,
             eyebrow: "ARISE · file into the library",
-            lead: "Preview a recording from the raw bucket, then add it to a batch and subject. "
-                + "It appears in Classes numbered automatically."
+            lead: "Preview a recording, then add it to a batch and subject. "
+                + "It shows up in Classes, numbered for you."
         )
     }
 
@@ -255,7 +255,7 @@ public struct VodImportView: View {
                     Image(systemName: "magnifyingglass")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.secondary)
-                    TextField("Filter loaded — key, folder or name", text: $query)
+                    TextField("Filter by key, folder or name", text: $query)
                         .textFieldStyle(.plain)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
@@ -296,7 +296,7 @@ public struct VodImportView: View {
                     Image(systemName: "number")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.secondary)
-                    TextField("Fetch a bucket folder by exact code", text: $folderKey)
+                    TextField("Find a recording by its exact folder code", text: $folderKey)
                         .textFieldStyle(.plain)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
@@ -427,7 +427,7 @@ public struct VodImportView: View {
             ContentUnavailableView {
                 Label("Nothing loaded matches", systemImage: "magnifyingglass")
             } description: {
-                Text("Load another page, clear the filter, or fetch a bucket folder by its exact code.")
+                Text("Load more, clear the filter, or find a recording by its exact folder code.")
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 24)
@@ -508,7 +508,7 @@ public struct VodImportView: View {
         defer { isLoading = false }
 
         guard let token = try? await authService.getValidIdToken() else {
-            failure = "Sign in again to read the bucket."
+            failure = "Sign in again to load recordings."
             return
         }
         do {
@@ -532,7 +532,7 @@ public struct VodImportView: View {
         failure = nil
         defer { isLoading = false }
         guard let token = try? await authService.getValidIdToken() else {
-            failure = "Sign in again to read the bucket."
+            failure = "Sign in again to load recordings."
             return
         }
         do {

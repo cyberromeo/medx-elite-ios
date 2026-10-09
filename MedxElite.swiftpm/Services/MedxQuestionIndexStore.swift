@@ -287,14 +287,14 @@ public final class MedxQuestionIndexStore: ObservableObject {
 
     public var coverageSummary: String {
         guard expectedQuestions > 0 else {
-            return entries.isEmpty ? "Nothing indexed yet" : "\(entries.count.formatted()) questions indexed"
+            return entries.isEmpty ? "Not downloaded yet" : "\(entries.count.formatted()) questions downloaded"
         }
         return "\(entries.count.formatted()) of \(expectedQuestions.formatted()) questions"
     }
 
     public var formattedSize: String {
         guard let size = try? fileManager.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber else {
-            return "—"
+            return "-"
         }
         return ByteCountFormatter.string(fromByteCount: size.int64Value, countStyle: .file)
     }

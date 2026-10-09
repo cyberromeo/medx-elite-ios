@@ -72,7 +72,7 @@ public struct VideosBatchListView: View {
             debugPick = all.first(where: { $0.name.localizedCaseInsensitiveContains("micro") }) ?? all.first
         }
         #endif
-        .toolbarTitleDisplayMode(.inlineLarge)
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
@@ -120,13 +120,13 @@ public struct VideosBatchListView: View {
                         icon: "play.rectangle.fill",
                         value: "\(videos.count)",
                         label: "classes",
-                        color: MedxCandy.violet
+                        color: MedxIconHue.violet
                     )
                     MedxMetric(
                         icon: "clock.fill",
                         value: totalDurationFormatted,
                         label: "total runtime",
-                        color: MedxCandy.sky
+                        color: MedxIconHue.sky
                     )
                     MedxMetric(
                         icon: "arrow.down.circle.fill",
@@ -609,7 +609,7 @@ struct DownloadsView: View {
                                 icon: "internaldrive.fill",
                                 value: downloads.formattedTotalSize,
                                 label: "on device",
-                                color: MedxTheme.primaryBlue
+                                color: MedxIconHue.blue
                             )
                             MedxMetric(
                                 icon: "checkmark.circle.fill",

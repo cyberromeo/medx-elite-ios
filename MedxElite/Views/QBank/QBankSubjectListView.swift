@@ -79,7 +79,9 @@ public struct QBankSubjectListView: View {
         .medxBackdrop(.qbank)
         .medxScrollEdge()
         .navigationTitle("Question Bank")
-        .toolbarTitleDisplayMode(.inlineLarge)
+        // Three toolbar buttons leave no room for the title beside them (it truncated to
+        // "Question…"), so here the large title takes its own line under the buttons.
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
@@ -139,8 +141,7 @@ public struct QBankSubjectListView: View {
                 MedxPageHeader(
                     section: .qbank,
                     eyebrow: bank.eyebrow,
-                    lead: "\(allQuestions.formatted()) questions across two banks. "
-                        + "Marrow's ids are prefixed, so a module runs the same either way.",
+                    lead: "\(allQuestions.formatted()) questions across ARISE and Marrow.",
                     symbol: bank.symbol
                 )
 
@@ -166,19 +167,19 @@ public struct QBankSubjectListView: View {
                         icon: "books.vertical.fill",
                         value: "\(subjects(in: bank).count)",
                         label: "subjects",
-                        color: MedxTheme.primaryBlue
+                        color: MedxIconHue.blue
                     )
                     MedxMetric(
                         icon: "square.grid.2x2.fill",
                         value: bankTotals.modules.formatted(),
                         label: "modules",
-                        color: MedxTheme.indigoAccent
+                        color: MedxIconHue.purple
                     )
                     MedxMetric(
                         icon: "questionmark.circle.fill",
                         value: bankTotals.questions.formatted(),
                         label: "questions",
-                        color: MedxTheme.cyanAccent
+                        color: MedxIconHue.sky
                     )
                 }
 

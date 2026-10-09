@@ -768,7 +768,7 @@ public struct SettingsView: View {
                     Text("Advanced")
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(Color.primary)
-                    Text("Search index · Siri · diagnostics")
+                    Text("Offline search · Siri · diagnostics")
                         .font(.caption)
                         .foregroundStyle(Color.secondary)
                 }
@@ -800,7 +800,7 @@ public struct SettingsView: View {
         .navigationTitle("Advanced")
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog("Delete the question index?", isPresented: $showWipeIndexConfirm) {
-            Button("Delete \(index.indexedCount.formatted()) indexed questions", role: .destructive) {
+            Button("Remove \(index.indexedCount.formatted()) downloaded questions", role: .destructive) {
                 HapticManager.warning()
                 index.wipe()
             }
@@ -879,7 +879,7 @@ public struct SettingsView: View {
                     index.build(subjects: subjects)
                 } label: {
                     Label {
-                        Text(index.isEmpty ? "Build the index" : "Finish the index")
+                        Text(index.isEmpty ? "Download for offline search" : "Finish downloading")
                             .font(.body)
                     } icon: {
                         Image(systemName: "arrow.down.doc")
@@ -895,7 +895,7 @@ public struct SettingsView: View {
                     showWipeIndexConfirm = true
                 } label: {
                     Label {
-                        Text("Delete the index")
+                        Text("Remove offline search")
                             .font(.body)
                     } icon: {
                         Image(systemName: "trash")
@@ -917,7 +917,7 @@ public struct SettingsView: View {
             // tell you whether the Marrow half actually landed.
             Text(index.isComplete
                  ? "All \(index.indexedCount.formatted()) questions are searchable offline, \(index.indexedCount(bank: .arise).formatted()) ARISE and \(index.indexedCount(bank: .marrow).formatted()) Marrow."
-                 : "Searching every question needs their text on this device. Building fetches all \(max(index.expectedModules, 2171)) modules across both banks once, it is resumable, and it also makes those modules playable offline.")
+                 : "Searching every question needs their text on this device. Downloading them takes a few minutes once, can be paused, and also makes every module playable offline.")
                 .font(.caption)
         }
     }
@@ -950,7 +950,7 @@ public struct SettingsView: View {
             Toggle(isOn: $spotlight.isEnabled) {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Index in Spotlight")
+                        Text("Show in Spotlight")
                             .font(.body)
                         Text(spotlight.indexedCount > 0
                              ? "\(spotlight.indexedCount.formatted()) items findable from the Home Screen"
@@ -982,7 +982,7 @@ public struct SettingsView: View {
         } header: {
             MedxSettingsHeader("Siri, Spotlight & widgets", symbol: "sparkles", hue: MedxCandy.sky)
         } footer: {
-            Text("Nothing is uploaded, Spotlight's index lives on this device and is removed when the switch is off.")
+            Text("Nothing is uploaded, Spotlight keeps this on this device and is removed when the switch is off.")
                 .font(.caption)
         }
         .tint(MedxTheme.accent)
@@ -1086,7 +1086,7 @@ public struct SettingsView: View {
                 }
                 .frame(minHeight: 44)
             }
-            .accessibilityHint("Re-checks the bucket as though this device had never seen it, which posts the new-drop notification again")
+            .accessibilityHint("Checks for new recordings again and shows the notification again")
 
             if let failure = playback.summary {
                 Button {
@@ -1099,8 +1099,8 @@ public struct SettingsView: View {
             MedxSettingsHeader("Diagnostics", symbol: "stethoscope", hue: MedxCandy.violet)
         } footer: {
             Text(MedxInstallInfo.usesLegacyAppearance
-                 ? "This build was compiled against an older iOS SDK, which is why the interface uses the previous system style, iOS only applies the current design language to apps linked against the iOS 26 SDK or newer. Rebuild with the updated CI workflow."
-                 : "Tap a failed row to clear it. The VOD check runs on every launch and, when iOS agrees to it, roughly every two hours in the background, there is no push, so opening the app is the guarantee.")
+                 ? "This copy of the app was built for an older iOS, so it uses the previous look. Install the latest build to get the new design."
+                 : "Tap a failed row to clear it. New recordings are checked every time you open the app, and every couple of hours in the background when iOS allows it.")
                 .font(.caption)
         }
     }
@@ -1161,7 +1161,7 @@ public struct SettingsView: View {
         }
         let when = checked.formatted(date: .omitted, time: .shortened)
         guard let newest = vod.meta?.lastUploadedAt else {
-            return "Checked at \(when), the bucket reported no uploads"
+            return "Checked at \(when), no new recordings"
         }
         let drop = newest.formatted(date: .abbreviated, time: .shortened)
         if vod.unseenCount > 0 {
@@ -1919,8 +1919,8 @@ private enum ActivityLogItem: Identifiable, Hashable {
 
     var deleteMessage: String {
         switch self {
-        case .video: return "Deleting this log entry will delete the watch history and clear its resume position both locally and in Firebase."
-        case .attempt: return "Deleting this log entry will permanently remove the test/QBank attempt record locally and in Firebase."
+        case .video: return "Deleting this log entry will delete the watch history and clear its resume position both on this device and online."
+        case .attempt: return "Deleting this log entry will permanently remove the test/QBank attempt record on this device and online."
         }
     }
 }

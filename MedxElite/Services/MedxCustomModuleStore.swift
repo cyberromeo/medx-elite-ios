@@ -162,7 +162,7 @@ public final class MedxCustomModuleStore: ObservableObject {
         } catch {
             remoteWorks = false
             if gone?.synced == true {
-                lastDeleteWarning = "Deleted here, but Firestore would not take the change. "
+                lastDeleteWarning = "Deleted here, but the change could not be saved online. "
                     + "It is still on the other device, so it will come back the next time this list loads."
             }
         }

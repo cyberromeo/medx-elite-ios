@@ -96,7 +96,7 @@ public final class MedxDuelRestTransport: MedxDuelTransport {
                 MedxDuelRoomSnapshot(
                     game: nil,
                     players: [],
-                    failure: "Firestore would not read the duel documents."
+                    failure: "Faceoff could not load the game. Check your connection."
                 )
             )
         }

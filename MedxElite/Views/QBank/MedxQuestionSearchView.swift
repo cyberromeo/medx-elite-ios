@@ -313,7 +313,7 @@ public struct MedxQuestionSearchView: View {
                     .symbolEffect(.pulse, isActive: index.isBuilding)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(index.isBuilding ? "Building the index…" : "Partial index")
+                    Text(index.isBuilding ? "Downloading…" : "Partly downloaded")
                         .font(.subheadline.weight(.semibold))
                     Text(index.coverageSummary)
                         .font(.caption)
@@ -351,16 +351,16 @@ public struct MedxQuestionSearchView: View {
 
     private var emptyIndexState: some View {
         ContentUnavailableView {
-            Label("Nothing indexed yet", systemImage: "magnifyingglass")
+            Label("Not downloaded yet", systemImage: "magnifyingglass")
         } description: {
             Text("Searching every question needs their text on this device once. "
-                 + "Building the index fetches all 2,171 modules across both banks, it can be paused and resumed.")
+                 + "Downloading them takes a few minutes and can be paused.")
         } actions: {
             Button {
                 HapticManager.medium()
                 index.build(subjects: subjects)
             } label: {
-                Text("Build the index")
+                Text("Set up offline search")
                     .font(.subheadline.weight(.semibold))
                     .frame(minWidth: 170, minHeight: 44)
             }
@@ -379,7 +379,7 @@ public struct MedxQuestionSearchView: View {
                 Text("Type at least two letters, or pick a filter to browse, "
                      + "for example every image-based question you have got wrong.")
             } else {
-                Text("Nothing in the indexed \(index.indexedCount.formatted()) questions matches that.")
+                Text("None of the \(index.indexedCount.formatted()) questions matches that.")
             }
         }
         .padding(.top, 20)

@@ -385,7 +385,7 @@ public final class MedxDuelRoom: ObservableObject {
             do {
                 try await transport.submitAnswer(gameId: gameId, uid: uid, round: round)
             } catch {
-                failure = "That answer did not reach Firestore."
+                failure = "That answer did not send. Check your connection."
             }
         }
     }

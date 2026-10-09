@@ -95,7 +95,7 @@ public struct HomeView: View {
         // a large title reading "Home", which is two headings on a screen that needs one — and the
         // one the tab bar had already named was the redundant one.
         .navigationTitle(profileGreeting)
-        .toolbarTitleDisplayMode(.inlineLarge)
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 MedxProfileButton()
@@ -236,7 +236,7 @@ public struct HomeView: View {
                     icon: "scope",
                     value: stats.answeredToday > 0
                         ? "\(Int((Double(stats.correctToday) / Double(stats.answeredToday) * 100).rounded()))%"
-                        : "—",
+                        : "-",
                     label: "accuracy",
                     tint: MedxTheme.primaryBlue
                 )
@@ -484,17 +484,17 @@ public struct HomeView: View {
                     icon: "square.stack.3d.up.fill",
                     value: "\(summary.weekSittings)",
                     label: "sittings",
-                    color: MedxTheme.primaryBlue
+                    color: MedxIconHue.blue
                 )
                 MedxMetric(
                     icon: "questionmark.circle.fill",
                     value: "\(summary.weekAnswered)",
                     label: "questions",
-                    color: MedxTheme.indigoAccent
+                    color: MedxIconHue.purple
                 )
                 MedxMetric(
                     icon: "target",
-                    value: summary.weekAnswered > 0 ? "\(summary.weekAccuracy)%" : "—",
+                    value: summary.weekAnswered > 0 ? "\(summary.weekAccuracy)%" : "-",
                     label: "accuracy",
                     color: MedxTheme.successGreen
                 )

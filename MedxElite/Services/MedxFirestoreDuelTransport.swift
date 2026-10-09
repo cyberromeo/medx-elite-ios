@@ -52,7 +52,7 @@ public final class MedxFirestoreDuelTransport: MedxDuelTransport, MedxFirestoreD
                 guard let self else { return }
                 if error != nil {
                     self.remoteWorks = false
-                    publish(failure: "Firestore would not read the duel documents.")
+                    publish(failure: "Faceoff could not load the game. Check your connection.")
                     return
                 }
                 self.remoteWorks = true
@@ -67,7 +67,7 @@ public final class MedxFirestoreDuelTransport: MedxDuelTransport, MedxFirestoreD
                 guard let self else { return }
                 if error != nil {
                     self.remoteWorks = false
-                    publish(failure: "Firestore would not read the duel documents.")
+                    publish(failure: "Faceoff could not load the game. Check your connection.")
                     return
                 }
                 self.remoteWorks = true

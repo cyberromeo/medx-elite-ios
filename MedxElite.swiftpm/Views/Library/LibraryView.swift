@@ -99,7 +99,7 @@ public struct LibraryView: View {
             LibraryTileModel(
                 id: "vod",
                 title: "VOD feed",
-                detail: "The raw bucket, newest first",
+                detail: "Every recording, newest first",
                 symbol: "antenna.radiowaves.left.and.right",
                 hue: MedxIconHue.blue,
                 badge: vod.unseenCount > 0 ? "\(vod.unseenCount) new" : nil
@@ -108,7 +108,7 @@ public struct LibraryView: View {
             LibraryTileModel(
                 id: "importVod",
                 title: "Import to Classes",
-                detail: "File a bucket recording into a subject",
+                detail: "Add a recording to a subject",
                 symbol: "tray.and.arrow.down.fill",
                 hue: MedxIconHue.violet,
                 badge: nil
@@ -207,7 +207,7 @@ public struct LibraryView: View {
             LibraryTileModel(
                 id: "settings",
                 title: "Settings",
-                detail: "Accent, reminders, the index",
+                detail: "Accent, reminders, offline search",
                 symbol: "gearshape.fill",
                 hue: MedxIconHue.violet,
                 badge: nil

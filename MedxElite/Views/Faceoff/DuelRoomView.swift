@@ -580,7 +580,7 @@ struct DuelRevealPane: View {
         let label = room.question?.options.first { $0.id == answer?.optionId }?.label
 
         return HStack(spacing: 10) {
-            Text(profile?.displayName ?? "—")
+            Text(profile?.displayName ?? "-")
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(profile?.duelFill ?? .secondary)
                 .frame(minWidth: 62, alignment: .leading)
