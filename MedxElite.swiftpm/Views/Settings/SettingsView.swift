@@ -356,18 +356,18 @@ public struct SettingsView: View {
                     Spacer(minLength: 4)
                     Text("\(count)")
                         .font(MedxType.figure(20, weight: .bold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(Color.primary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(Color.primary)
                         .lineLimit(1)
                     Text(detail)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.secondary)
                         .lineLimit(1)
                 }
             }
@@ -556,10 +556,10 @@ public struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Search, Siri & diagnostics")
                                 .font(.body)
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.primary)
                             Text("\(index.indexedCount.formatted()) questions indexed")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.secondary)
                         }
                     } icon: {
                         Image(systemName: "gearshape.2.fill")
@@ -568,7 +568,7 @@ public struct SettingsView: View {
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.bold))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Color(uiColor: .tertiaryLabel))
                 }
                 .contentShape(Rectangle())
             }

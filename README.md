@@ -35,7 +35,27 @@ samples it; the content stays opaque on top of it. Alongside it: Home leads with
 one coloured surface on a browse screen, used once — the goal card carries the streak and today's figures,
 cards round up to iOS 26's geometry, large marks are solid Settings-style squircles, figures speak in
 the rounded voice, and the lists that load show the shape of the page (`MedxSkeleton`) instead of a
-spinner. The runner is untouched.
+spinner. The runner was untouched by that pass.
+
+The sixth pass (October 2026) did the runner, the Profile page and the bank switcher. The runner keeps its
+black page and its two panes of glass, but each pane is now one piece: the **HUD** is a single row (✕, a
+"Q3 of 50" title that opens the navigator, a timer *ring* that drains green to orange to red, the bookmark)
+over the block's answer-sheet track, and the **action bar** is one capsule of glass carrying three opaque
+controls (Back, the `3/50` navigator chip, a wide Next that becomes Submit). The stem sits on a card under a
+`QUESTION n` label, options are lettered squircles that glow in their outcome colour, the reveal is a card
+with an outcome header, and the review opens on a score ring. Settings was rebuilt as a **Profile page**: a
+hero with the avatar on the profile's own gradient ring and four figures (streak, sittings, accuracy, days
+left), four library tiles, then short grouped sections with every icon on one squircle; search, Siri and the
+diagnostics moved to their own Advanced page. The QBank's Arise / Marrow choice is a **glass tab switcher**
+(`MedxGlassTabs`), because it switches the whole page, not a filter inside it.
+
+**Caching rule (sixth pass).** A cached read used to be served for as long as it existed, on disk and across
+launches, so a module, paper or class added on the backend never appeared until the cache was cleared by
+hand. Now every list paints from its cached copy at once and then **always revalidates** against the backend
+(`medxLoadRevalidating`, `MedxReadPolicy.cachedFirst`); a cached copy stands in for a fetch only if it was
+written this session, after the last refresh, and less than ten minutes ago (`CacheManager.isFresh`).
+Pull-to-refresh and returning to the app after a minute mark everything stale and refetch the screen on
+show. Offline, the cache is still the fallback.
 
 | Rule | Where it lives |
 |---|---|
