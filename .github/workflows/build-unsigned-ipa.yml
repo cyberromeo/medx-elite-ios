@@ -18,6 +18,9 @@ on:
         required: false
         default: macos-26
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ${{ inputs.runner || 'macos-26' }}
@@ -102,7 +105,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             ENABLE_BITCODE=NO \
-            build
+            build 2>&1 | tee build.log
 
       - name: Assemble the IPA
         run: |
@@ -133,6 +136,33 @@ jobs:
           name: MedxElite-unsigned-ipa
           path: MedxElite-unsigned.ipa
           if-no-files-found: error
+
+      - name: Publish to the "latest-build" release (stable download URL)
+        # Every push to main replaces the asset on one pre-release, so the direct link never
+        # changes: https://github.com/cyberromeo/medx-elite-ios/releases/download/latest-build/MedxElite-unsigned.ipa
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Unsigned IPA built from ${GITHUB_SHA::7} on $(date -u '+%Y-%m-%d %H:%M UTC'). Install with Sideloadly or AltStore/SideStore."
+          if gh release view latest-build >/dev/null 2>&1; then
+            gh release upload latest-build MedxElite-unsigned.ipa --clobber
+            gh release edit latest-build --notes "$NOTES" --title "Latest build (${GITHUB_SHA::7})"
+          else
+            gh release create latest-build MedxElite-unsigned.ipa --prerelease --target "$GITHUB_SHA" \
+              --title "Latest build (${GITHUB_SHA::7})" --notes "$NOTES"
+          fi
+
+      - name: Publish the build errors on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -f build.log ] || exit 0
+          grep -E "error:" build.log | sort -u > ipa-build-errors.txt || true
+          tail -n 300 build.log > ipa-build-tail.txt
+          gh release view ipa-buildlog >/dev/null 2>&1 || gh release create ipa-buildlog --title "IPA build log" --notes "Latest failed IPA build log." --prerelease --target "$GITHUB_SHA"
+          gh release upload ipa-buildlog ipa-build-errors.txt ipa-build-tail.txt --clobber
 
       - name: Attach to the release
         if: startsWith(github.ref, 'refs/tags/v')

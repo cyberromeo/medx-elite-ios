@@ -1,0 +1,6 @@
+# light-appearance subset
+01-home -medxScreen home
+04-qbank -medxScreen qbank
+08-runner -medxScreen runner
+10-tests -medxScreen tests
+12-library -medxScreen library

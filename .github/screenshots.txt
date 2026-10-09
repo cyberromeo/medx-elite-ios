@@ -1,0 +1,22 @@
+# name  launch arguments (after -medxDemo YES). Read by .github/workflows/screenshots.yml
+01-home -medxScreen home
+02-home-mid -medxScreen home -medxScroll 1
+03-home-end -medxScreen home -medxScroll 2
+04-qbank -medxScreen qbank
+05-qbank-marrow -medxScreen qbank-marrow
+06-subject -medxScreen subject
+07-start-sheet -medxScreen module
+08-runner -medxScreen runner
+09-runner-revision -medxScreen runner-revision
+10-tests -medxScreen tests
+11-classes -medxScreen classes
+12-library -medxScreen library
+13-cards -medxScreen flashcards
+14-vod -medxScreen vod
+15-search -medxScreen search
+16-settings -medxScreen settings
+17-faceoff -medxScreen faceoff
+18-custom -medxScreen custom
+19-bookmarks -medxScreen bookmarks
+20-batch -medxScreen batch
+21-login -medxScreen login
