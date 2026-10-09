@@ -58,7 +58,6 @@ public struct HTMLRichTextView: View {
     public var interactive: Bool
 
     @Environment(\.colorScheme) private var colorScheme
-    @State private var zoomTarget: MedxZoomTarget?
 
     public init(
         html: String,
@@ -105,9 +104,6 @@ public struct HTMLRichTextView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .fullScreenCover(item: $zoomTarget) { target in
-            MedxImageViewer(url: target.url)
-        }
     }
 
     @ViewBuilder
@@ -142,7 +138,7 @@ public struct HTMLRichTextView: View {
         if interactive {
             Button {
                 HapticManager.light()
-                zoomTarget = MedxZoomTarget(url: url)
+                MedxImageZoom.present(url)
             } label: {
                 imageBody(url)
             }
@@ -168,97 +164,253 @@ public struct HTMLRichTextView: View {
 }
 
 // MARK: - Full-screen image viewer
+//
+// The old viewer was a SwiftUI `fullScreenCover` hung on every rich-text block and figure, with
+// pinch, pan, double-tap and swipe-down all stacked on one image as separate SwiftUI gestures.
+// Inside the runner's scroll view that went wrong in several ways at once: pinch and pan fought
+// (one finger lifting mid-pinch turned it into a drag), the zoom ignored where the fingers were,
+// the image could be dragged off into the black with nothing to stop it, the cover was owned by
+// a view that the question change tore down, and covering the runner made it "disappear", which
+// ended the exam's Lock Screen clock.
+//
+// Now one presenter puts a single viewer over the whole app (over, not instead of, so the runner
+// underneath never leaves the screen), and the zooming is UIKit's own scroll-view zoom: pinch
+// around the fingers, double-tap to zoom into the tapped spot, pan only while zoomed and never
+// past the image's edges. At normal size a pull down closes it; so does the X.
 
-/// Pinch/double-tap zoom for a figure lifted out of a question. Deliberately small: the
-/// flashcard gallery has its own paging viewer, this one shows exactly one image.
+@MainActor
+public enum MedxImageZoom {
+    private final class Holder { weak var controller: UIViewController? }
+    private static weak var current: UIViewController?
+
+    /// Shows `url` full screen. A second tap while one is already up is ignored.
+    public static func present(_ url: URL) {
+        present(source: .url(url))
+    }
+
+    /// Shows an image already in memory (screenshot runs).
+    public static func present(image: UIImage) {
+        present(source: .image(image))
+    }
+
+    private static func present(source: MedxImageViewer.Source) {
+        guard current == nil, let top = topController() else { return }
+        let holder = Holder()
+        let viewer = MedxImageViewer(source: source) {
+            holder.controller?.dismiss(animated: true)
+        }
+        let host = UIHostingController(rootView: viewer)
+        holder.controller = host
+        host.modalPresentationStyle = .overFullScreen
+        host.modalTransitionStyle = .crossDissolve
+        host.modalPresentationCapturesStatusBarAppearance = true
+        host.overrideUserInterfaceStyle = .dark
+        host.view.backgroundColor = .black
+        current = host
+        top.present(host, animated: true)
+    }
+
+    private static func topController() -> UIViewController? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let windows = scenes.flatMap(\.windows)
+        guard var top = (windows.first(where: \.isKeyWindow) ?? windows.first)?.rootViewController else {
+            return nil
+        }
+        while let next = top.presentedViewController, !next.isBeingDismissed {
+            top = next
+        }
+        return top
+    }
+}
+
+/// One figure, full screen, black behind it.
 struct MedxImageViewer: View {
-    let url: URL
+    enum Source {
+        case url(URL)
+        case image(UIImage)
+    }
 
-    @State private var scale: CGFloat = 1
-    @State private var lastScale: CGFloat = 1
-    @State private var offset: CGSize = .zero
-    @State private var lastOffset: CGSize = .zero
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let source: Source
+    let onClose: () -> Void
 
-    private var isZoomed: Bool { scale > 1.02 }
+    @State private var image: UIImage?
+    @State private var didFail = false
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            CachedAsyncImage(url: url, contentMode: .fit)
-                .scaleEffect(scale)
-                .offset(offset)
-                .contentShape(Rectangle())
-                .gesture(magnification)
-                // Panning is only wired up while zoomed in, otherwise it steals the
-                // swipe-down-to-dismiss drag.
-                .gesture(pan, including: isZoomed ? .all : .subviews)
-                .onTapGesture(count: 2) { toggleZoom() }
-                .gesture(dismissDrag, including: isZoomed ? .subviews : .all)
-                .accessibilityLabel("Figure")
-                .accessibilityHint("Pinch or double-tap to zoom. Swipe down to close.")
+            if let image {
+                MedxZoomingImage(image: image, onPullDown: close)
+                    .ignoresSafeArea()
+                    .accessibilityLabel("Figure")
+                    .accessibilityHint("Pinch or double-tap to zoom. Pull down to close.")
+            } else if didFail {
+                VStack(spacing: 10) {
+                    Image(systemName: "photo.badge.exclamationmark")
+                        .font(.largeTitle)
+                    Text("This figure could not be loaded.")
+                        .font(.subheadline)
+                }
+                .foregroundStyle(.secondary)
+            } else {
+                ProgressView()
+                    .tint(.white)
+            }
         }
         .overlay(alignment: .topTrailing) {
             MedxCircleButton(icon: "xmark", accessibilityLabel: "Close figure") {
-                HapticManager.light()
-                dismiss()
+                close()
             }
-            .padding(.trailing, 6)
-            .padding(.top, 2)
+            .padding(.trailing, 14)
+            .padding(.top, 8)
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(true)
+        .task { await load() }
+        .accessibilityAction(.escape) { close() }
     }
 
-    private func toggleZoom() {
-        HapticManager.selection()
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
-            if isZoomed {
-                reset()
+    private func close() {
+        HapticManager.light()
+        onClose()
+    }
+
+    private func load() async {
+        switch source {
+        case .image(let ready):
+            image = ready
+        case .url(let url):
+            // Full resolution for zooming; the question itself shows a screen-sized decode.
+            if let loaded = await MedxImageLoader.shared.image(for: url, maxPixelSize: 4096) {
+                image = loaded
             } else {
-                scale = 2.5
-                lastScale = 2.5
+                didFail = true
             }
         }
     }
+}
 
-    private func reset() {
-        scale = 1
-        lastScale = 1
-        offset = .zero
-        lastOffset = .zero
+/// UIKit's zooming scroll view around one image.
+private struct MedxZoomingImage: UIViewRepresentable {
+    let image: UIImage
+    let onPullDown: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onPullDown: onPullDown) }
+
+    func makeUIView(context: Context) -> MedxZoomScrollView {
+        let view = MedxZoomScrollView(image: image)
+        view.delegate = context.coordinator
+        let doubleTap = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleDoubleTap(_:))
+        )
+        doubleTap.numberOfTapsRequired = 2
+        view.addGestureRecognizer(doubleTap)
+        return view
     }
 
-    private var magnification: some Gesture {
-        MagnifyGesture()
-            .onChanged { value in scale = min(max(lastScale * value.magnification, 1), 6) }
-            .onEnded { _ in
-                lastScale = scale
-                if scale <= 1 { withAnimation(.easeOut(duration: 0.18)) { reset() } }
+    func updateUIView(_ view: MedxZoomScrollView, context: Context) {
+        context.coordinator.onPullDown = onPullDown
+    }
+
+    final class Coordinator: NSObject, UIScrollViewDelegate {
+        var onPullDown: () -> Void
+
+        init(onPullDown: @escaping () -> Void) {
+            self.onPullDown = onPullDown
+        }
+
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+            (scrollView as? MedxZoomScrollView)?.imageView
+        }
+
+        func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            (scrollView as? MedxZoomScrollView)?.centerImage()
+        }
+
+        func scrollViewWillEndDragging(
+            _ scrollView: UIScrollView,
+            withVelocity velocity: CGPoint,
+            targetContentOffset: UnsafeMutablePointer<CGPoint>
+        ) {
+            // Only at normal size: when zoomed, a drag is a pan.
+            guard scrollView.zoomScale <= scrollView.minimumZoomScale + 0.01 else { return }
+            let pulled = -(scrollView.contentOffset.y + scrollView.adjustedContentInset.top)
+            if pulled > 90 || (pulled > 30 && velocity.y < -1.2) {
+                onPullDown()
             }
-    }
+        }
 
-    private var pan: some Gesture {
-        DragGesture()
-            .onChanged { value in
-                offset = CGSize(
-                    width: lastOffset.width + value.translation.width,
-                    height: lastOffset.height + value.translation.height
+        @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
+            guard let view = gesture.view as? MedxZoomScrollView else { return }
+            if view.zoomScale > view.minimumZoomScale + 0.01 {
+                view.setZoomScale(view.minimumZoomScale, animated: true)
+            } else {
+                let point = gesture.location(in: view.imageView)
+                let scale = min(view.maximumZoomScale, view.minimumZoomScale * 2.5)
+                let size = CGSize(width: view.bounds.width / scale, height: view.bounds.height / scale)
+                let rect = CGRect(
+                    x: point.x - size.width / 2,
+                    y: point.y - size.height / 2,
+                    width: size.width,
+                    height: size.height
                 )
+                view.zoom(to: rect, animated: true)
             }
-            .onEnded { _ in lastOffset = offset }
+            UISelectionFeedbackGenerator().selectionChanged()
+        }
+    }
+}
+
+final class MedxZoomScrollView: UIScrollView {
+    let imageView: UIImageView
+    private var laidOutSize: CGSize = .zero
+
+    init(image: UIImage) {
+        imageView = UIImageView(image: image)
+        super.init(frame: .zero)
+        backgroundColor = .clear
+        showsVerticalScrollIndicator = false
+        showsHorizontalScrollIndicator = false
+        decelerationRate = .fast
+        bouncesZoom = true
+        alwaysBounceVertical = true
+        contentInsetAdjustmentBehavior = .never
+        imageView.contentMode = .scaleAspectFit
+        imageView.isUserInteractionEnabled = true
+        imageView.accessibilityIgnoresInvertColors = true
+        addSubview(imageView)
     }
 
-    private var dismissDrag: some Gesture {
-        DragGesture(minimumDistance: 24)
-            .onEnded { value in
-                guard value.translation.height > 110,
-                      abs(value.translation.height) > abs(value.translation.width) else { return }
-                HapticManager.light()
-                dismiss()
-            }
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        // Fit once per size (first layout, rotation), not on every scroll.
+        guard bounds.size != laidOutSize, bounds.width > 0, bounds.height > 0,
+              let image = imageView.image, image.size.width > 0, image.size.height > 0
+        else { return }
+        laidOutSize = bounds.size
+
+        minimumZoomScale = 1
+        maximumZoomScale = 1
+        zoomScale = 1
+        let fit = min(bounds.width / image.size.width, bounds.height / image.size.height)
+        let fitted = CGSize(width: image.size.width * fit, height: image.size.height * fit)
+        imageView.frame = CGRect(origin: .zero, size: fitted)
+        contentSize = fitted
+        // Enough to read a small label in a diagram, never so much that it turns to mush.
+        maximumZoomScale = max(4, min(8, 1 / max(fit, 0.01) * 2))
+        centerImage()
+    }
+
+    /// Keeps a smaller-than-screen image in the middle instead of the top-left corner.
+    func centerImage() {
+        let horizontal = max((bounds.width - contentSize.width) / 2, 0)
+        let vertical = max((bounds.height - contentSize.height) / 2, 0)
+        contentInset = UIEdgeInsets(top: vertical, left: horizontal, bottom: vertical, right: horizontal)
     }
 }
 

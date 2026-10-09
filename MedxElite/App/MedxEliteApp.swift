@@ -176,6 +176,37 @@ struct MedxEliteApp: App {
                     questionTags: (0..<200).map { papers[$0 % papers.count] }
                 )
             )
+        case "runner-custom-next":
+            // The real custom-module route: the Custom modules sheet is open, the paper is built
+            // from fetched questions, and the sitting starts from inside that sheet.
+            appState.open(route: .customModules)
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            let token = (try? await AuthService.shared.getValidIdToken()) ?? ""
+            let module = try? await FirestoreService.shared.fetchQBankModule(moduleId: demoModule.id, idToken: token)
+            let supplied = module?.questions ?? []
+            print("[CustomNext] built \(supplied.count) questions from the sheet")
+            appState.startSitting(
+                RunnerPayload(
+                    kind: "custom",
+                    id: "demo-custom-next",
+                    name: "Weak spots mix",
+                    subject: "Custom",
+                    mode: .exam,
+                    gradable: true,
+                    questions: supplied.isEmpty ? nil : supplied,
+                    questionTags: supplied.isEmpty ? nil : supplied.indices.map { $0 % 2 == 0 ? "FMGE June 2023" : "FMGE Dec 2022" }
+                )
+            )
+        case "runner-zoom":
+            appState.startSitting(
+                RunnerPayload(
+                    kind: "qbank",
+                    id: demoModule.id,
+                    name: demoModule.name,
+                    subject: demoModule.subject,
+                    mode: .revision
+                )
+            )
         case "runner", "runner-revision", "review", "runner-navigator", "runner-answered", "runner-lowtime",
              "runner-submit", "runner-resume", "runner-leave", "review-question", "runner-revision-pick":
             appState.startSitting(

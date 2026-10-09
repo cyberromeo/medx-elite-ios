@@ -40,3 +40,5 @@
 39-runner-custom -medxScreen runner-custom
 40-review-custom -medxScreen review-custom
 41-player-offline -medxScreen player-offline
+42-runner-custom-next -medxScreen runner-custom-next
+43-runner-zoom -medxScreen runner-zoom

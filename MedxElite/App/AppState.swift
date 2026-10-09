@@ -223,14 +223,35 @@ public final class AppState: ObservableObject {
 
     /// Starts a sitting from anywhere. Closes whatever sheet asked for it first, so the
     /// runner is not presented underneath a still-open sheet.
+    ///
+    /// When a sheet *was* open (custom modules, quick sitting, search, a module pick), the runner
+    /// waits until that sheet has finished going away. Raising the full-screen runner in the same
+    /// update that dismisses the sheet made iOS 26 and later hand the runner to the dismissing
+    /// sheet's presentation: it showed question 1, but its own updates never reached the screen,
+    /// so Next looked dead and the paper never moved on. Custom modules always start from a sheet.
     public func startSitting(_ payload: RunnerPayload) {
+        let sheetWasOpen = showSearch || showQuickSitting || showSettings || showCustomModules
+            || pendingModulePick != nil
         showSearch = false
         showQuickSitting = false
         showSettings = false
         showCustomModules = false
         pendingModulePick = nil
-        pendingRunnerPayload = payload
+
+        pendingSittingTask?.cancel()
+        guard sheetWasOpen else {
+            pendingRunnerPayload = payload
+            return
+        }
+        pendingSittingTask = Task { @MainActor [weak self] in
+            // The sheet's dismissal animation is about a third of a second.
+            try? await Task.sleep(nanoseconds: 550_000_000)
+            guard !Task.isCancelled, let self else { return }
+            self.pendingRunnerPayload = payload
+        }
     }
+
+    private var pendingSittingTask: Task<Void, Never>?
 }
 
 /// The screens the Library tab pushes to. A value type rather than a view, so `AppState` can

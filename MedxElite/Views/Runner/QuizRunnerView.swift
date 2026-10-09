@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Sitting runner
 
@@ -696,10 +697,7 @@ public struct QuizRunnerView: View {
                 showNavigator = true
             },
             onAdvance: {
-                HapticManager.medium()
-                // The last question asks first: what is still open and what was flagged, with a
-                // way back to the first unanswered one, instead of ending the paper on one tap.
-                if isLastQuestion { showSubmitConfirm = true } else { nextQuestion() }
+                advance()
             }
         )
     }
@@ -876,6 +874,13 @@ public struct QuizRunnerView: View {
         currentIndex -= 1
         resetTimerForCurrentQuestion()
         refreshStatuses()
+    }
+
+    /// The Next button. The last question asks first: what is still open and what was flagged,
+    /// with a way back to the first unanswered one, instead of ending the paper on one tap.
+    private func advance() {
+        HapticManager.medium()
+        if isLastQuestion { showSubmitConfirm = true } else { nextQuestion() }
     }
 
     private func nextQuestion() {
@@ -1115,6 +1120,37 @@ public struct QuizRunnerView: View {
         try? await Task.sleep(nanoseconds: 900_000_000)
 
         switch screen {
+        case "runner-custom-next":
+            // A real custom module (questions supplied, started from the Custom modules sheet):
+            // answer question 1, then press Next exactly as the button does. Question 2 must show.
+            if let first = questions.first, let pick = first.correctIds.first ?? first.options.first?.id {
+                handlePickOption(question: first, chosenId: pick)
+            }
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            advance()
+            print("[CustomNext] after Next: question \(currentIndex + 1) of \(questions.count)")
+        case "runner-zoom":
+            // The figure viewer over the runner, opened the way a tap on a figure opens it. The
+            // demo questions carry no figures, so the run draws one: a cluster of cocci.
+            let size = CGSize(width: 900, height: 640)
+            let figure = UIGraphicsImageRenderer(size: size).image { context in
+                UIColor(white: 0.96, alpha: 1).setFill()
+                context.fill(CGRect(origin: .zero, size: size))
+                let colours: [UIColor] = [.systemPurple, .systemIndigo, .systemPink]
+                for index in 0..<46 {
+                    let angle = Double(index) * 2.4
+                    let radius = 18 * sqrt(Double(index)) * 2.2
+                    let center = CGPoint(x: 450 + radius * cos(angle), y: 300 + radius * sin(angle))
+                    colours[index % colours.count].withAlphaComponent(0.8).setFill()
+                    UIBezierPath(ovalIn: CGRect(x: center.x - 26, y: center.y - 26, width: 52, height: 52)).fill()
+                }
+                let label = "Gram-positive cocci in clusters (x1000)" as NSString
+                label.draw(at: CGPoint(x: 40, y: 580), withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 30, weight: .semibold),
+                    .foregroundColor: UIColor.darkGray
+                ])
+            }
+            MedxImageZoom.present(image: figure)
         case "runner-revision":
             guard let question = questions.first,
                   let wrong = question.options.first(where: { !question.correctIds.contains($0.id) })
@@ -1314,13 +1350,11 @@ struct RunnerQuestionCard: View {
 struct RunnerFigure: View {
     let raw: String
 
-    @State private var zoomTarget: MedxZoomTarget?
-
     var body: some View {
         if let url = MedxRichText.figureURL(raw) {
             Button {
                 HapticManager.light()
-                zoomTarget = MedxZoomTarget(url: url)
+                MedxImageZoom.present(url)
             } label: {
                 CachedAsyncImage(url: url, contentMode: .fit)
                     .frame(maxWidth: .infinity)
@@ -1334,9 +1368,6 @@ struct RunnerFigure: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Figure")
             .accessibilityHint("Opens the image full screen")
-            .fullScreenCover(item: $zoomTarget) { target in
-                MedxImageViewer(url: target.url)
-            }
         }
     }
 }
