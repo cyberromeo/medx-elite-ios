@@ -268,6 +268,11 @@ private struct QuestionReviewCard: View {
         VStack(alignment: .leading, spacing: MedxSpace.m) {
             header
 
+            // On its own line, as in the runner: beside the outcome it had to truncate.
+            if let sourceTag, !sourceTag.isEmpty {
+                MedxSourceTag(sourceTag)
+            }
+
             HTMLRichTextView(html: question.displayText, fontSize: 16, weight: .semibold)
 
             if let images = question.images, !images.isEmpty {
@@ -317,10 +322,6 @@ private struct QuestionReviewCard: View {
             Label(outcomeTitle, systemImage: gradable ? outcome.icon : "circle.fill")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(gradable ? outcome.color : Color.secondary)
-
-            if let sourceTag, !sourceTag.isEmpty {
-                MedxSourceTag(sourceTag)
-            }
 
             Spacer(minLength: 0)
 

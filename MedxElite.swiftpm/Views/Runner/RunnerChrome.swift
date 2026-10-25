@@ -53,6 +53,9 @@ struct RunnerClock: View {
             .monospacedDigit()
         }
         .foregroundStyle(phase.color)
+        // The bar truncates the title before it may squeeze the clock: a long paper name was
+        // leaving the clock as "1" or "…" beside its glyph.
+        .fixedSize(horizontal: true, vertical: false)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Time left")
     }

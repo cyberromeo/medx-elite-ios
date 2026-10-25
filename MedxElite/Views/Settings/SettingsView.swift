@@ -59,7 +59,12 @@ public struct SettingsView: View {
                     let target = UserDefaults.standard.integer(forKey: "medxScroll")
                     guard target > 0 else { return }
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
-                    scroller.scrollTo(target == 1 ? "settings.mid" : "settings.end", anchor: target == 1 ? .top : .bottom)
+                    let id = target == 1 ? "settings.mid" : "settings.end"
+                    // Twice: the list is lazy, and the first scroll only brings the far section
+                    // into existence; the second lands on it.
+                    scroller.scrollTo(id, anchor: .top)
+                    try? await Task.sleep(nanoseconds: 400_000_000)
+                    scroller.scrollTo(id, anchor: target == 1 ? .top : .bottom)
                 }
                 #endif
             }
@@ -210,14 +215,17 @@ public struct SettingsView: View {
                 MedxTileLabel("Days left", symbol: "hourglass", hue: MedxFeature.tests.color)
             }
 
-            Stepper(value: $stats.dailyGoal, in: 10...300, step: 10) {
-                LabeledContent {
-                    Text("\(stats.dailyGoal)")
-                        .monospacedDigit()
-                        .contentTransition(.numericText())
-                } label: {
-                    MedxTileLabel("Daily goal", detail: "questions a day", symbol: MedxFeature.goal.symbol, hue: MedxFeature.goal.color)
-                }
+            // The stepper's own label slot stacks a tiled label under its icon once the control
+            // takes its width, so the row is laid out by hand and the control's label hidden.
+            HStack(spacing: MedxSpace.m) {
+                MedxTileLabel("Daily goal", detail: "questions a day", symbol: MedxFeature.goal.symbol, hue: MedxFeature.goal.color)
+                Spacer(minLength: MedxSpace.s)
+                Text("\(stats.dailyGoal)")
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .foregroundStyle(.secondary)
+                Stepper("Daily goal", value: $stats.dailyGoal, in: 10...300, step: 10)
+                    .labelsHidden()
             }
         } header: {
             Text("Exam & goal")
