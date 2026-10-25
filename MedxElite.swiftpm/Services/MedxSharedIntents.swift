@@ -26,7 +26,6 @@ public enum MedxDownloadIntentKey {
     public static let videoId = "videoId"
 }
 
-@available(iOS 17.0, *)
 public struct MedxPauseDownloadIntent: LiveActivityIntent {
     public static var title: LocalizedStringResource = "Pause download"
     public static var description = IntentDescription("Pauses a class that is downloading.")
@@ -53,7 +52,6 @@ public struct MedxPauseDownloadIntent: LiveActivityIntent {
     }
 }
 
-@available(iOS 17.0, *)
 public struct MedxResumeDownloadIntent: LiveActivityIntent {
     public static var title: LocalizedStringResource = "Resume download"
     public static var description = IntentDescription("Resumes a paused class download.")
@@ -78,7 +76,6 @@ public struct MedxResumeDownloadIntent: LiveActivityIntent {
     }
 }
 
-@available(iOS 17.0, *)
 public struct MedxCancelDownloadIntent: LiveActivityIntent {
     public static var title: LocalizedStringResource = "Cancel download"
     public static var description = IntentDescription("Stops a class download and discards it.")

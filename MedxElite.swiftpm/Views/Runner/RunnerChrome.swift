@@ -190,12 +190,12 @@ struct RunnerCounter: View {
     }
 }
 
-/// A dark glass capsule for the counter and the timer, with the iOS 17 ink fallback.
+/// A dark glass capsule for the counter and the timer, with an ink fallback under Reduce Transparency.
 struct RunnerCapsuleGlass: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
+        if !reduceTransparency {
             content.glassEffect(.regular, in: Capsule(style: .continuous))
         } else {
             content.background(MedxDS.sunken, in: Capsule(style: .continuous))

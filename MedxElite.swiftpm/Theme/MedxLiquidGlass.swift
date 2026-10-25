@@ -33,7 +33,7 @@ import SwiftUI
 //   * **Glass cannot sample glass.** Neighbours share a `MedxGlassGroup`, and a chip of glass
 //     never goes on a panel of glass — which is why the HUD's clock and ✕ are bare glyphs.
 //
-// Every iOS 26 API below sits behind `#available`; the deployment target is still 17.0.
+// The deployment target is iOS 26, so the glass API below is used directly.
 
 public enum MedxGlass {
     /// Radii forward to `MedxDS`, so "no sharp ends" is one file's decision.
@@ -217,13 +217,8 @@ public struct MedxSurfaceModifier<S: InsettableShape>: ViewModifier {
             inked(content)
 
         case .glass(let clear):
-            // Reduce Transparency is the accessible escape hatch, and it lands on exactly the
-            // same opaque surface iOS 17 gets — so there is one fallback to maintain, not two.
-            //
-            // The `glassEffect` call is inline rather than in an `@available` helper on purpose:
-            // `.agents/availability_audit.py` stands in for the compiler on this machine, and it
-            // only recognises an `if #available` block as a guard.
-            if #available(iOS 26.0, *), !reduceTransparency {
+            // Reduce Transparency is the accessible escape hatch: the same opaque surface.
+            if !reduceTransparency {
                 content
                     .glassEffect(glassStyle(clear: clear), in: shape)
                     .overlay { edge }
@@ -255,9 +250,6 @@ public struct MedxSurfaceModifier<S: InsettableShape>: ViewModifier {
             .overlay { edge }
     }
 
-    /// Built inside its own availability island: `Glass` does not exist on iOS 17, so it
-    /// cannot be a stored property or a parameter — only a value made here and used there.
-    @available(iOS 26.0, *)
     private func glassStyle(clear: Bool) -> Glass {
         var value: Glass = clear ? .clear : .regular
         if let tint = spec.tint {
@@ -288,8 +280,8 @@ public struct MedxSurfaceModifier<S: InsettableShape>: ViewModifier {
 /// are neighbours — otherwise each one refracts the page independently and the pair reads as
 /// two stickers rather than one control cluster.
 ///
-/// This is `GlassEffectContainer` where there is one, and a plain pass-through below iOS 26,
-/// which is exactly right: with no glass to group there is nothing to co-ordinate.
+/// This is `GlassEffectContainer`, and a plain pass-through under Reduce Transparency, where
+/// there is no glass to group.
 public struct MedxGlassGroup<Content: View>: View {
     private let spacing: CGFloat
     private let content: Content
@@ -302,7 +294,7 @@ public struct MedxGlassGroup<Content: View>: View {
     }
 
     public var body: some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
+        if !reduceTransparency {
             GlassEffectContainer(spacing: spacing) {
                 content
             }
@@ -318,13 +310,8 @@ public extension View {
     ///
     /// `RunnerActionBar` is the only caller, which is the point: it is the only place in the app
     /// with two panes of glass side by side.
-    @ViewBuilder
     func medxGlassID(_ id: String, in namespace: Namespace.ID) -> some View {
-        if #available(iOS 26.0, *) {
-            self.glassEffectID(id, in: namespace)
-        } else {
-            self
-        }
+        self.glassEffectID(id, in: namespace)
     }
 }
 

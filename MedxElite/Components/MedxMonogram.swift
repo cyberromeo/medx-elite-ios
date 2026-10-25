@@ -104,29 +104,13 @@ public struct MedxProfileButton: View {
         control.sheet(isPresented: $showSettings) { SettingsView().medxPageSheet() }
     }
 
-    @ViewBuilder
     private var control: some View {
-        if #available(iOS 26.0, *) {
-            // No explicit `.buttonStyle(.glass)` — see the note above; the toolbar owns the one
-            // container. `.buttonBorderShape(.circle)` turns its default capsule into a circle.
-            Button(action: open) { face }
-                .buttonBorderShape(.circle)
-                .accessibilityLabel("Profile and settings")
-                .accessibilityHint("Opens account, bookmarks, history and app settings")
-        } else {
-            // iOS 17: no toolbar glass to reshape, so the circle is drawn here.
-            Button(action: open) {
-                face
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(MedxDS.sunken))
-                    .clipShape(Circle())
-                    .frame(width: 44, height: 44)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
+        // No explicit `.buttonStyle(.glass)` — see the note above; the toolbar owns the one
+        // container. `.buttonBorderShape(.circle)` turns its default capsule into a circle.
+        Button(action: open) { face }
+            .buttonBorderShape(.circle)
             .accessibilityLabel("Profile and settings")
             .accessibilityHint("Opens account, bookmarks, history and app settings")
-        }
     }
 
     @ViewBuilder

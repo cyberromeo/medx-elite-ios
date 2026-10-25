@@ -171,43 +171,26 @@ public extension View {
 
 // MARK: - iOS 26 chrome
 //
-// The Liquid Glass adoptions, each behind its own availability check and each in exactly one
-// place, because the deployment target is iOS 17 and every API below is iOS 26. The fallback
-// is never a stub: it is what the screen should look like on iOS 17, which is the version
-// three of the four target devices were on when this was written.
-//
-// The rule from the top of this file still holds — glass goes on chrome that floats over
-// content, never on content — so what is adopted here is the tab bar's own behaviour, the
-// scroll edges, and button styles. Cards stay flat.
+// The deployment target is iOS 26, so the platform's own chrome is used directly — no
+// availability branches, no hand-drawn fallbacks. The rule from the top of this file still
+// holds: glass goes on chrome that floats over content, never on content.
 
 public extension View {
-    /// Lets the tab bar shrink out of the way as you scroll down a long list, which on iOS 26
-    /// is what gives a five-tab app its screen back. Below 26 the bar is fixed and there is
-    /// nothing to ask for.
-    @ViewBuilder
+    /// Lets the tab bar shrink out of the way as you scroll down a long list, which is what
+    /// gives a five-tab app its screen back.
     func medxTabBarMinimize() -> some View {
-        if #available(iOS 26.0, *) {
-            self.tabBarMinimizeBehavior(.onScrollDown)
-        } else {
-            self
-        }
+        self.tabBarMinimizeBehavior(.onScrollDown)
     }
 
     /// A sheet that reads as a page on iPad: full height and a page's width, centred and
     /// scrollable, rather than the small form card that sat over the sidebar with its bottom cut
     /// off. iPhone sheets are unchanged.
-    @ViewBuilder
     func medxPageSheet() -> some View {
-        if #available(iOS 18.0, *) {
-            self.presentationSizing(.page)
-        } else {
-            self
-        }
+        self.presentationSizing(.page)
     }
 
     /// Softens a scroll view's edges so content dissolves under the bars instead of sliding
     /// under a hard line.
-    @ViewBuilder
     func medxScrollEdge() -> some View {
         // The system's own (soft) edge at both ends. A hard bottom edge drew a dark band with a
         // line on top behind the minimised tab bar on iOS 27, so no style is forced here.
@@ -217,23 +200,13 @@ public extension View {
     /// A secondary action. Deliberately does **not** set a border shape: the call sites that
     /// want a capsule already say so, and imposing one here would re-shape a dozen buttons
     /// that are meant to be the system's default rounded rectangle.
-    @ViewBuilder
     func medxBorderedButton() -> some View {
-        if #available(iOS 26.0, *) {
-            self.buttonStyle(.glass)
-        } else {
-            self.buttonStyle(.bordered)
-        }
+        self.buttonStyle(.glass)
     }
 
     /// The primary action on a screen — Start, Submit, Deal.
-    @ViewBuilder
     func medxFilledButton() -> some View {
-        if #available(iOS 26.0, *) {
-            self.buttonStyle(.glassProminent)
-        } else {
-            self.buttonStyle(.borderedProminent)
-        }
+        self.buttonStyle(.glassProminent)
     }
 }
 

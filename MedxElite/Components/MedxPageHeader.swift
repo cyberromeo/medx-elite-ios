@@ -197,13 +197,13 @@ public struct MedxGlassTabs<Value: Hashable>: View {
     }
 }
 
-/// The capsule behind `MedxGlassTabs`: Liquid Glass where the system has it, the regular material
-/// otherwise, with a hairline so it still has an edge over a busy background.
+/// The capsule behind `MedxGlassTabs`: Liquid Glass, or the regular material with a hairline
+/// under Reduce Transparency.
 private struct MedxGlassCapsule: ViewModifier {
     let reduceTransparency: Bool
 
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
+        if !reduceTransparency {
             content.glassEffect(.regular, in: Capsule(style: .continuous))
         } else {
             content

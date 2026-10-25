@@ -107,6 +107,7 @@
 		9B0011622A00000100000001 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011612A00000100000001 /* Typography.swift */; };
 		9B0011642A00000100000001 /* MedxVideoLibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011632A00000100000001 /* MedxVideoLibraryStore.swift */; };
 		9B0011662A00000100000001 /* VodImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011652A00000100000001 /* VodImportView.swift */; };
+		9B0011692A00000100000001 /* MedxKitProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011682A00000100000001 /* MedxKitProbe.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -228,6 +229,7 @@
 		9B0011612A00000100000001 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
 		9B0011632A00000100000001 /* MedxVideoLibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxVideoLibraryStore.swift; sourceTree = "<group>"; };
 		9B0011652A00000100000001 /* VodImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Videos/VodImportView.swift; sourceTree = "<group>"; };
+		9B0011682A00000100000001 /* MedxKitProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxKitProbe.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -251,6 +253,7 @@
 				9B0000082A00000100000001 /* Components */,
 				9B0000092A00000100000001 /* Views */,
 				9B00000A2A00000100000001 /* Resources */,
+				9B0011672A00000100000001 /* Kit */,
 			);
 			path = MedxElite;
 			sourceTree = "<group>";
@@ -423,6 +426,14 @@
 				9B0020042A00000100000001 /* MedxWidgets.entitlements */,
 			);
 			path = Config;
+			sourceTree = "<group>";
+		};
+		9B0011672A00000100000001 /* Kit */ = {
+			isa = PBXGroup;
+			children = (
+				9B0011682A00000100000001 /* MedxKitProbe.swift */,
+			);
+			path = Kit;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -620,6 +631,7 @@
 				9B0011622A00000100000001 /* Typography.swift in Sources */,
 				9B0011642A00000100000001 /* MedxVideoLibraryStore.swift in Sources */,
 				9B0011662A00000100000001 /* VodImportView.swift in Sources */,
+				9B0011692A00000100000001 /* MedxKitProbe.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -682,7 +694,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MedxElite/Resources/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -708,7 +720,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MedxElite/Resources/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -776,7 +788,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MedxWidgets/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -801,7 +813,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MedxWidgets/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

@@ -43,7 +43,8 @@ jobs:
         # beta preview image, which is not worth shipping a sideload from — override the
         # `runner` input if you ever want it.
         #
-        # IPHONEOS_DEPLOYMENT_TARGET stays at 17.0, so the app still installs on iOS 17.
+        # IPHONEOS_DEPLOYMENT_TARGET is 26.0: all four target devices run iOS 26, and the app
+        # carries no availability fallbacks at all (`.agents/availability_audit.py` flags any).
         run: |
           xcodebuild -version
           SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
@@ -136,6 +137,24 @@ jobs:
           name: MedxElite-unsigned-ipa
           path: MedxElite-unsigned.ipa
           if-no-files-found: error
+
+      - name: Publish to the "gate-build" release (branch builds)
+        # Builds started by hand on a branch — the redesign gates — land on one pre-release so
+        # the phones can install them from a stable URL without a GitHub login:
+        # https://github.com/cyberromeo/medx-elite-ios/releases/download/gate-build/MedxElite-unsigned.ipa
+        if: github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          NOTES="Unsigned IPA built from ${GITHUB_SHA::7} on branch ${BRANCH}, $(date -u '+%Y-%m-%d %H:%M UTC'). Install with SideStore / AltStore."
+          if gh release view gate-build >/dev/null 2>&1; then
+            gh release upload gate-build MedxElite-unsigned.ipa --clobber
+            gh release edit gate-build --notes "$NOTES" --title "Gate build (${BRANCH} @ ${GITHUB_SHA::7})"
+          else
+            gh release create gate-build MedxElite-unsigned.ipa --prerelease --target "$GITHUB_SHA" \
+              --title "Gate build (${BRANCH} @ ${GITHUB_SHA::7})" --notes "$NOTES"
+          fi
 
       - name: Publish to the "latest-build" release (stable download URL)
         # Every push to main replaces the asset on one pre-release, so the direct link never
