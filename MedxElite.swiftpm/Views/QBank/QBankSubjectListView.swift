@@ -374,7 +374,9 @@ public struct QBankSubjectListView: View {
         do {
             let token = try await authService.getValidIdToken()
             async let subjectsTask = FirestoreService.shared.fetchQBankBanks(idToken: token)
-            async let attemptsTask = FirestoreService.shared.fetchUserAttempts(uid: uid, idToken: token)
+            // The attempts only paint the "practised" badges; a refused read must not take the
+            // whole bank down with it — a new profile offline still has the subjects cached.
+            async let attemptsTask = FirestoreService.shared.fetchUserAttemptsOrEmpty(uid: uid, idToken: token)
 
             let (loadedSubjects, loadedAttempts) = try await (subjectsTask, attemptsTask)
             subjects = loadedSubjects

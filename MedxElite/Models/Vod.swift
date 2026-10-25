@@ -148,12 +148,7 @@ extension MedxVodItem {
     /// Firestore hands timestamps back as RFC 3339 with a variable number of fractional digits,
     /// so both spellings have to parse or half the feed would come back undated.
     static func parseTimestamp(_ value: String) -> Date? {
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let hit = fractional.date(from: value) { return hit }
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        return plain.date(from: value)
+        MedxDates.parse(value)
     }
 }
 

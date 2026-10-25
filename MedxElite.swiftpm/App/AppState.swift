@@ -319,7 +319,7 @@ public struct BookmarkedQuestion: Identifiable, Codable, Hashable, Sendable {
         if let dateVal = try? container.decode(Date.self, forKey: .bookmarkedAt) {
             bookmarkedAt = dateVal
         } else if let dateStr = try? container.decode(String.self, forKey: .bookmarkedAt),
-                  let parsed = ISO8601DateFormatter().date(from: dateStr) {
+                  let parsed = MedxDates.parse(dateStr) {
             bookmarkedAt = parsed
         } else {
             bookmarkedAt = Date()
@@ -389,7 +389,7 @@ public struct WatchHistoryEntry: Identifiable, Codable, Hashable, Sendable {
         if let dateVal = try? container.decode(Date.self, forKey: .watchedAt) {
             watchedAt = dateVal
         } else if let dateStr = try? container.decode(String.self, forKey: .watchedAt),
-                  let parsed = ISO8601DateFormatter().date(from: dateStr) {
+                  let parsed = MedxDates.parse(dateStr) {
             watchedAt = parsed
         } else {
             watchedAt = Date()
@@ -445,24 +445,39 @@ public final class ActivityStore: ObservableObject {
     private let bookmarksKey = "medx.activity.bookmarks"
     private let watchHistoryKey = "medx.activity.watchHistory"
     private let pendingHistoryKey = "medx.activity.pendingHistory"
+    private let pendingBookmarksKey = "medx.activity.pendingBookmarks"
+    private let tombstonesKey = "medx.activity.tombstones"
 
-    /// Watch-history documents that have not made it to Firestore yet.
-    ///
-    /// A class watched from its offline download is watched with no network, so the
-    /// per-entry upload inside `recordVideoProgress` fails and used to be lost forever —
-    /// the progress lived only on this device and never appeared against the streaming
-    /// copy of the same class. Anything that fails to upload is remembered here and
-    /// retried on the next sync.
+    /// Documents written here that Firestore has not confirmed yet; the next sync uploads them.
+    /// Without this a class watched offline stayed on this device forever.
     private var pendingHistoryDocIds: Set<String> = []
+    private var pendingBookmarkDocIds: Set<String> = []
+    /// Documents deleted here that may still exist in Firestore. A sync used to merge local and
+    /// cloud with no memory of deletions, so a bookmark removed on the PWA — or removed here while
+    /// offline — came straight back on the next sync. A tombstone keeps it gone until the cloud
+    /// agrees, and a local row the cloud no longer has, that was never pending, was deleted on the
+    /// other device and is dropped rather than re-uploaded.
+    private var tombstones: Set<String> = []
     private var historySaveTask: Task<Void, Never>?
 
     private init() {
         bookmarks = Self.load([BookmarkedQuestion].self, key: bookmarksKey) ?? []
         watchHistory = Self.load([WatchHistoryEntry].self, key: watchHistoryKey) ?? []
         pendingHistoryDocIds = Set(Self.load([String].self, key: pendingHistoryKey) ?? [])
+        tombstones = Set(Self.load([String].self, key: tombstonesKey) ?? [])
+        if let saved = Self.load([String].self, key: pendingBookmarksKey) {
+            pendingBookmarkDocIds = Set(saved)
+        } else {
+            // First run with deletion tracking: everything on this device is treated as not yet
+            // confirmed, so one more sync uploads it exactly as the old merge would have.
+            pendingBookmarkDocIds = Set(bookmarks.map(\.docId))
+            pendingHistoryDocIds.formUnion(watchHistory.map(\.docId))
+            saveFlags()
+        }
     }
 
     // MARK: - Bookmarks
+
     public func bookmarks(for uid: String?) -> [BookmarkedQuestion] {
         guard let uid else { return [] }
         return bookmarks
@@ -505,55 +520,71 @@ public final class ActivityStore: ObservableObject {
                 bookmarkedAt: Date()
             )
             bookmarks.insert(newBookmark, at: 0)
+            pendingBookmarkDocIds.insert(newBookmark.docId)
+            tombstones.remove(newBookmark.docId)
             saveBookmarks()
+            Task { await self.uploadBookmark(newBookmark) }
+        }
+    }
 
-            // Sync to Firebase in background
-            Task {
-                do {
-                    let token = try await AuthService.shared.getValidIdToken()
-                    try await FirestoreService.shared.saveBookmark(newBookmark, idToken: token)
-                } catch {
-                    print("[ActivityStore] Cloud save bookmark error: \(error)")
-                }
-            }
+    /// Pushes one bookmark up and clears its pending flag only if the write landed.
+    private func uploadBookmark(_ bookmark: BookmarkedQuestion) async {
+        do {
+            let token = try await AuthService.shared.getValidIdToken()
+            try await FirestoreService.shared.saveBookmark(bookmark, idToken: token)
+            pendingBookmarkDocIds.remove(bookmark.docId)
+            saveFlags()
+        } catch {
+            // Stays pending; the next sync retries it.
+            print("[ActivityStore] Cloud save bookmark error: \(error)")
         }
     }
 
     public func removeBookmark(_ bookmark: BookmarkedQuestion, uid: String? = nil) {
         let targetUid = uid ?? bookmark.ownerId
         bookmarks.removeAll { $0.docId == bookmark.docId || ($0.question.id == bookmark.question.id && $0.sourceId == bookmark.sourceId && $0.ownerId == targetUid) }
+        pendingBookmarkDocIds.remove(bookmark.docId)
+        tombstones.insert(bookmark.docId)
         saveBookmarks()
-
-        // Sync deletion to Firebase
-        Task {
-            do {
-                let token = try await AuthService.shared.getValidIdToken()
-                try await FirestoreService.shared.deleteBookmark(docId: bookmark.docId, idToken: token)
-            } catch {
-                print("[ActivityStore] Cloud delete bookmark error: \(error)")
-            }
-        }
+        Task { await self.deleteRemote(docIds: [bookmark.docId], kind: .bookmark) }
     }
 
     public func clearAllBookmarks(uid: String?) {
         guard let uid else { return }
         let toDelete = bookmarks.filter { $0.ownerId == uid }
         bookmarks.removeAll { $0.ownerId == uid }
+        for bookmark in toDelete {
+            pendingBookmarkDocIds.remove(bookmark.docId)
+            tombstones.insert(bookmark.docId)
+        }
         saveBookmarks()
+        Task { await self.deleteRemote(docIds: toDelete.map(\.docId), kind: .bookmark) }
+    }
 
-        Task {
+    private enum RemoteKind { case bookmark, history }
+
+    /// Each delete is its own attempt: one refusal used to abandon the rest of a clear-all, and a
+    /// refusal of any kind was never retried. A tombstone is cleared only when the cloud agrees.
+    private func deleteRemote(docIds: [String], kind: RemoteKind) async {
+        guard !docIds.isEmpty, let token = try? await AuthService.shared.getValidIdToken() else { return }
+        for docId in docIds {
             do {
-                let token = try await AuthService.shared.getValidIdToken()
-                for b in toDelete {
-                    try await FirestoreService.shared.deleteBookmark(docId: b.docId, idToken: token)
+                switch kind {
+                case .bookmark:
+                    try await FirestoreService.shared.deleteBookmark(docId: docId, idToken: token)
+                case .history:
+                    try await FirestoreService.shared.deleteWatchHistoryEntry(docId: docId, idToken: token)
                 }
+                tombstones.remove(docId)
             } catch {
-                print("[ActivityStore] Cloud clear bookmarks error: \(error)")
+                print("[ActivityStore] Cloud delete \(docId) failed, retried on the next sync: \(error)")
             }
         }
+        saveFlags()
     }
 
     // MARK: - Watch History & Resume
+
     public func watchHistory(for uid: String?) -> [WatchHistoryEntry] {
         guard let uid else { return [] }
         return watchHistory
@@ -600,6 +631,7 @@ public final class ActivityStore: ObservableObject {
         watchHistory.removeAll { $0.video.id == video.id && $0.ownerId == uid }
         watchHistory.insert(entry, at: 0)
         pendingHistoryDocIds.insert(entry.docId)
+        tombstones.remove(entry.docId)
         scheduleHistorySave()
 
         guard syncToCloud else { return }
@@ -623,38 +655,25 @@ public final class ActivityStore: ObservableObject {
         let targetUid = uid ?? entry.ownerId
         watchHistory.removeAll { $0.video.id == entry.video.id && $0.ownerId == targetUid }
         pendingHistoryDocIds.remove(entry.docId)
+        tombstones.insert(entry.docId)
         saveWatchHistory()
-
-        Task {
-            do {
-                let token = try await AuthService.shared.getValidIdToken()
-                try await FirestoreService.shared.deleteWatchHistoryEntry(docId: entry.docId, idToken: token)
-            } catch {
-                print("[ActivityStore] Cloud delete watch history error: \(error)")
-            }
-        }
+        Task { await self.deleteRemote(docIds: [entry.docId], kind: .history) }
     }
 
     public func clearAllWatchHistory(uid: String?) {
         guard let uid else { return }
         let toDelete = watchHistory.filter { $0.ownerId == uid }
         watchHistory.removeAll { $0.ownerId == uid }
-        for entry in toDelete { pendingHistoryDocIds.remove(entry.docId) }
-        saveWatchHistory()
-
-        Task {
-            do {
-                let token = try await AuthService.shared.getValidIdToken()
-                for w in toDelete {
-                    try await FirestoreService.shared.deleteWatchHistoryEntry(docId: w.docId, idToken: token)
-                }
-            } catch {
-                print("[ActivityStore] Cloud clear watch history error: \(error)")
-            }
+        for entry in toDelete {
+            pendingHistoryDocIds.remove(entry.docId)
+            tombstones.insert(entry.docId)
         }
+        saveWatchHistory()
+        Task { await self.deleteRemote(docIds: toDelete.map(\.docId), kind: .history) }
     }
 
     // MARK: - Cloud Synchronization Engine
+
     public func syncWithCloud(uid: String) async {
         guard !isSyncing else { return }
         isSyncing = true
@@ -666,62 +685,63 @@ public final class ActivityStore: ObservableObject {
             async let cloudBookmarksTask = FirestoreService.shared.fetchBookmarks(uid: uid, idToken: token)
             async let cloudHistoryTask = FirestoreService.shared.fetchWatchHistory(uid: uid, idToken: token)
 
-            let (cloudBookmarks, cloudHistory) = try await (cloudBookmarksTask, cloudHistoryTask)
+            let (cloudBookmarksAll, cloudHistoryAll) = try await (cloudBookmarksTask, cloudHistoryTask)
 
-            // Merge bookmarks: combine local and cloud, keeping newest
-            var bookmarkDict: [String: BookmarkedQuestion] = [:]
-            for b in self.bookmarks where b.ownerId == uid {
-                bookmarkDict[b.docId] = b
+            // Deletions first. Anything tombstoned that the cloud still has is deleted again;
+            // anything tombstoned the cloud no longer has is confirmed gone.
+            let cloudIds = Set(cloudBookmarksAll.map(\.docId)).union(cloudHistoryAll.map(\.docId))
+            let bookmarkDeletes = cloudBookmarksAll.map(\.docId).filter { tombstones.contains($0) }
+            let historyDeletes = cloudHistoryAll.map(\.docId).filter { tombstones.contains($0) }
+            tombstones = tombstones.filter { cloudIds.contains($0) }
+            let deletedNow = Set(bookmarkDeletes + historyDeletes)
+            await deleteRemote(docIds: bookmarkDeletes, kind: .bookmark)
+            await deleteRemote(docIds: historyDeletes, kind: .history)
+            let cloudBookmarks = cloudBookmarksAll.filter { !deletedNow.contains($0.docId) }
+            let cloudHistory = cloudHistoryAll.filter { !deletedNow.contains($0.docId) }
+
+            // Bookmarks: the cloud's copy, plus anything here that has not landed yet.
+            let cloudBookmarkById = Dictionary(cloudBookmarks.map { ($0.docId, $0) }, uniquingKeysWith: { first, _ in first })
+            var mergedBookmarkById: [String: BookmarkedQuestion] = cloudBookmarkById
+            var bookmarksToUpload: [BookmarkedQuestion] = []
+            for local in bookmarks where local.ownerId == uid {
+                if let cloud = cloudBookmarkById[local.docId] {
+                    mergedBookmarkById[local.docId] = cloud.bookmarkedAt >= local.bookmarkedAt ? cloud : local
+                    if pendingBookmarkDocIds.contains(local.docId) { bookmarksToUpload.append(local) }
+                } else if pendingBookmarkDocIds.contains(local.docId) {
+                    mergedBookmarkById[local.docId] = local
+                    bookmarksToUpload.append(local)
+                }
+                // Landed once and gone from the cloud now: deleted on the other device. Dropped.
             }
-            for cb in cloudBookmarks {
-                if let local = bookmarkDict[cb.docId] {
-                    if cb.bookmarkedAt > local.bookmarkedAt {
-                        bookmarkDict[cb.docId] = cb
-                    }
-                } else {
-                    bookmarkDict[cb.docId] = cb
+            let mergedBookmarks = mergedBookmarkById.values.sorted { $0.bookmarkedAt > $1.bookmarkedAt }
+
+            // Watch history: the newer copy wins, and anything newer here goes up.
+            let cloudHistoryById = Dictionary(cloudHistory.map { ($0.docId, $0) }, uniquingKeysWith: { first, _ in first })
+            var mergedHistoryById: [String: WatchHistoryEntry] = cloudHistoryById
+            var historyToUpload: [WatchHistoryEntry] = []
+            for local in watchHistory where local.ownerId == uid {
+                if let cloud = cloudHistoryById[local.docId] {
+                    let newerHere = local.watchedAt > cloud.watchedAt || local.positionSeconds > cloud.positionSeconds
+                    mergedHistoryById[local.docId] = local.watchedAt > cloud.watchedAt ? local : cloud
+                    if newerHere || pendingHistoryDocIds.contains(local.docId) { historyToUpload.append(local) }
+                } else if pendingHistoryDocIds.contains(local.docId) {
+                    mergedHistoryById[local.docId] = local
+                    historyToUpload.append(local)
                 }
             }
-            let mergedBookmarks = Array(bookmarkDict.values).sorted { $0.bookmarkedAt > $1.bookmarkedAt }
+            let mergedHistory = mergedHistoryById.values.sorted { $0.watchedAt > $1.watchedAt }
 
-            // Merge watch history
-            var historyDict: [String: WatchHistoryEntry] = [:]
-            for h in self.watchHistory where h.ownerId == uid {
-                historyDict[h.docId] = h
-            }
-            for ch in cloudHistory {
-                if let local = historyDict[ch.docId] {
-                    if ch.watchedAt > local.watchedAt {
-                        historyDict[ch.docId] = ch
-                    }
-                } else {
-                    historyDict[ch.docId] = ch
-                }
-            }
-            let mergedHistory = Array(historyDict.values).sorted { $0.watchedAt > $1.watchedAt }
-
-            // Update state and local storage
             var updatedBookmarks = self.bookmarks.filter { $0.ownerId != uid }
             updatedBookmarks.append(contentsOf: mergedBookmarks)
             self.bookmarks = updatedBookmarks
-            saveBookmarks()
 
             var updatedHistory = self.watchHistory.filter { $0.ownerId != uid }
             updatedHistory.append(contentsOf: mergedHistory)
             self.watchHistory = updatedHistory
+            saveBookmarks()
             saveWatchHistory()
 
-            // Merging alone was a one-way street: a class watched offline stayed local
-            // forever, so the streaming copy of the same class never showed the progress
-            // on another device. Anything the cloud is missing or is behind on now goes up.
-            let cloudById = Dictionary(cloudHistory.map { ($0.docId, $0) }, uniquingKeysWith: { first, _ in first })
-            let needsUpload = mergedHistory.filter { local in
-                if pendingHistoryDocIds.contains(local.docId) { return true }
-                guard let remote = cloudById[local.docId] else { return true }
-                return local.watchedAt > remote.watchedAt || local.positionSeconds > remote.positionSeconds
-            }
-
-            for entry in needsUpload {
+            for entry in historyToUpload {
                 do {
                     try await FirestoreService.shared.saveWatchHistoryEntry(entry, idToken: token)
                     pendingHistoryDocIds.remove(entry.docId)
@@ -729,13 +749,16 @@ public final class ActivityStore: ObservableObject {
                     print("[ActivityStore] Watch history upload failed for \(entry.docId): \(error)")
                 }
             }
-
-            let cloudBookmarkIds = Set(cloudBookmarks.map(\.docId))
-            for bookmark in mergedBookmarks where !cloudBookmarkIds.contains(bookmark.docId) {
-                try? await FirestoreService.shared.saveBookmark(bookmark, idToken: token)
+            for bookmark in bookmarksToUpload {
+                do {
+                    try await FirestoreService.shared.saveBookmark(bookmark, idToken: token)
+                    pendingBookmarkDocIds.remove(bookmark.docId)
+                } catch {
+                    print("[ActivityStore] Bookmark upload failed for \(bookmark.docId): \(error)")
+                }
             }
 
-            saveWatchHistory()
+            saveFlags()
             self.lastSyncedAt = Date()
         } catch {
             print("[ActivityStore] Cloud sync failed: \(error)")
@@ -746,6 +769,14 @@ public final class ActivityStore: ObservableObject {
 
     private func saveBookmarks() {
         Self.save(bookmarks, key: bookmarksKey)
+        saveFlags()
+    }
+
+    /// The pending sets and the tombstones, together.
+    private func saveFlags() {
+        Self.save(Array(pendingHistoryDocIds), key: pendingHistoryKey)
+        Self.save(Array(pendingBookmarkDocIds), key: pendingBookmarksKey)
+        Self.save(Array(tombstones), key: tombstonesKey)
     }
 
     /// Coalesces writes: the player reports progress every five seconds and re-encoding
@@ -768,7 +799,7 @@ public final class ActivityStore: ObservableObject {
 
     private func persistHistory() {
         Self.save(watchHistory, key: watchHistoryKey)
-        Self.save(Array(pendingHistoryDocIds), key: pendingHistoryKey)
+        saveFlags()
     }
 
     /// Called when the app leaves the foreground so nothing is lost on suspension.
@@ -787,4 +818,3 @@ public final class ActivityStore: ObservableObject {
         return try? JSONDecoder().decode(type, from: data)
     }
 }
-

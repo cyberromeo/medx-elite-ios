@@ -43,6 +43,18 @@ public struct MedxRunnerSection: Identifiable, Hashable, Sendable {
             )
             cursor += length
         }
+        // The disagreement runs the other way too: a loaded paper with more questions than the
+        // catalogue said left the extras unreachable yet counted as unanswered. The last block
+        // absorbs them, at the same minute a question the blocks were cut at.
+        if cursor < total, let last = out.last {
+            let extra = total - cursor
+            out[out.count - 1] = MedxRunnerSection(
+                label: last.label,
+                start: last.start,
+                count: last.count + extra,
+                minutes: last.minutes + extra
+            )
+        }
         return out.isEmpty ? [] : out
     }
 }
@@ -218,7 +230,7 @@ public struct SittingAttempt: Identifiable, Hashable, Codable, Sendable {
         name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? "Sitting"
         subject = try? container.decodeIfPresent(String.self, forKey: .subject)
         mode = (try? container.decodeIfPresent(String.self, forKey: .mode)) ?? "exam"
-        gradable = try? container.decodeIfPresent(Bool.self, forKey: .gradable)
+        gradable = container.decodeLenientBool(forKey: .gradable)
         total = (try? container.decodeIfPresent(Int.self, forKey: .total)) ?? 0
         score = (try? container.decodeIfPresent(Int.self, forKey: .score)) ?? 0
         attempted = (try? container.decodeIfPresent(Int.self, forKey: .attempted)) ?? 0
@@ -233,8 +245,29 @@ public struct SittingAttempt: Identifiable, Hashable, Codable, Sendable {
     }
 
     public var finishedDate: Date? {
-        guard let finishedAt else { return nil }
-        return ISO8601DateFormatter().date(from: finishedAt)
+        MedxDates.parse(finishedAt)
+    }
+
+    /// The same row under a document id — the outbox assigns one before the first upload.
+    public func withId(_ newId: String) -> SittingAttempt {
+        SittingAttempt(
+            id: newId,
+            uid: uid,
+            profile: profile,
+            kind: kind,
+            sourceId: sourceId,
+            name: name,
+            subject: subject,
+            mode: mode,
+            gradable: gradable,
+            total: total,
+            score: score,
+            attempted: attempted,
+            durationSeconds: durationSeconds,
+            finishedAt: finishedAt,
+            responses: responses,
+            sections: sections
+        )
     }
 }
 
@@ -259,8 +292,8 @@ public struct QuestionResponse: Identifiable, Hashable, Codable, Sendable {
             questionId = 0
         }
         chosenId = try? container.decodeIfPresent(Int.self, forKey: .chosenId)
-        correct = (try? container.decodeIfPresent(Bool.self, forKey: .correct)) ?? false
-        timedOut = try? container.decodeIfPresent(Bool.self, forKey: .timedOut)
+        correct = container.decodeLenientBool(forKey: .correct) ?? false
+        timedOut = container.decodeLenientBool(forKey: .timedOut)
     }
 
     public init(questionId: Int, chosenId: Int?, correct: Bool, timedOut: Bool? = nil) {

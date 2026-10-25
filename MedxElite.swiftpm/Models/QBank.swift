@@ -12,6 +12,18 @@ struct MedxSkippedElement: Decodable {
 }
 
 extension KeyedDecodingContainer {
+    /// A flag that may have been written as `1` / `0` rather than `true` / `false` — which is
+    /// what every boolean this app wrote until the Firestore encoder tested `Int` before `Bool`.
+    /// Rows written that way stay readable.
+    func decodeLenientBool(forKey key: Key) -> Bool? {
+        if let flag = try? decodeIfPresent(Bool.self, forKey: key) { return flag }
+        if let number = try? decodeIfPresent(Int.self, forKey: key) { return number != 0 }
+        if let text = try? decodeIfPresent(String.self, forKey: key) {
+            return ["true", "1", "yes"].contains(text.lowercased())
+        }
+        return nil
+    }
+
     /// Decodes an array element by element and drops the ones that fail.
     ///
     /// Arise's exported modules occasionally carry one question with a field shape the
@@ -261,6 +273,21 @@ public struct Question: Identifiable, Hashable, Codable, Sendable {
         html ?? plain ?? ""
     }
 
+    /// Whether `optionId` is a right answer.
+    ///
+    /// The key lives in two places: `correctIds` on the question, or `correct: true` on the
+    /// option, and some papers carry only the second. The option row, the explanation and the
+    /// review already consulted both; the scorer consulted only the first, so a right pick
+    /// turned green while the card said "Incorrect". This is the one rule, used everywhere.
+    public func isCorrect(optionId: Int) -> Bool {
+        correctIds.contains(optionId) || options.contains { $0.id == optionId && $0.correct == true }
+    }
+
+    /// Whether the question carries any key at all — a practice paper without one is never scored.
+    public var hasAnswerKey: Bool {
+        !correctIds.isEmpty || options.contains { $0.correct == true }
+    }
+
     enum CodingKeys: String, CodingKey {
         case id, lqId, number, html, plain, type, answerType, options, correctIds, explanation, reference, images
     }
@@ -450,7 +477,7 @@ public struct QuestionOption: Identifiable, Hashable, Codable, Sendable {
         }
         label = (try? container.decodeIfPresent(String.self, forKey: .label)) ?? ""
         text = (try? container.decodeIfPresent(String.self, forKey: .text)) ?? ""
-        correct = try? container.decodeIfPresent(Bool.self, forKey: .correct)
+        correct = container.decodeLenientBool(forKey: .correct)
     }
 
     public func encode(to encoder: Encoder) throws {

@@ -146,8 +146,9 @@ public final class MedxNotificationManager: NSObject, ObservableObject {
             add(.dailyQuestions, at: reminderHour, content: dailyContent(snapshot), repeats: true)
         }
 
-        // Only worth firing while the streak is actually at risk.
-        if enabled.contains(.streakProtection), !snapshot.isGoalMet, snapshot.streakDays > 0 {
+        // Only worth firing while the streak is actually at risk — nothing logged today. The
+        // streak counts any activity, so ten questions of a fifty goal already keep it.
+        if enabled.contains(.streakProtection), snapshot.answeredToday == 0, snapshot.streakDays > 0 {
             add(.streakProtection, at: 21, content: streakContent(snapshot), repeats: false)
         }
 

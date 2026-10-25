@@ -257,7 +257,8 @@ public struct BatchPapersView: View {
         do {
             let token = try await authService.getValidIdToken()
             async let testsTask = FirestoreService.shared.fetchTests(idToken: token)
-            async let attemptsTask = FirestoreService.shared.fetchUserAttempts(uid: uid, idToken: token)
+            // Best scores are decoration; the papers must load even when the attempts read fails.
+            async let attemptsTask = FirestoreService.shared.fetchUserAttemptsOrEmpty(uid: uid, idToken: token)
 
             let (loadedTests, loadedAttempts) = try await (testsTask, attemptsTask)
             tests = loadedTests

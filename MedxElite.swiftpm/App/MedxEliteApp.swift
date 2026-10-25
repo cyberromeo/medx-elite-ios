@@ -269,6 +269,7 @@ struct MedxEliteApp: App {
 
             guard let uid = authService.currentSession?.uid else { return }
             Task {
+                await MedxAttemptOutbox.shared.flush(uid: uid)
                 await ActivityStore.shared.syncWithCloud(uid: uid)
                 await MedxSpotlightIndexer.shared.indexBookmarks(
                     ActivityStore.shared.bookmarks(for: uid)

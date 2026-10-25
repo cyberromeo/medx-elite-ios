@@ -111,7 +111,31 @@ public final class MedxStudyStatsStore: ObservableObject {
 
     // MARK: - Ingest
 
-    public func ingest(attempts: [SittingAttempt]) {
+    /// The last full list handed to `ingest`, so one more finished sitting can be folded in
+    /// without waiting for the next Home load.
+    private var attemptsInMemory: [SittingAttempt] = []
+
+    /// A sitting that just finished — the goal ring, the streak and the widgets move now.
+    public func record(_ attempt: SittingAttempt) {
+        var list = attemptsInMemory.filter { $0.id == nil || $0.id != attempt.id }
+        list.append(attempt)
+        ingest(attempts: list, complete: hasIngested)
+    }
+
+    /// Sign-out: back to nothing, and the widgets and reminders are told so.
+    public func reset() {
+        attemptsInMemory = []
+        answeredToday = 0
+        correctToday = 0
+        streakDays = 0
+        due = []
+        weeklyAnswered = Array(repeating: 0, count: 7)
+        hasIngested = false
+        publishSnapshot()
+    }
+
+    public func ingest(attempts: [SittingAttempt], complete: Bool = true) {
+        attemptsInMemory = attempts
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
 
@@ -137,7 +161,10 @@ public final class MedxStudyStatsStore: ObservableObject {
                 buckets[6 - offset] += attempt.attempted
             }
 
-            guard attempt.kind == "qbank", !attempt.sourceId.isEmpty else { continue }
+            // Only a real module can come due again. Quick sittings, search practice and
+            // "today's revision" file as `qbank` under made-up ids, and each used to become a
+            // phantom due module a day later — which is what jammed the revision shortcut.
+            guard attempt.kind == "qbank", MedxBank.isModuleId(attempt.sourceId) else { continue }
             let existing = byModule[attempt.sourceId]
             byModule[attempt.sourceId] = (
                 sittings: (existing?.sittings ?? 0) + 1,
@@ -152,7 +179,7 @@ public final class MedxStudyStatsStore: ObservableObject {
         weeklyAnswered = buckets
         streakDays = Self.streak(from: activeDays, today: today, calendar: calendar)
         due = Self.dueModules(from: byModule, calendar: calendar)
-        hasIngested = true
+        if complete { hasIngested = true }
 
         publishSnapshot()
     }

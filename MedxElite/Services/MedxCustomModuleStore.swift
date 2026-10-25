@@ -63,6 +63,14 @@ public final class MedxCustomModuleStore: ObservableObject {
         await reload(uid: uid)
     }
 
+    /// Sign-out: the published list is the previous profile's view of the shared collection.
+    public func reset() {
+        modules = []
+        loadedFor = nil
+        remoteWorks = nil
+        lastDeleteWarning = nil
+    }
+
     /// Both people's papers, newest first.
     ///
     /// The whole collection, not this profile's slice of it — that is the sharing. A refused or

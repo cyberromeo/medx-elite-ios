@@ -227,8 +227,8 @@ public struct MedxDuelGame: Identifiable, Hashable, Sendable {
 
     public func isHost(_ uid: String?) -> Bool { uid != nil && uid == hostUid }
 
-    public var createdDate: Date? { ISO8601DateFormatter().date(from: createdAt) }
-    public var finishedDate: Date? { finishedAt.flatMap { ISO8601DateFormatter().date(from: $0) } }
+    public var createdDate: Date? { MedxDates.parse(createdAt) }
+    public var finishedDate: Date? { MedxDates.parse(finishedAt) }
 
     public init(
         id: String,

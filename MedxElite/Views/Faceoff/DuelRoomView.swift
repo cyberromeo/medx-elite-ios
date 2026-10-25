@@ -337,7 +337,7 @@ public struct DuelRoomView: View {
                     option: pair.element,
                     index: pair.offset,
                     isChosen: room.shownMine?.optionId == pair.element.id,
-                    isCorrect: question.correctIds.contains(pair.element.id),
+                    isCorrect: question.isCorrect(optionId: pair.element.id),
                     // Nothing is revealed until both sides are in, or the minute has gone.
                     isRevealed: room.phase == .reveal,
                     isLocked: room.phase != .asked

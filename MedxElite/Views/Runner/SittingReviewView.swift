@@ -666,7 +666,7 @@ private struct QuestionReviewCard: View {
             ForEach(Array(question.options.enumerated()), id: \.offset) { pair in
                 let option = pair.element
                 let isChosen = response?.chosenId == option.id
-                let isCorrect = option.correct == true || question.correctIds.contains(option.id)
+                let isCorrect = question.isCorrect(optionId: option.id)
                 let tint: Color? = isCorrect
                     ? MedxDS.correct
                     : (isChosen ? MedxDS.wrong : nil)

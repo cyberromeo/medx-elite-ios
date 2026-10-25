@@ -139,9 +139,19 @@ public final class AuthService: ObservableObject {
             return session.idToken
         }
 
-        // Refresh token
-        return try await refreshSession(session)
+        // One refresh at a time. After an hour away every screen on show asks for a token in the
+        // same instant, and each used to start its own refresh — several of which the backend
+        // then rate-limited, which read as a dead session.
+        if let refreshTask {
+            return try await refreshTask.value
+        }
+        let task = Task { [session] in try await self.refreshSession(session) }
+        refreshTask = task
+        defer { refreshTask = nil }
+        return try await task.value
     }
+
+    private var refreshTask: Task<String, Error>?
 
     private func refreshSession(_ session: AuthSession) async throws -> String {
         let urlString = "\(FirebaseConfig.secureTokenBase)?key=\(FirebaseConfig.apiKey)"
@@ -155,9 +165,21 @@ public final class AuthService: ObservableObject {
         request.httpBody = postString.data(using: .utf8)
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            signOut()
-            throw NSError(domain: "AuthService", code: 401, userInfo: [NSLocalizedDescriptionKey: "Session expired. Please sign in again."])
+        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        if http.statusCode != 200 {
+            // Only a refresh token the backend has actually rejected ends the session. A 429 or a
+            // 5xx is the backend's problem, and signing out on it dropped people to the profile
+            // picker in the middle of a sitting.
+            let message = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])
+                .flatMap { $0["error"] as? [String: Any] }
+                .flatMap { $0["message"] as? String } ?? ""
+            let fatal = ["INVALID_REFRESH_TOKEN", "TOKEN_EXPIRED", "USER_DISABLED", "USER_NOT_FOUND",
+                         "INVALID_GRANT_TYPE", "MISSING_REFRESH_TOKEN"]
+            if (400...401).contains(http.statusCode), fatal.contains(where: { message.hasPrefix($0) }) {
+                signOut()
+                throw NSError(domain: "AuthService", code: 401, userInfo: [NSLocalizedDescriptionKey: "Session expired. Please sign in again."])
+            }
+            throw URLError(.badServerResponse)
         }
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -189,6 +211,11 @@ public final class AuthService: ObservableObject {
         UserDefaults.standard.removeObject(forKey: sessionKey)
         MedxFirebaseBridge.shared.signOut()
         MedxLiveActivityController.shared.endAll()
+        // Every per-profile store forgets its numbers, so the next person's Home, widgets and
+        // "today's revision" are not built from the previous person's history.
+        MedxStudyStatsStore.shared.reset()
+        MedxAttemptOutbox.shared.reset()
+        MedxCustomModuleStore.shared.reset()
     }
 
     // MARK: - Local Session Persistence

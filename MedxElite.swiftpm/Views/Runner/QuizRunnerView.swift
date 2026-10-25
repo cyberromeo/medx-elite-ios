@@ -668,7 +668,7 @@ public struct QuizRunnerView: View {
                     option: pair.element,
                     index: pair.offset,
                     isChosen: response?.chosenId == pair.element.id,
-                    isCorrect: pair.element.correct == true || question.correctIds.contains(pair.element.id),
+                    isCorrect: question.isCorrect(optionId: pair.element.id),
                     isRevealed: isRevealed,
                     isLocked: isLocked
                 ) {
@@ -795,7 +795,7 @@ public struct QuizRunnerView: View {
             return
         }
 
-        let isCorrect = question.correctIds.contains(chosenId)
+        let isCorrect = question.isCorrect(optionId: chosenId)
         responses[question.id] = QuestionResponse(
             questionId: question.id,
             chosenId: chosenId,
@@ -1010,7 +1010,7 @@ public struct QuizRunnerView: View {
         let attempted = responses.values.filter { $0.chosenId != nil }.count
 
         let attempt = SittingAttempt(
-            id: nil,
+            id: MedxAttemptOutbox.newId(),
             uid: session.uid,
             profile: authService.currentProfile?.handle,
             kind: payload.kind,
@@ -1028,14 +1028,9 @@ public struct QuizRunnerView: View {
             sections: sectionLog.isEmpty ? nil : sectionLog.sorted { $0.index < $1.index }
         )
 
-        Task {
-            do {
-                let token = try await AuthService.shared.getValidIdToken()
-                try await FirestoreService.shared.saveAttempt(attempt, idToken: token)
-            } catch {
-                // Kept locally; the activity log still reflects the sitting.
-            }
-        }
+        // Written to the outbox first, counted at once, uploaded when it can be — a sitting
+        // finished with no signal is no longer thrown away.
+        MedxAttemptOutbox.shared.enqueue(attempt)
     }
 
     private func loadSittingQuestions() async {
@@ -1164,7 +1159,7 @@ public struct QuizRunnerView: View {
             MedxImageZoom.present(image: figure)
         case "runner-revision":
             guard let question = questions.first,
-                  let wrong = question.options.first(where: { !question.correctIds.contains($0.id) })
+                  let wrong = question.options.first(where: { !question.isCorrect(optionId: $0.id) })
             else { return }
             handlePickOption(question: question, chosenId: wrong.id)
         case "runner-batch":
@@ -1225,7 +1220,7 @@ public struct QuizRunnerView: View {
             // What opening a paper left half-way looks like.
             let picks = questions.prefix(5).compactMap { question -> QuestionResponse? in
                 guard let pick = question.correctIds.first ?? question.options.first?.id else { return nil }
-                return QuestionResponse(questionId: question.id, chosenId: pick, correct: question.correctIds.contains(pick))
+                return QuestionResponse(questionId: question.id, chosenId: pick, correct: question.isCorrect(optionId: pick))
             }
             resumeOffer = MedxSittingSnapshot(
                 fingerprint: MedxSittingSnapshot.fingerprint(questions),
@@ -1242,13 +1237,13 @@ public struct QuizRunnerView: View {
             )
         case "review", "review-question", "review-custom":
             for (index, question) in questions.enumerated() {
-                let wrong = question.options.first(where: { !question.correctIds.contains($0.id) })?.id
+                let wrong = question.options.first(where: { !question.isCorrect(optionId: $0.id) })?.id
                 let pick: Int? = index % 3 == 2 ? wrong : question.correctIds.first
                 guard let pick else { continue }
                 responses[question.id] = QuestionResponse(
                     questionId: question.id,
                     chosenId: pick,
-                    correct: question.correctIds.contains(pick)
+                    correct: question.isCorrect(optionId: pick)
                 )
             }
             refreshStatuses()
@@ -1393,7 +1388,7 @@ struct RunnerExplanationCard: View {
 
     private var correctLabel: String? {
         question.options.first {
-            $0.correct == true || question.correctIds.contains($0.id)
+            question.isCorrect(optionId: $0.id)
         }?.label
     }
 

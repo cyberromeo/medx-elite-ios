@@ -76,15 +76,17 @@ public actor FirestoreService {
             do {
                 fetched = try await URLSession.shared.data(for: request)
             } catch {
-                // No connection: serve what was cached rather than an empty screen.
-                if let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
+                // No connection: serve what was cached rather than an empty screen — unless the
+                // caller said the cache will not do. A reconcile that treated a stale copy as the
+                // mirror's word purged papers and reverted edits.
+                if useCache, let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
                     return cached
                 }
                 throw error
             }
             let (data, response) = fetched
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                if let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
+                if useCache, let cached: [T] = await cache.get(forKey: cacheKey, as: [T].self), !cached.isEmpty {
                     return cached
                 }
                 throw URLError(.badServerResponse)
@@ -495,6 +497,9 @@ public actor FirestoreService {
     }
 
     public func fetchUserAttempts(uid: String, idToken: String) async throws -> [SittingAttempt] {
+        // Anything still in the outbox goes up first, so the read below includes it where it can,
+        // and whatever is still waiting is merged in so no screen ever misses a finished sitting.
+        await MedxAttemptOutbox.shared.flush(uid: uid)
         let attempts: [SittingAttempt] = try await runQuery(
             collection: "medx_attempts",
             whereField: "uid",
@@ -502,10 +507,26 @@ public actor FirestoreService {
             idToken: idToken,
             useCache: false
         )
-        return attempts
+        return await MedxAttemptOutbox.shared.merged(remote: attempts, uid: uid)
+    }
+
+    /// For screens where the attempts are decoration (best scores, "practised" badges): a refused
+    /// read is an empty list, never a failed screen.
+    public func fetchUserAttemptsOrEmpty(uid: String, idToken: String) async -> [SittingAttempt] {
+        (try? await fetchUserAttempts(uid: uid, idToken: idToken)) ?? []
     }
 
     public func saveAttempt(_ attempt: SittingAttempt, idToken: String) async throws {
+        let encData = try JSONEncoder().encode(attempt)
+        guard let dict = try JSONSerialization.jsonObject(with: encData) as? [String: Any] else { return }
+
+        // A row that carries its own id is upserted under it, so a retry after a lost response
+        // rewrites the same document instead of filing a second sitting.
+        if let id = attempt.id, !id.isEmpty {
+            try await writeDocument(collection: "medx_attempts", docId: id, fields: dict, merge: false, idToken: idToken)
+            return
+        }
+
         let urlString = "\(FirebaseConfig.firestoreRestBase)/medx_attempts"
         guard let url = URL(string: urlString) else { throw URLError(.badURL) }
 
@@ -513,9 +534,6 @@ public actor FirestoreService {
         request.httpMethod = "POST"
         request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let encData = try JSONEncoder().encode(attempt)
-        guard let dict = try JSONSerialization.jsonObject(with: encData) as? [String: Any] else { return }
 
         let firestoreFields = Self.convertToFirestoreFields(dict)
         let body: [String: Any] = ["fields": firestoreFields]
@@ -555,8 +573,10 @@ public actor FirestoreService {
         value: Bool,
         idToken: String
     ) async throws {
-        let pathKey = "subjects.\(subject).\(field.rawValue)"
-        let encodedPath = pathKey.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? pathKey
+        // `subjects.\`Forensic Medicine\`.Videos` — a segment that is not a plain identifier has to
+        // be backtick-quoted or Firestore answers 400, which is why no subject with a space in
+        // its name ever saved a tick.
+        let encodedPath = Self.encodedFieldPath(["subjects", subject, field.rawValue])
         let urlString = "\(FirebaseConfig.firestoreRestBase)/user_tracker/\(uid)?updateMask.fieldPaths=\(encodedPath)"
         guard let url = URL(string: urlString) else { throw URLError(.badURL) }
 
@@ -832,8 +852,7 @@ public actor FirestoreService {
         var urlString = "\(FirebaseConfig.firestoreRestBase)/\(collection)/\(docId)"
         if merge {
             let mask = fields.keys
-                .compactMap { $0.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) }
-                .map { "updateMask.fieldPaths=\($0)" }
+                .map { "updateMask.fieldPaths=\(Self.encodedFieldPath([$0]))" }
                 .joined(separator: "&")
             if !mask.isEmpty { urlString += "?\(mask)" }
         }
@@ -1059,7 +1078,12 @@ public actor FirestoreService {
 
 
     public static func convertToFirestoreValue(_ val: Any) -> [String: Any]? {
-        if let str = val as? String {
+        // A boolean first. `JSONSerialization` hands `true` back as an `NSNumber` that also
+        // answers `as? Int` — with `1` — so testing `Int` first wrote every flag in this app
+        // (`correct`, `gradable`, `shuffle`) as an integer, which the readers then refused.
+        if let number = val as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() {
+            return ["booleanValue": number.boolValue]
+        } else if let str = val as? String {
             return ["stringValue": str]
         } else if let int = val as? Int {
             return ["integerValue": String(int)]
@@ -1074,6 +1098,23 @@ public actor FirestoreService {
             return ["arrayValue": ["values": values]]
         }
         return nil
+    }
+
+    /// A field path for `updateMask.fieldPaths`. Segments that are not plain identifiers are
+    /// backtick-quoted, and the result is percent-encoded strictly: `.urlQueryAllowed` leaves `&`
+    /// and `+` alone, which broke every subject with an ampersand in its name.
+    static func encodedFieldPath(_ segments: [String]) -> String {
+        let plain = try? NSRegularExpression(pattern: "^[A-Za-z_][A-Za-z0-9_]*$")
+        let quoted = segments.map { segment -> String in
+            let range = NSRange(segment.startIndex..., in: segment)
+            if plain?.firstMatch(in: segment, range: range) != nil { return segment }
+            let escaped = segment
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "`", with: "\\`")
+            return "`\(escaped)`"
+        }.joined(separator: ".")
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+        return quoted.addingPercentEncoding(withAllowedCharacters: allowed) ?? quoted
     }
 
     public static func convertToFirestoreFields(_ dict: [String: Any]) -> [String: Any] {

@@ -1455,7 +1455,7 @@ private struct BookmarkedQuestionDetailView: View {
                 VStack(spacing: 10) {
                     ForEach(Array(bookmark.question.options.enumerated()), id: \.offset) { pair in
                         let option = pair.element
-                        let isCorrect = bookmark.question.correctIds.contains(option.id) || option.correct == true
+                        let isCorrect = bookmark.question.isCorrect(optionId: option.id)
 
                         HStack(alignment: .medxFirstLine, spacing: 12) {
                             Text(MedxOptionLetter.of(option, at: pair.offset))
@@ -1876,7 +1876,7 @@ private enum ActivityLogItem: Identifiable, Hashable {
     var date: Date {
         switch self {
         case .video(let entry): return entry.watchedAt
-        case .attempt(let attempt): return attempt.finishedAt.flatMap { ISO8601DateFormatter().date(from: $0) } ?? .distantPast
+        case .attempt(let attempt): return attempt.finishedDate ?? .distantPast
         }
     }
 

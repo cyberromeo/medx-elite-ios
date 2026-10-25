@@ -103,7 +103,7 @@ public struct MedxCustomModule: Identifiable, Hashable, Codable, Sendable {
     }
 
     public var updatedDate: Date? {
-        ISO8601DateFormatter().date(from: updatedAt)
+        MedxDates.parse(updatedAt)
     }
 
     public var author: Profile? { Profile.byUid(uid) }
@@ -121,7 +121,7 @@ public struct MedxCustomModule: Identifiable, Hashable, Codable, Sendable {
         name = (try? container.decodeIfPresent(String.self, forKey: .name)) ?? ""
         note = (try? container.decodeIfPresent(String.self, forKey: .note)) ?? ""
         sources = container.decodeLenientArray(MedxModuleSource.self, forKey: .sources) ?? []
-        shuffle = (try? container.decodeIfPresent(Bool.self, forKey: .shuffle)) ?? true
+        shuffle = container.decodeLenientBool(forKey: .shuffle) ?? true
         // A stored `0` means "all", the same as absent — that is what the cap segmented writes.
         let storedLimit = try? container.decodeIfPresent(Int.self, forKey: .limit)
         limit = (storedLimit ?? 0) > 0 ? storedLimit : nil
@@ -211,17 +211,26 @@ public enum MedxCustomModuleRules {
         local: [MedxCustomModule],
         authoritative: Bool
     ) -> [MedxCustomModule] {
+        let localById = Dictionary(local.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let seen = Set(remote.map(\.id))
-        let kept = local.filter { row in
-            if seen.contains(row.id) { return false }        // the mirror wins
-            if authoritative, row.synced == true { return false } // deleted by the other one
-            return true
-        }
 
+        // The mirror wins for a row it has — unless this device holds an edit of that row that has
+        // not reached it yet. "Mirror wins" used to apply to those too, so a paper edited offline
+        // was quietly reverted by the next load while the footer said "Saved online".
         var merged = remote.map { row -> MedxCustomModule in
+            if let mine = localById[row.id], mine.synced == false,
+               (mine.updatedDate ?? .distantPast) >= (row.updatedDate ?? .distantPast) {
+                return mine
+            }
             var copy = row
             copy.synced = true
             return copy
+        }
+
+        let kept = local.filter { row in
+            if seen.contains(row.id) { return false }
+            if authoritative, row.synced == true { return false } // deleted by the other one
+            return true
         }
         merged.append(contentsOf: kept.map { row -> MedxCustomModule in
             var copy = row

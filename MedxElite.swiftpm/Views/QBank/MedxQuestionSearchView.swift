@@ -588,7 +588,7 @@ struct MedxSearchResultDetailView: View {
             VStack(spacing: 8) {
                 ForEach(Array(question.options.enumerated()), id: \.offset) { pair in
                     let option = pair.element
-                    let isCorrect = option.correct == true || question.correctIds.contains(option.id)
+                    let isCorrect = question.isCorrect(optionId: option.id)
 
                     HStack(alignment: .medxFirstLine, spacing: 12) {
                         Text(MedxOptionLetter.of(option, at: pair.offset))

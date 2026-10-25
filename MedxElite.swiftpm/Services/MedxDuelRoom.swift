@@ -345,8 +345,10 @@ public final class MedxDuelRoom: ObservableObject {
 
         let rows = MedxDuelRules.attemptResponses(log: game.log, uid: uid)
         let mineScore = scores[uid] ?? MedxDuelScore()
+        // A deterministic id, so a re-filed row (a reopened room, a retried upload) rewrites
+        // itself instead of adding a second sitting to the day.
         let attempt = SittingAttempt(
-            id: nil,
+            id: MedxAttemptOutbox.duelId(gameId: gameId, uid: uid),
             uid: uid,
             profile: AuthService.shared.currentProfile?.handle,
             kind: "duel",
@@ -363,10 +365,7 @@ public final class MedxDuelRoom: ObservableObject {
             responses: rows.responses
         )
 
-        Task {
-            guard let token = try? await AuthService.shared.getValidIdToken() else { return }
-            try? await FirestoreService.shared.saveAttempt(attempt, idToken: token)
-        }
+        MedxAttemptOutbox.shared.enqueue(attempt)
     }
 
     // MARK: - Moves
@@ -379,7 +378,7 @@ public final class MedxDuelRoom: ObservableObject {
             optionId: option.id,
             // The number the player was looking at, not a fresh reading — see `remaining` above.
             remaining: remaining,
-            correct: question.correctIds.contains(option.id)
+            correct: question.isCorrect(optionId: option.id)
         )
         Task {
             do {
