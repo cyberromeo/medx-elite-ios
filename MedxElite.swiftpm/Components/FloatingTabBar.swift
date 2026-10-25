@@ -15,7 +15,7 @@ public enum TabItem: String, CaseIterable, Identifiable {
     case home = "Home"
     case qbank = "QBank"
     case tests = "Tests"
-    case videos = "Videos"
+    case videos = "Classes"
     case library = "Library"
 
     public var id: String { rawValue }

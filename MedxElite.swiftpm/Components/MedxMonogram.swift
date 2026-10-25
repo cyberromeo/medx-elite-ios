@@ -86,7 +86,6 @@ public struct MedxProfileButton: View {
     @ObservedObject private var authService = AuthService.shared
     @ObservedObject private var avatars = AvatarStore.shared
     @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
-    @State private var showSettings = false
 
     public init() {}
 
@@ -100,8 +99,10 @@ public struct MedxProfileButton: View {
         return avatars.images[id]
     }
 
+    /// One presentation host: `MainTabView` owns the Settings sheet, so six toolbars cannot each
+    /// present their own copy over whichever screen happened to be on top.
     public var body: some View {
-        control.sheet(isPresented: $showSettings) { SettingsView().medxPageSheet() }
+        control
     }
 
     private var control: some View {
@@ -130,6 +131,6 @@ public struct MedxProfileButton: View {
 
     private func open() {
         HapticManager.light()
-        showSettings = true
+        AppState.shared.showSettings = true
     }
 }

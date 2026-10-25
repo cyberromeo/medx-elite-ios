@@ -187,6 +187,12 @@ public struct MedxDuelQuestion: Identifiable, Hashable, Codable, Sendable {
         return question.options.filter { $0.correct == true }.map(\.id)
     }
 
+    /// The same entry point as `Question.isCorrect(optionId:)`, on a deck whose key was already
+    /// hoisted at the deal.
+    public func isCorrect(optionId: Int) -> Bool {
+        correctIds.contains(optionId)
+    }
+
     /// Back to a runner question, so a duel's deck can be reviewed with the same views.
     public var asQuestion: Question {
         Question(

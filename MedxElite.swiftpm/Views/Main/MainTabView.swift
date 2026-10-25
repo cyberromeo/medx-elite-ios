@@ -1,29 +1,24 @@
 import SwiftUI
 
-/// The app's shell, and the single place every *external* entry point is presented from.
+/// The app's shell, and the single place every presentation is hosted from.
 ///
-/// Notification taps, Spotlight results, Siri shortcuts, widget deep links and the search
-/// screen's "practise these" all set a flag on `AppState`; the sheets and covers live here so
-/// there is exactly one presentation host no matter which tab happens to be on screen.
+/// Five tabs on a phone, a sidebar and a detail column on an iPad. Notification taps, Spotlight
+/// results, Siri shortcuts, widget links and the search screen's "practise these" all set a flag
+/// on `AppState`; the sheets and covers live here so there is exactly one presentation host no
+/// matter which screen happens to be on top — including Settings, which six toolbars used to
+/// present on their own.
 public struct MainTabView: View {
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var authService = AuthService.shared
     @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
 
-    // `MedxStudyStatsStore` is deliberately **not** observed here.
-    //
-    // It was, and it is the app's busiest publisher — `answeredToday`, `correctToday`, `streakDays`,
-    // `due`, `weeklyAnswered` all change as a sitting is answered. Observing it from the shell meant
-    // every answered question re-evaluated this `body`: the `TabView`, all five destinations and nine
-    // `.sheet` modifiers, while the runner was on screen. Nothing in `body` reads it — only
-    // `startTodaysRevision()` does, and that reaches `.shared` directly, which needs no observation.
+    // `MedxStudyStatsStore` is deliberately not observed here: it is the app's busiest publisher
+    // and nothing in this body reads it. Observing it re-evaluated the whole shell on every
+    // answered question while the runner was on screen.
 
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var columnVisibility: NavigationSplitViewVisibility = .doubleColumn
     @State private var isBuildingRevision = false
-    /// Which library destination the iPad sidebar has open, if any. `nil` means a main tab is
-    /// showing. Unused on iPhone and on the iOS 17 iPad fallback.
-    @State private var padLibrarySelection: MedxPadLibraryTab?
 
     public init() {}
 
@@ -31,15 +26,17 @@ public struct MainTabView: View {
 
     public var body: some View {
         layout
-            // Re-identified when the accent changes so every screen inside repaints at once.
-            // `MedxTheme.accent` is a static read — SwiftUI cannot track it as a dependency,
-            // and hand-adding an observer to all thirty views that draw an accent would be
-            // both noisier and easier to forget. The `.sheet`s below sit *outside* this id,
-            // so changing the accent from Settings does not dismiss Settings.
+            // Re-identified when the accent changes so every screen inside repaints at once;
+            // the sheets below sit outside this id, so changing the accent from Settings does
+            // not dismiss Settings.
             .id(medxTheme.accent)
             .tint(MedxTheme.accent)
             .onChange(of: appState.selectedTab) { _, _ in
                 HapticManager.selection()
+            }
+            .sheet(isPresented: $appState.showSettings) {
+                SettingsView()
+                    .medxFullSheet()
             }
             .sheet(isPresented: $appState.showSearch) {
                 MedxQuestionSearchView(seed: appState.searchSeed)
@@ -49,70 +46,22 @@ public struct MainTabView: View {
                 MedxCustomModuleSheet()
                     .medxPageSheet()
             }
-            .sheet(isPresented: $appState.showSettings) {
-                SettingsView()
-                    .medxPageSheet()
-            }
+            // These four open in the iPad detail column instead (see `padRoute`), and become
+            // pushes inside Library on the phone once that screen is rebuilt.
             .sheet(isPresented: padAware(\.showCustomModules)) {
-                NavigationStack {
-                    CustomModulesView()
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                Button {
-                                    appState.showCustomModules = false
-                                } label: {
-                                    Text("Done")
-                                        .font(.body.weight(.semibold))
-                                        .foregroundStyle(Color.primary)
-                                }
-                            }
-                        }
-                }
-                .medxPageSheet()
+                hosted(flag: \.showCustomModules) { CustomModulesView() }
+            }
+            .sheet(isPresented: padAware(\.showBookmarks)) {
+                hosted(flag: \.showBookmarks) { BookmarkedQuestionsView(uid: uid) }
+            }
+            .sheet(isPresented: padAware(\.showDownloads)) {
+                hosted(flag: \.showDownloads) { DownloadsView() }
+            }
+            .sheet(isPresented: padAware(\.showActivityLog)) {
+                hosted(flag: \.showActivityLog) { MedxActivityLogHost(uid: uid) }
             }
             .fullScreenCover(isPresented: $appState.showFaceoff) {
                 FaceoffLobbyView()
-            }
-            .sheet(isPresented: padAware(\.showBookmarks)) {
-                NavigationStack {
-                    BookmarkedQuestionsView(uid: uid)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                Button {
-                                    appState.showBookmarks = false
-                                } label: {
-                                    Text("Done")
-                                        .font(.body.weight(.semibold))
-                                        .foregroundStyle(Color.primary)
-                                }
-                            }
-                        }
-                }
-                .medxPageSheet()
-            }
-            .sheet(isPresented: padAware(\.showDownloads)) {
-                NavigationStack {
-                    DownloadsView()
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                Button("Done") { appState.showDownloads = false }
-                                    .font(.body.weight(.semibold))
-                            }
-                        }
-                }
-                .medxPageSheet()
-            }
-            .sheet(isPresented: padAware(\.showActivityLog)) {
-                NavigationStack {
-                    MedxActivityLogHost(uid: uid)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                Button("Done") { appState.showActivityLog = false }
-                                    .font(.body.weight(.semibold))
-                            }
-                        }
-                }
-                .medxPageSheet()
             }
             .sheet(item: $appState.pendingModulePick) { pick in
                 StartSessionSheet(
@@ -139,12 +88,27 @@ public struct MainTabView: View {
             .task(id: appState.revisionRequestedAt) {
                 await startTodaysRevision()
             }
-            // iPad: these four open in the detail column beside the sidebar (the sidebar already
-            // lists them) instead of as a sheet dropped over it.
             .onChange(of: appState.showCustomModules) { _, on in padRoute(on, \.showCustomModules, to: .customModules) }
             .onChange(of: appState.showBookmarks) { _, on in padRoute(on, \.showBookmarks, to: .bookmarks) }
             .onChange(of: appState.showDownloads) { _, on in padRoute(on, \.showDownloads, to: .downloads) }
             .onChange(of: appState.showActivityLog) { _, on in padRoute(on, \.showActivityLog, to: .activityLog) }
+    }
+
+    /// A page inside a sheet, with the system close button. Temporary: gone when Library pushes
+    /// these destinations itself.
+    private func hosted<Content: View>(
+        flag: ReferenceWritableKeyPath<AppState, Bool>,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        NavigationStack {
+            content()
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(role: .close) { appState[keyPath: flag] = false }
+                    }
+                }
+        }
+        .medxPageSheet()
     }
 
     /// A sheet flag that never presents on iPad, where `padRoute` turns it into a detail pick.
@@ -157,7 +121,7 @@ public struct MainTabView: View {
 
     private func padRoute(_ on: Bool, _ flag: ReferenceWritableKeyPath<AppState, Bool>, to tab: MedxPadLibraryTab) {
         guard on, sizeClass == .regular else { return }
-        padLibrarySelection = tab
+        appState.padLibrarySelection = tab
         appState[keyPath: flag] = false
     }
 
@@ -175,47 +139,35 @@ public struct MainTabView: View {
     private var tabLayout: some View {
         TabView(selection: $appState.selectedTab) {
             ForEach(TabItem.allCases) { tab in
-                NavigationStack {
-                    destination(for: tab)
+                Tab(tab.rawValue, systemImage: tab.icon, value: tab) {
+                    NavigationStack {
+                        destination(for: tab)
+                    }
                 }
-                .tabItem {
-                    Label(tab.rawValue, systemImage: appState.selectedTab == tab ? tab.selectedIcon : tab.icon)
-                }
-                .tag(tab)
             }
         }
-        // On iOS 26 the bar shrinks to a pill as you scroll down and comes back the moment you
-        // scroll up, which is the platform's own answer to a five-tab app on a phone.
-        .medxTabBarMinimize()
-        // The tab bar's background is deliberately *not* specified. Forcing
-        // `.toolbarBackground(.bar, for: .tabBar)` overrode whatever the running OS wanted to
-        // do with it, which on iOS 26+ meant opting out of the system's own treatment — the app
-        // should not be hand-picking chrome the platform owns.
+        // The bar shrinks to a pill as you scroll down and comes back the moment you scroll up —
+        // the platform's own answer to a five-tab app on a phone.
+        .tabBarMinimizeBehavior(.onScrollDown)
     }
 
     // MARK: - iPad
 
-    /// iPad uses a `NavigationSplitView` — a collapsible sidebar plus a detail column, the Mail /
-    /// Notes / Files pattern. The sidebar lists the five destinations under "Study" and the library
-    /// tools under "Shortcuts"; picking any of them shows it in the detail column. There is *no*
-    /// floating tab bar: `.sidebarAdaptable` kept dragging the shortcuts into the collapsed top
-    /// bar, so the sidebar owns the whole switcher and nothing leaks. Selection is one
-    /// `MedxPadSelection` for both kinds of row. Works on iOS 16+, no availability branch.
+    /// A collapsible sidebar plus a detail column, the Mail / Notes / Files pattern. The sidebar
+    /// lists the five destinations under "Study" and the Library doors under "Library"; picking
+    /// any of them shows it in the detail column. There is deliberately no floating tab bar:
+    /// `.sidebarAdaptable` kept dragging the sections into the collapsed top bar.
     private var iPadLayout: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: sidebarSelection) {
                 Section("Study") {
                     ForEach(TabItem.allCases) { tab in
-                        Label(
-                            tab.rawValue,
-                            systemImage: isMainSelected(tab) ? tab.selectedIcon : tab.icon
-                        )
-                        .symbolEffect(.bounce, value: isMainSelected(tab))
-                        .tag(MedxPadSelection.main(tab))
+                        Label(tab.rawValue, systemImage: tab.icon)
+                            .tag(MedxPadSelection.main(tab))
                     }
                 }
 
-                Section("Shortcuts") {
+                Section("Library") {
                     ForEach(MedxPadLibraryTab.allCases) { lib in
                         Label(lib.title, systemImage: lib.icon)
                             .tag(MedxPadSelection.library(lib))
@@ -233,34 +185,28 @@ public struct MainTabView: View {
         .navigationSplitViewStyle(.balanced)
     }
 
-    /// True when `tab` is the selected main destination and no shortcut is overriding it.
-    private func isMainSelected(_ tab: TabItem) -> Bool {
-        padLibrarySelection == nil && appState.selectedTab == tab
-    }
-
-    /// The sidebar's selection, bridged to `selectedTab` plus the shortcut record. A `nil` from a
-    /// deselect is ignored so the detail column never goes blank; a shortcut leaves `selectedTab`
-    /// alone so returning to a main tab restores where it was.
+    /// The sidebar's selection, bridged to `selectedTab` plus the Library pick. A `nil` from a
+    /// deselect is ignored so the detail column never goes blank; a Library pick leaves
+    /// `selectedTab` alone so returning to a main tab restores where it was.
     private var sidebarSelection: Binding<MedxPadSelection?> {
         Binding(
-            get: { padLibrarySelection.map(MedxPadSelection.library) ?? .main(appState.selectedTab) },
+            get: { appState.padLibrarySelection.map(MedxPadSelection.library) ?? .main(appState.selectedTab) },
             set: { newValue in
                 guard let newValue else { return }
                 switch newValue {
                 case .main(let tab):
-                    padLibrarySelection = nil
+                    appState.padLibrarySelection = nil
                     appState.selectedTab = tab
                 case .library(let lib):
-                    padLibrarySelection = lib
+                    appState.padLibrarySelection = lib
                 }
             }
         )
     }
 
-    /// The detail column: a selected shortcut wins, otherwise the current main destination.
     @ViewBuilder
     private var iPadDetail: some View {
-        if let lib = padLibrarySelection {
+        if let lib = appState.padLibrarySelection {
             libraryDestination(lib)
         } else {
             destination(for: appState.selectedTab)
@@ -270,10 +216,9 @@ public struct MainTabView: View {
     /// Resets the detail's navigation stack when the selection changes, so a new pick starts at
     /// that destination's root.
     private var padDetailID: String {
-        padLibrarySelection.map(\.rawValue) ?? appState.selectedTab.rawValue
+        appState.padLibrarySelection.map(\.rawValue) ?? appState.selectedTab.rawValue
     }
 
-    /// The detail view behind each library sidebar tab.
     @ViewBuilder
     private func libraryDestination(_ tab: MedxPadLibraryTab) -> some View {
         switch tab {
@@ -306,8 +251,8 @@ public struct MainTabView: View {
     /// Assembles the sitting behind the "Start today's revision" shortcut and the revision
     /// reminder. Ten questions from each of up to five overdue modules, capped at forty.
     ///
-    /// Cold-launched from Siri there may be no attempt history in memory yet, so it is
-    /// fetched here rather than assuming Home has already run.
+    /// Cold-launched from Siri there may be no attempt history in memory yet, so it is fetched
+    /// here rather than assuming Home has already run.
     private func startTodaysRevision() async {
         guard appState.revisionRequestedAt != nil, !isBuildingRevision else { return }
         isBuildingRevision = true
@@ -364,64 +309,43 @@ public struct MainTabView: View {
 // MARK: - iPad selection
 
 /// One selection type for the iPad sidebar: a primary destination (the "Study" section) or a
-/// library destination (the "Shortcuts" section). Both drive the same detail column.
+/// Library door (the "Library" section). Both drive the same detail column.
 enum MedxPadSelection: Hashable {
     case main(TabItem)
     case library(MedxPadLibraryTab)
 }
 
-/// The library destinations listed under "Shortcuts" in the iPad sidebar. These are the browsable
-/// ones — the transient builders (Quick sitting) and the profile-owned Settings stay off the list,
-/// reachable from the Library tab and the profile button respectively.
-enum MedxPadLibraryTab: String, CaseIterable, Identifiable, Hashable {
-    case flashcards, vodFeed, importVod, faceoff, batchPapers, customModules, search, bookmarks, downloads, activityLog
+/// The Library doors listed in the iPad sidebar. Quick sitting is a sheet and Settings is the
+/// profile button's, so neither is here.
+public enum MedxPadLibraryTab: String, CaseIterable, Identifiable, Hashable, Sendable {
+    case flashcards, customModules, search, vodFeed, importVod, faceoff, batchPapers, bookmarks, downloads, activityLog
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
-    var title: String {
+    var feature: MedxFeature {
         switch self {
-        case .flashcards: return "Flashcards"
-        case .vodFeed: return "VOD feed"
-        case .importVod: return "Import to Classes"
-        case .faceoff: return "Faceoff"
-        case .batchPapers: return "Batch papers"
-        case .customModules: return "Custom modules"
-        case .search: return "Search"
-        case .bookmarks: return "Bookmarks"
-        case .downloads: return "Downloads"
-        case .activityLog: return "Activity log"
+        case .flashcards: return .flashcards
+        case .customModules: return .customModules
+        case .search: return .search
+        case .vodFeed: return .vod
+        case .importVod: return .importClasses
+        case .faceoff: return .faceoff
+        case .batchPapers: return .batchPapers
+        case .bookmarks: return .bookmarks
+        case .downloads: return .downloads
+        case .activityLog: return .activityLog
         }
     }
 
-    var icon: String {
-        switch self {
-        case .flashcards: return "rectangle.stack"
-        case .vodFeed: return "antenna.radiowaves.left.and.right"
-        case .importVod: return "tray.and.arrow.down"
-        case .faceoff: return "bolt.horizontal"
-        case .batchPapers: return "flag.pattern.checkered"
-        case .customModules: return "slider.horizontal.3"
-        case .search: return "magnifyingglass"
-        case .bookmarks: return "bookmark"
-        case .downloads: return "arrow.down.circle"
-        case .activityLog: return "list.bullet.rectangle.portrait"
-        }
-    }
+    var title: String { feature.title }
+    var icon: String { feature.symbol }
 }
 
+// MARK: - Profile avatar
 
-// MARK: - Profile Avatar
-//
-// `ProfileSettingsButton` used to live here: a toolbar button drawing a `ProfileAvatarView` at 34pt —
-// a photo if one had been picked, otherwise two letters over a two-stop `LinearGradient` inside a
-// `strokeBorder` ring, with `AvatarStore` observed from all six toolbars that used it. It is
-// `MedxSettingsMonogram` now: one circle, one letter, in the face every number in the app is set in.
-//
-// `ProfileAvatarView` itself stays, for the two places the picture *is* the content — choosing between
-// two people on `ProfileSelectView`, and knowing whose turn it is in a duel.
-
-/// Circular profile picture with an initials-over-gradient fallback when the
-/// user has not chosen a photo yet.
+/// Circular profile picture with an initial-over-fill fallback when no photo has been chosen.
+/// Used where the picture *is* the content: choosing between two people, the Profile page's
+/// hero, and knowing whose turn it is in a duel.
 public struct ProfileAvatarView: View {
     public let profile: Profile
     public let size: CGFloat
@@ -442,7 +366,6 @@ public struct ProfileAvatarView: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                // Neutral, with the initials in the accent: no per-profile gradient.
                 Color(uiColor: .tertiarySystemFill)
 
                 Text(profile.initials)

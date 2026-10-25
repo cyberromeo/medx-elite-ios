@@ -130,8 +130,13 @@ public struct MedxModulePick: Identifiable, Hashable, Sendable {
 public final class AppState: ObservableObject {
     public static let shared = AppState()
 
-    /// Owned here rather than by `MainTabView` so Home's shortcuts can move the selection.
+    /// Owned here rather than by `MainTabView` so a route can move the selection.
     @Published public var selectedTab: TabItem = .home
+
+    /// Which Library destination the iPad sidebar has open, if any; `nil` means a main tab is
+    /// showing. Owned here so a route from outside can clear it — a deep link used to switch
+    /// `selectedTab` underneath a selected shortcut and stay invisible behind it.
+    @Published public var padLibrarySelection: MedxPadLibraryTab?
 
     // Sheet and cover routing, so an external entry point can raise any of them.
     @Published public var showSearch = false
@@ -175,6 +180,7 @@ public final class AppState: ObservableObject {
     public func open(route: MedxRoute) {
         if let tab = route.tab {
             selectedTab = tab
+            padLibrarySelection = nil
         }
 
         switch route {

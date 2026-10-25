@@ -110,6 +110,17 @@
 		9B0011692A00000100000001 /* MedxKitProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011682A00000100000001 /* MedxKitProbe.swift */; };
 		9B00116B2A00000100000001 /* Format.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00116A2A00000100000001 /* Format.swift */; };
 		9B00116D2A00000100000001 /* MedxAttemptOutbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00116C2A00000100000001 /* MedxAttemptOutbox.swift */; };
+		9B00116F2A00000100000001 /* Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00116E2A00000100000001 /* Tokens.swift */; };
+		9B0011712A00000100000001 /* Figures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011702A00000100000001 /* Figures.swift */; };
+		9B0011732A00000100000001 /* Rows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011722A00000100000001 /* Rows.swift */; };
+		9B0011752A00000100000001 /* Cards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011742A00000100000001 /* Cards.swift */; };
+		9B0011772A00000100000001 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011762A00000100000001 /* Buttons.swift */; };
+		9B0011792A00000100000001 /* States.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011782A00000100000001 /* States.swift */; };
+		9B00117B2A00000100000001 /* Sheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00117A2A00000100000001 /* Sheets.swift */; };
+		9B00117D2A00000100000001 /* BookmarkedQuestionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00117C2A00000100000001 /* BookmarkedQuestionsView.swift */; };
+		9B00117F2A00000100000001 /* WatchHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00117E2A00000100000001 /* WatchHistoryView.swift */; };
+		9B0011812A00000100000001 /* ActivityLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011802A00000100000001 /* ActivityLogView.swift */; };
+		9B0011832A00000100000001 /* DownloadsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011822A00000100000001 /* DownloadsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -234,6 +245,17 @@
 		9B0011682A00000100000001 /* MedxKitProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxKitProbe.swift; sourceTree = "<group>"; };
 		9B00116A2A00000100000001 /* Format.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Format.swift; sourceTree = "<group>"; };
 		9B00116C2A00000100000001 /* MedxAttemptOutbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxAttemptOutbox.swift; sourceTree = "<group>"; };
+		9B00116E2A00000100000001 /* Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tokens.swift; sourceTree = "<group>"; };
+		9B0011702A00000100000001 /* Figures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Figures.swift; sourceTree = "<group>"; };
+		9B0011722A00000100000001 /* Rows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Rows.swift; sourceTree = "<group>"; };
+		9B0011742A00000100000001 /* Cards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards.swift; sourceTree = "<group>"; };
+		9B0011762A00000100000001 /* Buttons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
+		9B0011782A00000100000001 /* States.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = States.swift; sourceTree = "<group>"; };
+		9B00117A2A00000100000001 /* Sheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sheets.swift; sourceTree = "<group>"; };
+		9B00117C2A00000100000001 /* BookmarkedQuestionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/BookmarkedQuestionsView.swift; sourceTree = "<group>"; };
+		9B00117E2A00000100000001 /* WatchHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/WatchHistoryView.swift; sourceTree = "<group>"; };
+		9B0011802A00000100000001 /* ActivityLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/ActivityLogView.swift; sourceTree = "<group>"; };
+		9B0011822A00000100000001 /* DownloadsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Videos/DownloadsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -402,6 +424,10 @@
 				9B0011452A00000100000001 /* DuelResultView.swift */,
 				9B0011512A00000100000001 /* RunnerChrome.swift */,
 				9B0011652A00000100000001 /* VodImportView.swift */,
+				9B00117C2A00000100000001 /* BookmarkedQuestionsView.swift */,
+				9B00117E2A00000100000001 /* WatchHistoryView.swift */,
+				9B0011802A00000100000001 /* ActivityLogView.swift */,
+				9B0011822A00000100000001 /* DownloadsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -438,6 +464,13 @@
 			children = (
 				9B0011682A00000100000001 /* MedxKitProbe.swift */,
 				9B00116A2A00000100000001 /* Format.swift */,
+				9B00116E2A00000100000001 /* Tokens.swift */,
+				9B0011702A00000100000001 /* Figures.swift */,
+				9B0011722A00000100000001 /* Rows.swift */,
+				9B0011742A00000100000001 /* Cards.swift */,
+				9B0011762A00000100000001 /* Buttons.swift */,
+				9B0011782A00000100000001 /* States.swift */,
+				9B00117A2A00000100000001 /* Sheets.swift */,
 			);
 			path = Kit;
 			sourceTree = "<group>";
@@ -640,6 +673,17 @@
 				9B0011692A00000100000001 /* MedxKitProbe.swift in Sources */,
 				9B00116B2A00000100000001 /* Format.swift in Sources */,
 				9B00116D2A00000100000001 /* MedxAttemptOutbox.swift in Sources */,
+				9B00116F2A00000100000001 /* Tokens.swift in Sources */,
+				9B0011712A00000100000001 /* Figures.swift in Sources */,
+				9B0011732A00000100000001 /* Rows.swift in Sources */,
+				9B0011752A00000100000001 /* Cards.swift in Sources */,
+				9B0011772A00000100000001 /* Buttons.swift in Sources */,
+				9B0011792A00000100000001 /* States.swift in Sources */,
+				9B00117B2A00000100000001 /* Sheets.swift in Sources */,
+				9B00117D2A00000100000001 /* BookmarkedQuestionsView.swift in Sources */,
+				9B00117F2A00000100000001 /* WatchHistoryView.swift in Sources */,
+				9B0011812A00000100000001 /* ActivityLogView.swift in Sources */,
+				9B0011832A00000100000001 /* DownloadsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

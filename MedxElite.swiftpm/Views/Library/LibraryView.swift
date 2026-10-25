@@ -297,38 +297,3 @@ struct LibraryTile: View {
         .accessibilityHint(tile.detail)
     }
 }
-
-// MARK: - Activity log, from here
-
-/// `ActivityLogView` takes a binding so a deletion inside it updates the count on the Settings
-/// row that owns the array. Library has no such array, so this owns one and fetches it — which
-/// also means opening the log from here is a fresh read rather than whatever Settings last saw.
-struct MedxActivityLogHost: View {
-    let uid: String?
-
-    @State private var attempts: [SittingAttempt] = []
-    @State private var isLoading = true
-
-    var body: some View {
-        ActivityLogView(uid: uid, attempts: $attempts)
-            .overlay {
-                if isLoading, attempts.isEmpty {
-                    ProgressView()
-                        .controlSize(.large)
-                }
-            }
-            .task {
-                guard isLoading, let uid else {
-                    isLoading = false
-                    return
-                }
-                if let token = try? await AuthService.shared.getValidIdToken() {
-                    attempts = (try? await FirestoreService.shared.fetchUserAttempts(
-                        uid: uid,
-                        idToken: token
-                    )) ?? []
-                }
-                isLoading = false
-            }
-    }
-}

@@ -37,6 +37,15 @@ public final class MedxStudyStatsStore: ObservableObject {
     @Published public private(set) var answeredToday = 0
     @Published public private(set) var correctToday = 0
     @Published public private(set) var streakDays = 0
+    /// Every sitting on file, as last ingested — the one list Home and the Profile page draw from.
+    @Published public private(set) var attempts: [SittingAttempt] = []
+    @Published public private(set) var sittings = 0
+    /// Correct over attempted across every sitting; nil until one has an answer.
+    @Published public private(set) var overallAccuracy: Int?
+    @Published public private(set) var weekSittings = 0
+    @Published public private(set) var weekAnswered = 0
+    /// Correct over attempted in the last seven days; nil until one has an answer.
+    @Published public private(set) var weekAccuracy: Int?
     @Published public private(set) var due: [MedxRevisionDue] = []
     /// Seven buckets, oldest first, ending on today. Drives the Home sparkline.
     @Published public private(set) var weeklyAnswered: [Int] = Array(repeating: 0, count: 7)
@@ -111,20 +120,21 @@ public final class MedxStudyStatsStore: ObservableObject {
 
     // MARK: - Ingest
 
-    /// The last full list handed to `ingest`, so one more finished sitting can be folded in
-    /// without waiting for the next Home load.
-    private var attemptsInMemory: [SittingAttempt] = []
-
     /// A sitting that just finished — the goal ring, the streak and the widgets move now.
     public func record(_ attempt: SittingAttempt) {
-        var list = attemptsInMemory.filter { $0.id == nil || $0.id != attempt.id }
+        var list = attempts.filter { $0.id == nil || $0.id != attempt.id }
         list.append(attempt)
         ingest(attempts: list, complete: hasIngested)
     }
 
     /// Sign-out: back to nothing, and the widgets and reminders are told so.
     public func reset() {
-        attemptsInMemory = []
+        attempts = []
+        sittings = 0
+        overallAccuracy = nil
+        weekSittings = 0
+        weekAnswered = 0
+        weekAccuracy = nil
         answeredToday = 0
         correctToday = 0
         streakDays = 0
@@ -134,20 +144,33 @@ public final class MedxStudyStatsStore: ObservableObject {
         publishSnapshot()
     }
 
-    public func ingest(attempts: [SittingAttempt], complete: Bool = true) {
-        attemptsInMemory = attempts
+    public func ingest(attempts list: [SittingAttempt], complete: Bool = true) {
+        attempts = list
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
+        let weekAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
 
         var answered = 0
         var correct = 0
         var buckets = Array(repeating: 0, count: 7)
         var activeDays: Set<Date> = []
+        var attemptedAll = 0
+        var correctAll = 0
+        var weekSittingCount = 0
+        var weekAnsweredCount = 0
+        var weekCorrectCount = 0
         // moduleId -> newest attempt plus how many sittings it has had
         var byModule: [String: (sittings: Int, last: Date, name: String, subject: String)] = [:]
 
-        for attempt in attempts {
+        for attempt in list {
+            attemptedAll += attempt.attempted
+            correctAll += attempt.score
             guard let finished = attempt.finishedDate else { continue }
+            if finished >= weekAgo {
+                weekSittingCount += 1
+                weekAnsweredCount += attempt.attempted
+                weekCorrectCount += attempt.score
+            }
             let day = calendar.startOfDay(for: finished)
             activeDays.insert(day)
 
@@ -177,6 +200,11 @@ public final class MedxStudyStatsStore: ObservableObject {
         answeredToday = answered
         correctToday = correct
         weeklyAnswered = buckets
+        sittings = list.count
+        overallAccuracy = attemptedAll > 0 ? MedxFormat.percent(correctAll, of: attemptedAll) : nil
+        weekSittings = weekSittingCount
+        weekAnswered = weekAnsweredCount
+        weekAccuracy = weekAnsweredCount > 0 ? MedxFormat.percent(weekCorrectCount, of: weekAnsweredCount) : nil
         streakDays = Self.streak(from: activeDays, today: today, calendar: calendar)
         due = Self.dueModules(from: byModule, calendar: calendar)
         if complete { hasIngested = true }
