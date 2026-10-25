@@ -99,11 +99,11 @@ public enum MedxRoute: Hashable, Sendable {
     var tab: TabItem? {
         switch self {
         case .home, .todaysRevision: return .home
-        case .qbank, .search, .quickSitting, .bookmarks, .module: return .qbank
+        case .qbank, .search, .quickSitting, .module: return .qbank
         case .tests: return .tests
         case .classes: return .videos
-        case .library, .flashcards, .vodFeed, .importVod, .batchPapers, .downloads, .customModules,
-             .faceoff, .faceoffRoom:
+        case .library, .flashcards, .vodFeed, .importVod, .batchPapers, .bookmarks, .downloads,
+             .customModules, .faceoff, .faceoffRoom:
             return .library
         case .settings: return nil
         }
@@ -142,12 +142,6 @@ public final class AppState: ObservableObject {
     @Published public var showSearch = false
     @Published public var showQuickSitting = false
     @Published public var showSettings = false
-    @Published public var showBookmarks = false
-    @Published public var showDownloads = false
-    /// The full sitting-and-class history. A sheet rather than a push, because it is reachable
-    /// from both Library and Settings and only one of those has a stack to push onto.
-    @Published public var showActivityLog = false
-    @Published public var showCustomModules = false
     @Published public var showFaceoff = false
     /// Non-nil while a duel room is on screen. Carries the game id so a Home invite card, a
     /// deep link and the lobby all open the same cover.
@@ -202,7 +196,7 @@ public final class AppState: ObservableObject {
         case .quickSitting:
             showQuickSitting = true
         case .customModules:
-            showCustomModules = true
+            push(.customModules)
         case .faceoff:
             showFaceoff = true
         case .faceoffRoom(let gameId):
@@ -211,9 +205,9 @@ public final class AppState: ObservableObject {
         case .todaysRevision:
             revisionRequestedAt = Date()
         case .bookmarks:
-            showBookmarks = true
+            push(.bookmarks)
         case .downloads:
-            showDownloads = true
+            push(.downloads)
         case .settings:
             showSettings = true
         case .module(let pick):
@@ -234,14 +228,13 @@ public final class AppState: ObservableObject {
     /// waits until that sheet has finished going away. Raising the full-screen runner in the same
     /// update that dismisses the sheet made iOS 26 and later hand the runner to the dismissing
     /// sheet's presentation: it showed question 1, but its own updates never reached the screen,
-    /// so Next looked dead and the paper never moved on. Custom modules always start from a sheet.
+    /// so Next looked dead and the paper never moved on. A screen that presents its own mode
+    /// sheet starts the sitting from that sheet's `onDismiss` for the same reason.
     public func startSitting(_ payload: RunnerPayload) {
-        let sheetWasOpen = showSearch || showQuickSitting || showSettings || showCustomModules
-            || pendingModulePick != nil
+        let sheetWasOpen = showSearch || showQuickSitting || showSettings || pendingModulePick != nil
         showSearch = false
         showQuickSitting = false
         showSettings = false
-        showCustomModules = false
         pendingModulePick = nil
 
         pendingSittingTask?.cancel()
@@ -267,11 +260,18 @@ public enum MedxLibraryDestination: Hashable, Sendable {
     case vodFeed
     case importVod
     case batchPapers
-    /// iPad only: these open in the content column beside the sidebar instead of as a sheet
-    /// floating over it.
     case customModules
     case bookmarks
     case downloads
+    case watchHistory
+    case activityLog
+}
+
+public extension Notification.Name {
+    /// Posted by the shell when the runner's cover comes down. The screens that paint
+    /// "practised" badges and best scores refetch on it, so a finished module reads as done the
+    /// moment the review is closed.
+    static let medxSittingDidFinish = Notification.Name("medx.sitting.didFinish")
 }
 
 

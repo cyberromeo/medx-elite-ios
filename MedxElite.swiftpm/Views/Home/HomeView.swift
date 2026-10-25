@@ -84,7 +84,7 @@ public struct HomeView: View {
         .onReceive(NotificationCenter.default.publisher(for: .medxContentShouldRefresh)) { _ in
             Task { await loadHomeData(force: true) }
         }
-        .sheet(isPresented: $showTracker) {
+        .navigationDestination(isPresented: $showTracker) {
             if let uid {
                 SyllabusTrackerSheet(uid: uid, trackerDoc: $trackerDoc)
             }

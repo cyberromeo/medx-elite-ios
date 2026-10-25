@@ -1,13 +1,16 @@
 import SwiftUI
 
-/// One batch-test row. Flat card, one primary action, and the history collapsed into a
-/// single line instead of a scrolling strip of pills.
+/// One batch paper, as a row: what it is, what happened last time, and the mode picker on a
+/// tap. Kept under the name it had as a card — `BatchPapersView` is its only caller.
 public struct TestDetailCard: View {
     public let test: BatchTest
     public let attempts: [SittingAttempt]
     public var onStart: (SittingMode) -> Void
 
     @State private var showStartSheet = false
+    /// The pick made inside the mode sheet, started once the sheet has gone — see
+    /// `StartSessionSheet` for why not sooner.
+    @State private var pendingMode: SittingMode?
 
     public init(test: BatchTest, attempts: [SittingAttempt], onStart: @escaping (SittingMode) -> Void) {
         self.test = test
@@ -16,13 +19,7 @@ public struct TestDetailCard: View {
     }
 
     private var testAttempts: [SittingAttempt] {
-        attempts
-            .filter { $0.sourceId == test.testId }
-            .sorted { ($0.finishedAt ?? "") < ($1.finishedAt ?? "") }
-    }
-
-    private var bestScore: Int {
-        testAttempts.reduce(0) { max($0, $1.score) }
+        attempts.filter { $0.sourceId == test.testId }
     }
 
     private var bestAttempt: SittingAttempt? {
@@ -33,143 +30,113 @@ public struct TestDetailCard: View {
         var parts: [String] = []
         if !test.subject.isEmpty { parts.append(test.subject) }
         parts.append("\(test.questionCount) questions")
-        parts.append("\(test.officialTimeMins) min")
+        if test.officialTimeMins > 0 { parts.append("\(test.officialTimeMins) min") }
         return parts.joined(separator: " · ")
     }
 
+    private var historyLine: String? {
+        guard let best = bestAttempt else { return nil }
+        let sittings = testAttempts.count == 1 ? "1 sitting" : "\(testAttempts.count) sittings"
+        let detail = test.gradable
+            ? "best \(best.score) of \(best.total)"
+            : "best \(best.attempted) of \(best.total) answered"
+        return "\(sittings) · \(detail)"
+    }
+
+    private var priorLine: String? {
+        guard let prior = test.priorAttempt, prior.status == "COMPLETED" else { return nil }
+        var text = "On Arise: \(prior.correct ?? 0) of \(prior.questionCount ?? 0)"
+        if let rank = prior.testRank { text += " · rank \(rank)" }
+        return text
+    }
+
+    private var examDetail: String {
+        let minutes = test.officialTimeMins > 0 ? test.officialTimeMins : test.questionCount
+        return test.gradable
+            ? "One \(minutes)-minute clock, the paper's official time. Answers after you submit."
+            : "One \(minutes)-minute clock. Not scored: the source withheld this paper's key."
+    }
+
+    private var revisionDetail: String? {
+        test.gradable ? nil : "60 seconds a question. With no key, nothing is marked right or wrong."
+    }
+
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            chips
+        Button {
+            HapticManager.light()
+            showStartSheet = true
+        } label: {
+            HStack(spacing: MedxSpace.m) {
+                MedxSymbolTile(
+                    test.gradable ? "checkmark.seal.fill" : "doc.text.fill",
+                    hue: test.gradable ? MedxFeature.batchPapers.color : MedxOutcome.pending,
+                    size: 36
+                )
 
-            if let prior = test.priorAttempt, prior.status == "COMPLETED" {
-                priorAttemptLine(prior)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(test.name)
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+                    Text(metaLine)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    if let historyLine {
+                        Text(historyLine)
+                            .font(.footnote)
+                            .foregroundStyle(MedxOutcome.correct)
+                    } else if let priorLine {
+                        Text(priorLine)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer(minLength: MedxSpace.s)
+
+                if !testAttempts.isEmpty {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(MedxOutcome.correct)
+                        .accessibilityLabel("Already attempted")
+                }
+
+                MedxRowChevron()
             }
-
-            if let bestAttempt {
-                historyLine(best: bestAttempt)
-            }
-
-            if !test.gradable {
-                Text("Not scored, the source app withheld this paper's answer key, so it can be answered for practice only.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            startButton
+            .padding(.vertical, 2)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .medxCard()
         .contextMenu {
-            Button {
-                HapticManager.light()
-                showStartSheet = true
-            } label: {
-                Label(testAttempts.isEmpty ? "Begin test" : "Reattempt", systemImage: "play.circle")
-            }
             Button {
                 HapticManager.medium()
                 onStart(.revision)
             } label: {
-                Label("Start in Revision mode", systemImage: "bolt")
+                Label("Revision mode", systemImage: "bolt")
             }
             Button {
                 HapticManager.medium()
                 onStart(.exam)
             } label: {
-                Label("Start in Exam mode", systemImage: "timer")
+                Label("Exam mode", systemImage: "timer")
             }
         }
-        .sheet(isPresented: $showStartSheet) {
+        .sheet(isPresented: $showStartSheet, onDismiss: startPending) {
             StartSessionSheet(
                 title: test.name,
                 subtitle: test.subject,
-                questionCount: test.questionCount
+                questionCount: test.questionCount,
+                examDetail: examDetail,
+                revisionDetail: revisionDetail
             ) { mode in
-                onStart(mode)
+                pendingMode = mode
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(test.name)
+        .accessibilityValue(metaLine)
+        .accessibilityHint("Opens the mode picker")
     }
 
-    // MARK: - Pieces
-
-    private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(test.name)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(metaLine)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 0)
-
-            if !testAttempts.isEmpty {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(MedxTheme.successGreen)
-                    .accessibilityLabel("Already attempted")
-            }
-        }
-    }
-
-    private var chips: some View {
-        HStack(spacing: 6) {
-            if let mode = test.mode, !mode.isEmpty {
-                MedxChip(mode.capitalized, tint: MedxTheme.primaryBlue)
-            }
-            MedxChip(
-                test.gradable ? "Answer key" : "No key",
-                icon: test.gradable ? "checkmark.seal.fill" : "exclamationmark.triangle.fill",
-                tint: test.gradable ? MedxTheme.successGreen : MedxTheme.warningOrange
-            )
-            if let batch = test.batch, !batch.isEmpty {
-                MedxChip(batch, tint: MedxTheme.indigoAccent)
-            }
-            Spacer(minLength: 0)
-        }
-    }
-
-    private func priorAttemptLine(_ prior: PriorAttemptInfo) -> some View {
-        var text = "On Arise: \(prior.correct ?? 0)/\(prior.questionCount ?? 0)"
-        if let rank = prior.testRank { text += " · rank \(rank)" }
-
-        return Label(text, systemImage: "clock.arrow.circlepath")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-    }
-
-    private func historyLine(best: SittingAttempt) -> some View {
-        let detail = test.gradable
-            ? "Best \(bestScore)/\(best.total) (\(best.totalPercentage)%)"
-            : "Best \(best.attempted)/\(best.total) answered"
-
-        return Label(
-            "\(testAttempts.count) sitting\(testAttempts.count == 1 ? "" : "s") · \(detail)",
-            systemImage: "chart.bar.fill"
-        )
-        .font(.caption)
-        .foregroundStyle(MedxTheme.successGreen)
-    }
-
-    private var startButton: some View {
-        Button {
-            HapticManager.light()
-            showStartSheet = true
-        } label: {
-            Text(testAttempts.isEmpty ? "Begin Test" : "Reattempt")
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity, minHeight: 44)
-        }
-        .medxFilledButton()
-        .buttonBorderShape(.capsule)
-        .tint(test.gradable ? MedxTheme.accent : MedxTheme.warningOrange)
-        .padding(.top, 2)
+    private func startPending() {
+        guard let mode = pendingMode else { return }
+        pendingMode = nil
+        onStart(mode)
     }
 }

@@ -3,10 +3,9 @@ import SwiftUI
 // MARK: - Download control
 
 /// One compact control covering every download state: save, pause, resume, retry, delete.
-/// Used in the subject list, the offline library, and anywhere else a class row appears.
+/// Used at the end of a class row in a subject, the VOD feed and the offline library.
 struct VideoDownloadButton: View {
     let video: RecordedVideo
-    var diameter: CGFloat = 32
 
     @ObservedObject private var downloads = VideoDownloadStore.shared
 
@@ -18,7 +17,7 @@ struct VideoDownloadButton: View {
         } label: {
             glyph
         }
-        .accessibilityLabel("Offline download for \(video.title)")
+        .accessibilityLabel("Offline download for \(video.title.medxDisplayTitle)")
         .accessibilityValue(item?.statusLabel ?? "Not downloaded")
     }
 
@@ -89,8 +88,8 @@ struct VideoDownloadButton: View {
     private var glyph: some View {
         ZStack {
             Circle()
-                .fill(MedxSurface.fieldFill)
-                .frame(width: diameter, height: diameter)
+                .fill(Color(uiColor: .tertiarySystemFill))
+                .frame(width: 32, height: 32)
 
             stateGlyph
         }
@@ -104,38 +103,32 @@ struct VideoDownloadButton: View {
             switch item.state {
             case .queued:
                 Image(systemName: "clock")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
             case .downloading:
-                ZStack {
-                    Circle()
-                        .stroke(MedxTheme.accent.opacity(0.2), lineWidth: 2.5)
-                    Circle()
-                        .trim(from: 0, to: max(0.03, item.progress))
-                        .stroke(MedxTheme.accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    RoundedRectangle(cornerRadius: 1, style: .continuous)
-                        .fill(MedxTheme.accent)
-                        .frame(width: 7, height: 7)
-                }
-                .frame(width: diameter - 9, height: diameter - 9)
-                .animation(.easeOut(duration: 0.25), value: item.progress)
+                MedxRing(fraction: item.progress, tint: MedxTheme.accent, lineWidth: 2.5)
+                    .frame(width: 20, height: 20)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 1, style: .continuous)
+                            .fill(MedxTheme.accent)
+                            .frame(width: 6, height: 6)
+                    }
             case .paused:
                 Image(systemName: "play.fill")
-                    .font(.system(size: 11, weight: .black))
+                    .font(.caption.weight(.black))
                     .foregroundStyle(MedxTheme.accent)
             case .failed:
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(MedxTheme.warningOrange)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(MedxOutcome.flagged)
             case .completed:
                 Image(systemName: "checkmark")
-                    .font(.system(size: 13, weight: .black))
-                    .foregroundStyle(MedxTheme.successGreen)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(MedxOutcome.correct)
             }
         } else {
             Image(systemName: "arrow.down.to.line")
-                .font(.system(size: 12, weight: .bold))
+                .font(.caption.weight(.bold))
                 .foregroundStyle(MedxTheme.accent)
         }
     }
@@ -143,8 +136,8 @@ struct VideoDownloadButton: View {
 
 // MARK: - Offline library
 
-/// Browse and manage everything saved on this device. Files live in the app's own
-/// container — nothing is exported to Files or Photos.
+/// Everything saved on this device. Files live in the app's own container — nothing is exported
+/// to Files or Photos — and play inside the app with no signal.
 struct DownloadsView: View {
     @ObservedObject private var downloads = VideoDownloadStore.shared
     @State private var activeVideo: RecordedVideo?
@@ -153,60 +146,25 @@ struct DownloadsView: View {
     private var inProgress: [DownloadedVideo] { downloads.inProgressItems }
     private var finished: [DownloadedVideo] { downloads.completedItems }
 
+    private var subtitle: String {
+        guard !downloads.items.isEmpty else { return "" }
+        return "\(finished.count) saved · \(MedxFormat.bytes(downloads.totalBytes))"
+    }
+
     var body: some View {
         Group {
             if downloads.items.isEmpty {
-                ContentUnavailableView {
-                    Label("No Downloads Yet", systemImage: "arrow.down.circle")
-                } description: {
-                    Text("Tap the download icon on any class to keep it on this device. Downloads play inside the app, even with no signal.")
-                }
+                MedxEmptyState(
+                    "No downloads yet",
+                    symbol: MedxFeature.downloads.symbol,
+                    message: "Swipe left on any class to save it here. Saved classes play inside the app with no signal."
+                )
             } else {
-                List {
-                    Section {
-                        MedxMetricsRow {
-                            MedxMetric(
-                                icon: "internaldrive.fill",
-                                value: downloads.formattedTotalSize,
-                                label: "on device",
-                                color: MedxIconHue.blue
-                            )
-                            MedxMetric(
-                                icon: "checkmark.circle.fill",
-                                value: "\(finished.count)",
-                                label: "ready",
-                                color: MedxTheme.successGreen
-                            )
-                            MedxMetric(
-                                icon: "arrow.down.circle.fill",
-                                value: "\(inProgress.count)",
-                                label: "in queue",
-                                color: MedxTheme.warningOrange
-                            )
-                        }
-                        .padding(.vertical, 4)
-                    } footer: {
-                        Text("Saved classes stay inside MedX Elite and are excluded from device backups. Watch progress is shared with the streaming copy of the same class.")
-                    }
-
-                    if !inProgress.isEmpty {
-                        Section("Downloading") {
-                            ForEach(inProgress) { row($0) }
-                        }
-                    }
-
-                    if !finished.isEmpty {
-                        Section("Saved on this device") {
-                            ForEach(finished) { row($0) }
-                        }
-                    }
-                }
-                .listStyle(.insetGrouped)
-                .scrollContentBackground(.hidden)
+                list
             }
         }
-        .medxBackdrop(.videos, intensity: 0.8)
-        .navigationTitle("Downloads")
+        .navigationTitle(MedxFeature.downloads.title)
+        .navigationSubtitle(subtitle)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             if !downloads.items.isEmpty {
@@ -235,7 +193,7 @@ struct DownloadsView: View {
             }
             Button("Keep them", role: .cancel) {}
         } message: {
-            Text("This frees \(downloads.formattedTotalSize) on this device. You can download them again any time.")
+            Text("This frees \(MedxFormat.bytes(downloads.totalBytes)) on this device. You can download them again any time.")
         }
         .fullScreenCover(item: $activeVideo) { video in
             VideoPlayerView(video: video) { activeVideo = nil }
@@ -251,47 +209,102 @@ struct DownloadsView: View {
         #endif
     }
 
-    private func row(_ item: DownloadedVideo) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: item.state == .completed ? "play.fill" : "arrow.down")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(statusColor(item))
-                .frame(width: 38, height: 38)
-                .background(statusColor(item).opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    // MARK: - List
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.video.title.medxDisplayTitle)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-
-                Text(subtitle(for: item))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-
-                if item.state != .completed {
-                    ProgressView(value: item.progress)
-                        .tint(statusColor(item))
+    private var list: some View {
+        List {
+            Section {
+                MedxStatRow {
+                    MedxStatTile(
+                        MedxFormat.bytes(downloads.totalBytes),
+                        label: "on device",
+                        symbol: "internaldrive.fill",
+                        hue: MedxFeature.downloads.color
+                    )
+                    MedxStatTile(
+                        "\(finished.count)",
+                        label: "ready",
+                        symbol: "checkmark.circle.fill",
+                        hue: MedxOutcome.correct
+                    )
+                    MedxStatTile(
+                        "\(inProgress.count)",
+                        label: "in queue",
+                        symbol: "arrow.down.circle.fill",
+                        hue: MedxOutcome.flagged
+                    )
                 }
-
-                Text(item.statusLabel)
-                    .font(.caption)
-                    .foregroundStyle(item.state == .failed ? MedxTheme.warningOrange : .secondary)
-                    .lineLimit(2)
+                .padding(.vertical, MedxSpace.xs)
+            } footer: {
+                Text("Saved classes stay inside MedX Elite and are left out of device backups. Watch progress is shared with the streaming copy of the same class.")
             }
 
-            Spacer(minLength: 4)
+            if !inProgress.isEmpty {
+                Section("Downloading") {
+                    ForEach(inProgress) { row($0) }
+                }
+            }
+
+            if !finished.isEmpty {
+                Section {
+                    ForEach(finished) { row($0) }
+                } header: {
+                    Text("Saved on this device")
+                } footer: {
+                    Text(MedxCopy.downloadGestures)
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+    }
+
+    private func row(_ item: DownloadedVideo) -> some View {
+        HStack(spacing: MedxSpace.m) {
+            Button {
+                guard item.state == .completed else { return }
+                HapticManager.light()
+                activeVideo = item.video
+            } label: {
+                HStack(spacing: MedxSpace.m) {
+                    MedxSymbolTile(
+                        item.state == .completed ? "play.fill" : "arrow.down",
+                        hue: statusColor(item),
+                        size: 36
+                    )
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.video.title.medxDisplayTitle)
+                            .foregroundStyle(.primary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                        Text(detail(for: item))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        if item.state != .completed {
+                            ProgressView(value: item.progress)
+                                .tint(statusColor(item))
+                                .padding(.top, 2)
+                        }
+                        Text(item.statusLabel)
+                            .font(.caption)
+                            .foregroundStyle(item.state == .failed ? MedxOutcome.flagged : Color.secondary)
+                            .lineLimit(2)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(item.video.title.medxDisplayTitle)
+            .accessibilityValue(item.statusLabel)
+            .accessibilityHint(item.state == .completed ? "Plays this download" : "")
 
             VideoDownloadButton(video: item.video)
         }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            guard item.state == .completed else { return }
-            HapticManager.light()
-            activeVideo = item.video
-        }
+        .padding(.vertical, 2)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive) {
                 HapticManager.warning()
@@ -311,7 +324,7 @@ struct DownloadsView: View {
                 } label: {
                     Label("Pause", systemImage: "pause.fill")
                 }
-                .tint(MedxTheme.warningOrange)
+                .tint(MedxOutcome.flagged)
             case .paused, .failed:
                 Button {
                     HapticManager.light()
@@ -319,7 +332,7 @@ struct DownloadsView: View {
                 } label: {
                     Label("Resume", systemImage: "play.fill")
                 }
-                .tint(MedxTheme.successGreen)
+                .tint(MedxOutcome.correct)
             case .completed:
                 Button {
                     HapticManager.light()
@@ -327,14 +340,12 @@ struct DownloadsView: View {
                 } label: {
                     Label("Play", systemImage: "play.fill")
                 }
-                .tint(MedxCandy.violet)
+                .tint(MedxTheme.accent)
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityHint(item.state == .completed ? "Plays this download" : "")
     }
 
-    private func subtitle(for item: DownloadedVideo) -> String {
+    private func detail(for item: DownloadedVideo) -> String {
         var parts = [item.video.subject]
         if let faculty = item.video.faculty, !faculty.isEmpty { parts.append(faculty) }
         return parts.joined(separator: " · ")
@@ -342,9 +353,9 @@ struct DownloadsView: View {
 
     private func statusColor(_ item: DownloadedVideo) -> Color {
         switch item.state {
-        case .completed: return MedxTheme.successGreen
-        case .failed: return MedxTheme.warningOrange
-        case .paused: return MedxTheme.primaryPurple
+        case .completed: return MedxOutcome.correct
+        case .failed: return MedxOutcome.flagged
+        case .paused: return MedxOutcome.pending
         case .queued, .downloading: return MedxTheme.accent
         }
     }

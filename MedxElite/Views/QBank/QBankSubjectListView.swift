@@ -7,11 +7,13 @@ import SwiftUI
 /// collection in the same shape and differ only in the `mw_` prefix on every id, so the
 /// segmented control is a filter over one list rather than two code paths — and the runner
 /// never learns that a second bank exists.
+///
+/// A grouped list: the bank switch, three figures, then one row a subject. Search and custom
+/// modules are Library doors and bookmarks are under Yours there, so the toolbar holds the
+/// profile button and nothing else.
 public struct QBankSubjectListView: View {
     @ObservedObject private var authService = AuthService.shared
-    @ObservedObject private var activityStore = ActivityStore.shared
     @ObservedObject private var appState = AppState.shared
-    @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
 
     @State private var subjects: [MedxBankSubject] = []
     @State private var attempts: [SittingAttempt] = []
@@ -23,7 +25,6 @@ public struct QBankSubjectListView: View {
     @State private var bank: MedxBank = .arise
     @State private var searchText = ""
     @State private var loadState: MedxLoadState = .loading
-    @State private var activeRunnerPayload: RunnerPayload?
 
     public init() {}
 
@@ -34,6 +35,8 @@ public struct QBankSubjectListView: View {
     #endif
 
     private var uid: String? { authService.currentSession?.uid }
+
+    private var isLoading: Bool { loadState == .loading && subjects.isEmpty }
 
     private func subjects(in bank: MedxBank) -> [MedxBankSubject] {
         subjects.filter { $0.bank == bank }
@@ -53,70 +56,46 @@ public struct QBankSubjectListView: View {
         }
     }
 
-    private var allQuestions: Int {
-        subjects.reduce(0) { $0 + $1.questionCount }
-    }
-
     public var body: some View {
         Group {
-            switch loadState {
-            case .loading:
-                MedxSkeleton("Loading both banks…")
-            case .failed(let message):
-                failedState(message: message)
-            case .loaded:
-                if subjects.isEmpty {
-                    ContentUnavailableView(
-                        "No Subjects",
-                        systemImage: "books.vertical",
-                        description: Text("Question-bank subjects will appear here once they are published.")
-                    )
-                } else {
-                    content
+            if case .failed(let message) = loadState, subjects.isEmpty {
+                MedxEmptyState(
+                    "Couldn't load the bank",
+                    symbol: "wifi.exclamationmark",
+                    message: message,
+                    actionTitle: "Try again"
+                ) {
+                    HapticManager.light()
+                    loadState = .loading
+                    Task { await loadData() }
                 }
+            } else {
+                list
             }
         }
-        .medxBackdrop(.qbank)
-        .medxScrollEdge()
-        .navigationTitle("Question Bank")
-        // Three toolbar buttons leave no room for the title beside them (it truncated to
-        // "Question…"), so here the large title takes its own line under the buttons.
+        .navigationTitle(MedxFeature.qbank.title)
+        .navigationSubtitle(bank.eyebrow)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button {
-                    HapticManager.light()
-                    appState.open(route: .customModules)
-                } label: {
-                    Image(systemName: "slider.horizontal.3")
-                }
-                .accessibilityLabel("Custom modules")
-
-                Button {
-                    HapticManager.light()
-                    appState.open(route: .search(nil))
-                } label: {
-                    Image(systemName: "text.magnifyingglass")
-                }
-                .accessibilityLabel("Search all questions")
-
+            ToolbarItem(placement: .topBarTrailing) {
                 MedxProfileButton()
             }
         }
-        .searchable(
-            text: $searchText,
-            placement: .navigationBarDrawer(displayMode: .automatic),
-            prompt: "Search subjects"
-        )
+        .searchable(text: $searchText, prompt: "Search subjects")
+        .searchToolbarBehavior(.minimize)
         .task {
             guard case .loading = loadState else { return }
             bank = MedxBank(rawValue: UserDefaults.standard.string(forKey: Self.bankKey) ?? "") ?? .arise
             await medxLoadRevalidating { await loadData() }
         }
-        .fullScreenCover(item: $activeRunnerPayload) { (payload: RunnerPayload) in
-            QuizRunnerView(payload: payload) {
-                Task { await loadData() }
-            }
+        .onChange(of: bank) { _, next in
+            UserDefaults.standard.set(next.rawValue, forKey: Self.bankKey)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .medxContentShouldRefresh)) { _ in
+            Task { await loadData() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .medxSittingDidFinish)) { _ in
+            Task { await loadData() }
         }
         #if DEBUG
         // Screenshot runs only (`-medxScreen subject`): walks into the first subject once the
@@ -133,82 +112,68 @@ public struct QBankSubjectListView: View {
         #endif
     }
 
-    // MARK: - Content
+    // MARK: - List
 
-    private var content: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 20) {
-                MedxPageHeader(
-                    section: .qbank,
-                    eyebrow: bank.eyebrow,
-                    lead: "\(allQuestions.formatted()) questions across ARISE and Marrow.",
-                    symbol: bank.symbol
-                )
-
-                MedxGlassTabs(
-                    section: .qbank,
-                    segments: MedxBank.allCases.map {
-                        MedxSegment(
-                            value: $0,
-                            label: $0.label,
-                            count: subjects(in: $0).count,
-                            icon: $0 == .arise ? "graduationcap" : "archivebox"
-                        )
-                    },
-                    selection: $bank,
-                    countNoun: "subjects"
-                )
-                .onChange(of: bank) { _, next in
-                    UserDefaults.standard.set(next.rawValue, forKey: Self.bankKey)
+    private var list: some View {
+        List {
+            Section {
+                Picker("Bank", selection: $bank) {
+                    ForEach(MedxBank.allCases) { item in
+                        Text(item.label).tag(item)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
 
-                MedxMetricsRow {
-                    MedxMetric(
-                        icon: "books.vertical.fill",
-                        value: "\(subjects(in: bank).count)",
+            Section {
+                MedxStatRow {
+                    MedxStatTile(
+                        "\(subjects(in: bank).count)",
                         label: "subjects",
-                        color: MedxIconHue.blue
+                        symbol: "books.vertical.fill",
+                        hue: MedxFeature.qbank.color
                     )
-                    MedxMetric(
-                        icon: "square.grid.2x2.fill",
-                        value: bankTotals.modules.formatted(),
+                    MedxStatTile(
+                        MedxFormat.count(bankTotals.modules),
                         label: "modules",
-                        color: MedxIconHue.purple
+                        symbol: "square.grid.2x2.fill",
+                        hue: MedxFeature.customModules.color
                     )
-                    MedxMetric(
-                        icon: "questionmark.circle.fill",
-                        value: bankTotals.questions.formatted(),
+                    MedxStatTile(
+                        MedxFormat.count(bankTotals.questions),
                         label: "questions",
-                        color: MedxIconHue.sky
+                        symbol: "questionmark.circle.fill",
+                        hue: MedxFeature.search.color
                     )
                 }
+                .padding(.vertical, MedxSpace.xs)
+                .redacted(reason: isLoading ? .placeholder : [])
+            }
 
-                bookmarksRow
-
-                if shownSubjects.isEmpty {
+            if isLoading {
+                Section("Subjects") {
+                    MedxPlaceholderRows(count: 8)
+                }
+            } else if shownSubjects.isEmpty {
+                Section {
                     emptyBankState
-                } else {
-                    VStack(alignment: .leading, spacing: 10) {
-                        MedxSectionHeader("Subjects")
-
-                        ForEach(shownSubjects) { subject in
-                            subjectLink(subject)
-                        }
+                }
+            } else {
+                Section("Subjects") {
+                    ForEach(shownSubjects) { subject in
+                        subjectLink(subject)
                     }
                 }
             }
-            .padding(.horizontal, MedxSurface.gutter)
-            .padding(.top, 6)
-            .padding(.bottom, 28)
         }
+        .listStyle(.insetGrouped)
         .refreshable {
             // A pull always reaches the backend: cached copies are kept for offline, never
             // served in place of a fresh read the student asked for.
             await CacheManager.shared.markAllStale()
             await loadData()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .medxContentShouldRefresh)) { _ in
-            Task { await loadData() }
         }
     }
 
@@ -233,135 +198,66 @@ public struct QBankSubjectListView: View {
         } label: {
             subjectRow(subject)
         }
-        .buttonStyle(.plain)
         // Long press to go straight at the subject without walking its chapter tree first.
         .contextMenu {
             Button {
                 HapticManager.light()
                 appState.open(route: .search(subject.name))
             } label: {
-                Label("Search \(subject.name)", systemImage: "text.magnifyingglass")
+                Label("Search \(subject.name)", systemImage: MedxFeature.search.symbol)
             }
             Button {
                 HapticManager.light()
                 appState.open(route: .customModules)
             } label: {
-                Label("Build a custom module", systemImage: "slider.horizontal.3")
+                Label("Build a custom module", systemImage: MedxFeature.customModules.symbol)
             }
         }
     }
 
     private func subjectRow(_ subject: MedxBankSubject) -> some View {
         let practised = practisedBySubject[subject.id] ?? 0
-        let fraction = subject.moduleCount > 0
-            ? Double(practised) / Double(subject.moduleCount)
-            : 0
 
-        return HStack(spacing: 14) {
-            MedxSymbolMark(MedxSubjectArt.symbol(for: subject.name), hue: MedxSection.qbank.fill, size: 40)
+        return HStack(spacing: MedxSpace.m) {
+            MedxSymbolTile(MedxSubjectArt.symbol(for: subject.name), hue: MedxFeature.qbank.color, size: 36)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(subject.name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-
-                Text("\(subject.moduleCount) modules · \(subject.questionCount.formatted()) questions")
-                    .font(.caption)
+                Text("\(subject.moduleCount) modules · \(MedxFormat.count(subject.questionCount)) questions")
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
-
                 if practised > 0 {
-                    HStack(spacing: 6) {
-                        ProgressView(value: fraction)
-                            .tint(MedxTheme.successGreen)
-                            .frame(maxWidth: 92)
-                        Text("\(practised) done")
-                            .font(.caption2.weight(.semibold).monospacedDigit())
-                            .foregroundStyle(MedxTheme.successGreen)
-                    }
+                    ProgressView(value: Double(practised), total: Double(max(subject.moduleCount, 1)))
+                        .tint(MedxOutcome.correct)
+                        .padding(.top, 2)
                 }
             }
 
-            Spacer(minLength: 0)
+            Spacer(minLength: MedxSpace.s)
 
-            MedxDisclosure()
+            if practised > 0 {
+                Text("\(practised) of \(subject.moduleCount)")
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
         }
-        .padding(14)
-        .frame(minHeight: 68)
-        .medxCard()
-        .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+        .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(subject.name)
         .accessibilityValue("\(subject.bank.label), \(subject.moduleCount) modules, \(practised) practised")
     }
 
-    private var bookmarksRow: some View {
-        NavigationLink {
-            BookmarkedQuestionsView(uid: uid)
-        } label: {
-            HStack(spacing: 14) {
-                Image(systemName: "bookmark.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(MedxTheme.primaryPurple)
-                    .frame(width: 34, height: 34)
-                    .background(MedxTheme.primaryPurple.opacity(0.14), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-
-                Text("Bookmarked questions")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Spacer(minLength: 0)
-
-                Text("\(activityStore.bookmarks(for: uid).count)")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
-
-                MedxDisclosure()
-            }
-            .padding(14)
-            .medxCard()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Bookmarked questions")
-        .accessibilityValue("\(activityStore.bookmarks(for: uid).count) saved")
-    }
-
-    // MARK: - States
-
     /// Reached when a bank came back empty. Marrow is the one that can: it is a single seeded
     /// document, and if it has not been written the segment should say so rather than looking
     /// like a failed fetch.
     private var emptyBankState: some View {
-        ContentUnavailableView {
-            Label(
-                searchText.isEmpty ? "\(bank.label) is not seeded yet" : "No Matches",
-                systemImage: searchText.isEmpty ? "tray" : "magnifyingglass"
-            )
-        } description: {
-            Text(searchText.isEmpty
-                 ? "Nothing has been published to this bank. The other one is unaffected."
-                 : "No subject matches “\(searchText)”.")
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 24)
-    }
-
-    private func failedState(message: String) -> some View {
-        ContentUnavailableView {
-            Label("Couldn't Load the Bank", systemImage: "wifi.exclamationmark")
-        } description: {
-            Text(message)
-        } actions: {
-            Button("Try Again") {
-                HapticManager.light()
-                loadState = .loading
-                Task { await loadData() }
-            }
-            .medxFilledButton()
-            .buttonBorderShape(.capsule)
-        }
+        MedxEmptyState(
+            searchText.isEmpty ? "\(bank.label) is not seeded yet" : "No matches",
+            symbol: searchText.isEmpty ? "tray" : "magnifyingglass",
+            message: searchText.isEmpty
+                ? "Nothing has been published to this bank. The other one is unaffected."
+                : "No subject matches “\(searchText)”."
+        )
     }
 
     // MARK: - Data
@@ -385,9 +281,9 @@ public struct QBankSubjectListView: View {
             loadState = .loaded
 
             // The subject tree is the only place the module list exists, so this is where
-            // Spotlight and the index's progress denominator get their numbers. Both now cover
-            // both banks: the index keys on `MedxBankSubject.id` as a string, and Spotlight only
-            // ever wanted the names.
+            // Spotlight and the index's progress denominator get their numbers. Both cover both
+            // banks: the index keys on `MedxBankSubject.id` as a string, and Spotlight only ever
+            // wanted the names.
             MedxQuestionIndexStore.shared.noteExpectations(subjects: loadedSubjects)
             Task { await MedxSpotlightIndexer.shared.indexModules(loadedSubjects) }
         } catch {
@@ -411,13 +307,15 @@ public struct QBankSubjectListView: View {
     }
 
     private func startSession(moduleId: String, subjectName: String, moduleName: String, mode: SittingMode) {
-        activeRunnerPayload = RunnerPayload(
-            kind: "qbank",
-            id: moduleId,
-            name: moduleName,
-            subject: subjectName,
-            mode: mode,
-            gradable: true
+        appState.startSitting(
+            RunnerPayload(
+                kind: "qbank",
+                id: moduleId,
+                name: moduleName,
+                subject: subjectName,
+                mode: mode,
+                gradable: true
+            )
         )
     }
 }

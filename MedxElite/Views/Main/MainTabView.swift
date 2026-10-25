@@ -5,8 +5,8 @@ import SwiftUI
 /// Five tabs on a phone, a sidebar and a detail column on an iPad. Notification taps, Spotlight
 /// results, Siri shortcuts, widget links and the search screen's "practise these" all set a flag
 /// on `AppState`; the sheets and covers live here so there is exactly one presentation host no
-/// matter which screen happens to be on top — including Settings, which six toolbars used to
-/// present on their own.
+/// matter which screen happens to be on top — Settings, which six toolbars used to present on
+/// their own, and the runner, which three screens used to cover themselves with.
 public struct MainTabView: View {
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var authService = AuthService.shared
@@ -46,20 +46,6 @@ public struct MainTabView: View {
                 MedxCustomModuleSheet()
                     .medxPageSheet()
             }
-            // These four open in the iPad detail column instead (see `padRoute`), and become
-            // pushes inside Library on the phone once that screen is rebuilt.
-            .sheet(isPresented: padAware(\.showCustomModules)) {
-                hosted(flag: \.showCustomModules) { CustomModulesView() }
-            }
-            .sheet(isPresented: padAware(\.showBookmarks)) {
-                hosted(flag: \.showBookmarks) { BookmarkedQuestionsView(uid: uid) }
-            }
-            .sheet(isPresented: padAware(\.showDownloads)) {
-                hosted(flag: \.showDownloads) { DownloadsView() }
-            }
-            .sheet(isPresented: padAware(\.showActivityLog)) {
-                hosted(flag: \.showActivityLog) { MedxActivityLogHost(uid: uid) }
-            }
             .fullScreenCover(isPresented: $appState.showFaceoff) {
                 FaceoffLobbyView()
             }
@@ -80,49 +66,18 @@ public struct MainTabView: View {
                     )
                 }
             }
+            // The one runner host. Every screen that starts a sitting goes through
+            // `AppState.startSitting`, and the screens that paint "practised" badges and best
+            // scores refetch when the cover comes down.
             .fullScreenCover(item: $appState.pendingRunnerPayload) { payload in
                 QuizRunnerView(payload: payload) {
                     appState.pendingRunnerPayload = nil
+                    NotificationCenter.default.post(name: .medxSittingDidFinish, object: nil)
                 }
             }
             .task(id: appState.revisionRequestedAt) {
                 await startTodaysRevision()
             }
-            .onChange(of: appState.showCustomModules) { _, on in padRoute(on, \.showCustomModules, to: .customModules) }
-            .onChange(of: appState.showBookmarks) { _, on in padRoute(on, \.showBookmarks, to: .bookmarks) }
-            .onChange(of: appState.showDownloads) { _, on in padRoute(on, \.showDownloads, to: .downloads) }
-            .onChange(of: appState.showActivityLog) { _, on in padRoute(on, \.showActivityLog, to: .activityLog) }
-    }
-
-    /// A page inside a sheet, with the system close button. Temporary: gone when Library pushes
-    /// these destinations itself.
-    private func hosted<Content: View>(
-        flag: ReferenceWritableKeyPath<AppState, Bool>,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        NavigationStack {
-            content()
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button(role: .close) { appState[keyPath: flag] = false }
-                    }
-                }
-        }
-        .medxPageSheet()
-    }
-
-    /// A sheet flag that never presents on iPad, where `padRoute` turns it into a detail pick.
-    private func padAware(_ flag: ReferenceWritableKeyPath<AppState, Bool>) -> Binding<Bool> {
-        Binding(
-            get: { sizeClass != .regular && appState[keyPath: flag] },
-            set: { appState[keyPath: flag] = $0 }
-        )
-    }
-
-    private func padRoute(_ on: Bool, _ flag: ReferenceWritableKeyPath<AppState, Bool>, to tab: MedxPadLibraryTab) {
-        guard on, sizeClass == .regular else { return }
-        appState.padLibrarySelection = tab
-        appState[keyPath: flag] = false
     }
 
     @ViewBuilder
@@ -226,11 +181,11 @@ public struct MainTabView: View {
         case .vodFeed: VodFeedView()
         case .importVod: VodImportView()
         case .faceoff: FaceoffLobbyView()
-        case .batchPapers: BatchPapersView()
         case .customModules: CustomModulesView()
         case .search: MedxQuestionSearchView()
         case .bookmarks: BookmarkedQuestionsView(uid: uid)
         case .downloads: DownloadsView()
+        case .watchHistory: WatchHistoryView(uid: uid)
         case .activityLog: MedxActivityLogHost(uid: uid)
         }
     }
@@ -317,10 +272,11 @@ enum MedxPadSelection: Hashable {
     case library(MedxPadLibraryTab)
 }
 
-/// The Library doors listed in the iPad sidebar. Quick sitting is a sheet and Settings is the
-/// profile button's, so neither is here.
+/// The Library doors listed in the iPad sidebar — the same doors, in the same order, as the
+/// Library tab's list. Quick sitting is a sheet and Settings is the profile button's, so neither
+/// is here; the batch papers live under Tests.
 public enum MedxPadLibraryTab: String, CaseIterable, Identifiable, Hashable, Sendable {
-    case flashcards, customModules, search, vodFeed, importVod, faceoff, batchPapers, bookmarks, downloads, activityLog
+    case flashcards, customModules, search, vodFeed, importVod, faceoff, bookmarks, downloads, watchHistory, activityLog
 
     public var id: String { rawValue }
 
@@ -332,9 +288,9 @@ public enum MedxPadLibraryTab: String, CaseIterable, Identifiable, Hashable, Sen
         case .vodFeed: return .vod
         case .importVod: return .importClasses
         case .faceoff: return .faceoff
-        case .batchPapers: return .batchPapers
         case .bookmarks: return .bookmarks
         case .downloads: return .downloads
+        case .watchHistory: return .watchHistory
         case .activityLog: return .activityLog
         }
     }

@@ -1,12 +1,12 @@
 import SwiftUI
 
-/// The Library tab — everything that is not a daily habit in its own right.
+/// The Library tab: everything that is not one of the four daily tabs, as a grouped list of
+/// doors. Four sections say what kind of thing each door is — study, watch, play, yours — and
+/// every door pushes, so Back always means the same thing. Settings is the profile button's and
+/// the batch papers live under Tests, so neither is here.
 ///
-/// Four of the five tabs are things you open without a reason: the dashboard, the bank, the
-/// papers, the classes. Everything else is a place you go *to*, and a grid says that better than
-/// a list does — a list implies an order to work through, a grid is a set of doors. Flashcards
-/// leads it, because it was a tab yesterday and burying it would be the cost of this
-/// rearrangement rather than its point.
+/// Search, quick sitting and Faceoff still open through `AppState` (a sheet, a sheet and a
+/// cover): those screens carry their own navigation and are rebuilt in the next gate.
 public struct LibraryView: View {
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var activityStore = ActivityStore.shared
@@ -16,41 +16,49 @@ public struct LibraryView: View {
     @ObservedObject private var vod = MedxVodWatcher.shared
     @ObservedObject private var lobbyWatcher = MedxLobbyWatcher.shared
 
-    @Environment(\.horizontalSizeClass) private var sizeClass
-    @Environment(\.dynamicTypeSize) private var typeSize
-
     public init() {}
 
     private var uid: String? { authService.currentSession?.uid }
 
-    /// Two up on a phone, four on an iPad. At an accessibility text size the grid collapses to one
-    /// column: a tile whose title has wrapped to three lines is not a grid any more, and `List`
-    /// would have been the honest layout at that size all along.
-    /// iPad: three across in portrait (a 3 x 4 grid of the twelve doors) and four across in
-    /// landscape, every tile the same size. A fixed four in portrait left 105 pt tiles with
-    /// "Flashcar…" titles and a "12 new" badge broken over three lines.
-    private func columns(for size: CGSize) -> [GridItem] {
-        if typeSize.isAccessibilitySize { return [GridItem(.flexible(), spacing: 12)] }
-        let count: Int
-        if sizeClass == .regular {
-            count = size.width > size.height ? 4 : 3
-        } else {
-            count = 2
-        }
-        return Array(repeating: GridItem(.flexible(), spacing: 12), count: count)
-    }
-
     public var body: some View {
-        GeometryReader { geo in
-            grid(columns: columns(for: geo.size))
+        List {
+            Section("Study") {
+                door(.flashcards) { FlashcardsSubjectListView() }
+                door(.customModules, badge: countBadge(customModules.modules.count)) { CustomModulesView() }
+                routeDoor(.quickSitting, route: .quickSitting)
+                routeDoor(.search, route: .search(nil))
+            }
+
+            Section("Watch") {
+                door(.vod, badge: vod.unseenCount > 0 ? "\(vod.unseenCount) new" : nil) { VodFeedView() }
+                door(.importClasses) { VodImportView() }
+            }
+
+            Section("Play") {
+                routeDoor(.faceoff, route: .faceoff, badge: waitingBadge)
+            }
+
+            Section("Yours") {
+                door(.bookmarks, badge: countBadge(activityStore.bookmarks(for: uid).count)) {
+                    BookmarkedQuestionsView(uid: uid)
+                }
+                door(.downloads, badge: downloadBadge) { DownloadsView() }
+                door(.watchHistory, badge: countBadge(activityStore.watchHistory(for: uid).count)) {
+                    WatchHistoryView(uid: uid)
+                }
+                door(.activityLog) { MedxActivityLogHost(uid: uid) }
+            }
         }
-        .medxBackdrop(.library)
-        .navigationTitle("Library")
+        .listStyle(.insetGrouped)
+        .navigationTitle(MedxFeature.library.title)
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 MedxProfileButton()
             }
         }
+        // A door opened from outside — a notification, Spotlight, Siri, a widget, the iPad
+        // sidebar — pushes through here rather than through a row.
         .navigationDestination(item: $appState.libraryDestination) { destination in
             switch destination {
             case .flashcards: FlashcardsSubjectListView()
@@ -60,240 +68,77 @@ public struct LibraryView: View {
             case .customModules: CustomModulesView()
             case .bookmarks: BookmarkedQuestionsView(uid: uid)
             case .downloads: DownloadsView()
+            case .watchHistory: WatchHistoryView(uid: uid)
+            case .activityLog: MedxActivityLogHost(uid: uid)
             }
         }
         .task {
             await customModules.loadIfNeeded(uid: uid)
-            await vod.refreshFromForeground()
+            _ = await vod.refreshFromForeground()
             lobbyWatcher.start()
         }
     }
 
-    private func grid(columns: [GridItem]) -> some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(tiles) { tile in
-                    LibraryTile(tile: tile)
-                }
-            }
-            .padding(.horizontal, MedxSurface.gutter)
-            .padding(.top, 8)
-            .padding(.bottom, 28)
+    // MARK: - Doors
+
+    /// A door that pushes.
+    private func door<Destination: View>(
+        _ feature: MedxFeature,
+        badge: String? = nil,
+        @ViewBuilder destination: () -> Destination
+    ) -> some View {
+        NavigationLink {
+            destination()
+        } label: {
+            doorLabel(feature, badge: badge)
         }
-        .medxScrollEdge()
+        .accessibilityLabel(feature.title)
+        .accessibilityValue(badge ?? "")
     }
 
-    // MARK: - The grid
-
-    private var tiles: [LibraryTileModel] {
-        [
-            LibraryTileModel(
-                id: "cards",
-                title: "Flashcards",
-                detail: "Tap to flip, swipe for the next",
-                symbol: "rectangle.stack.fill",
-                hue: MedxIconHue.yellow,
-                badge: nil
-            ) { appState.open(route: .flashcards) },
-
-            LibraryTileModel(
-                id: "vod",
-                title: "VOD feed",
-                detail: "Every recording, newest first",
-                symbol: "antenna.radiowaves.left.and.right",
-                hue: MedxIconHue.blue,
-                badge: vod.unseenCount > 0 ? "\(vod.unseenCount) new" : nil
-            ) { appState.open(route: .vodFeed) },
-
-            LibraryTileModel(
-                id: "importVod",
-                title: "Import to Classes",
-                detail: "Add a recording to a subject",
-                symbol: "tray.and.arrow.down.fill",
-                hue: MedxIconHue.violet,
-                badge: nil
-            ) { appState.open(route: .importVod) },
-
-            LibraryTileModel(
-                id: "faceoff",
-                title: "Faceoff",
-                detail: "One question, one minute, two of you",
-                symbol: "bolt.fill",
-                hue: MedxIconHue.pink,
-                badge: waitingLobbies == 0 ? nil : "\(waitingLobbies) waiting"
-            ) { appState.open(route: .faceoff) },
-
-            LibraryTileModel(
-                id: "batch",
-                title: "Batch papers",
-                detail: "The batch's own four",
-                symbol: "flag.pattern.checkered",
-                hue: MedxIconHue.tangerine,
-                badge: nil
-            ) { appState.open(route: .batchPapers) },
-
-            LibraryTileModel(
-                id: "custom",
-                title: "Custom modules",
-                detail: "Your saved mixes",
-                symbol: "slider.horizontal.3",
-                hue: MedxIconHue.purple,
-                badge: customModules.modules.isEmpty ? nil : "\(customModules.modules.count)"
-            ) {
-                if sizeClass == .regular {
-                    appState.libraryDestination = .customModules
-                } else {
-                    appState.open(route: .customModules)
-                }
-            },
-
-            LibraryTileModel(
-                id: "quick",
-                title: "Quick sitting",
-                detail: "Scope, length, mode, go",
-                symbol: "wand.and.stars",
-                hue: MedxIconHue.teal,
-                badge: nil
-            ) { appState.open(route: .quickSitting) },
-
-            LibraryTileModel(
-                id: "search",
-                title: "Search",
-                detail: "Full text across both banks",
-                symbol: "magnifyingglass",
-                hue: MedxIconHue.lime,
-                badge: nil
-            ) { appState.open(route: .search(nil)) },
-
-            LibraryTileModel(
-                id: "bookmarks",
-                title: "Bookmarks",
-                detail: "Questions you kept",
-                symbol: "bookmark.fill",
-                hue: MedxIconHue.yellow,
-                badge: bookmarkCount > 0 ? "\(bookmarkCount)" : nil
-            ) {
-                if sizeClass == .regular {
-                    appState.libraryDestination = .bookmarks
-                } else {
-                    appState.showBookmarks = true
-                }
-            },
-
-            LibraryTileModel(
-                id: "downloads",
-                title: "Downloads",
-                detail: "Saved for no signal",
-                symbol: "arrow.down.circle.fill",
-                hue: MedxIconHue.sky,
-                badge: downloadBadge
-            ) {
-                if sizeClass == .regular {
-                    appState.libraryDestination = .downloads
-                } else {
-                    appState.showDownloads = true
-                }
-            },
-
-            LibraryTileModel(
-                id: "log",
-                title: "Activity log",
-                detail: "Every sitting and class",
-                symbol: "list.bullet.rectangle.portrait",
-                hue: MedxIconHue.teal,
-                badge: nil
-            ) { appState.showActivityLog = true },
-
-            LibraryTileModel(
-                id: "settings",
-                title: "Settings",
-                detail: "Accent, reminders, offline search",
-                symbol: "gearshape.fill",
-                hue: MedxIconHue.violet,
-                badge: nil
-            ) { appState.showSettings = true }
-        ]
+    /// A door that goes through `AppState` — the sheets and the cover, until they are rebuilt.
+    private func routeDoor(_ feature: MedxFeature, route: MedxRoute, badge: String? = nil) -> some View {
+        Button {
+            HapticManager.light()
+            appState.open(route: route)
+        } label: {
+            HStack(spacing: MedxSpace.s) {
+                doorLabel(feature, badge: badge)
+                MedxRowChevron()
+            }
+        }
+        .accessibilityLabel(feature.title)
+        .accessibilityValue(badge ?? "")
     }
 
-    private var bookmarkCount: Int { activityStore.bookmarks(for: uid).count }
+    private func doorLabel(_ feature: MedxFeature, badge: String?) -> some View {
+        HStack(spacing: MedxSpace.m) {
+            MedxTileLabel(feature.title, symbol: feature.symbol, hue: feature.color)
+                .foregroundStyle(.primary)
+            Spacer(minLength: MedxSpace.s)
+            if let badge {
+                Text(badge)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
 
-    private var waitingLobbies: Int { lobbyWatcher.theirs.count }
+    // MARK: - Badges
+
+    private func countBadge(_ count: Int) -> String? {
+        count > 0 ? MedxFormat.count(count) : nil
+    }
+
+    private var waitingBadge: String? {
+        let waiting = lobbyWatcher.theirs.count
+        return waiting > 0 ? "\(waiting) waiting" : nil
+    }
 
     /// In-flight downloads are the more urgent number, so they win the badge when there are any.
     private var downloadBadge: String? {
-        let active = downloads.items.values.reduce(0) { total, item in
-            switch item.state {
-            case .queued, .downloading, .paused: return total + 1
-            case .completed, .failed: return total
-            }
-        }
+        let active = downloads.activeCount
         if active > 0 { return "\(active) active" }
-        let done = downloads.items.values.reduce(0) { $1.state == .completed ? $0 + 1 : $0 }
-        return done > 0 ? "\(done)" : nil
-    }
-}
-
-// MARK: - One tile
-
-/// A tile's content, kept as a value so the grid is one `ForEach` over data rather than eleven
-/// hand-placed cells — which is what let the old list drift into four near-identical row helpers.
-struct LibraryTileModel: Identifiable {
-    let id: String
-    let title: String
-    let detail: String
-    /// SF Symbol. Library is a grid of doors, and a symbol in the door's hue is what iOS
-    /// itself puts on one.
-    let symbol: String
-    let hue: Color
-    let badge: String?
-    let action: () -> Void
-}
-
-struct LibraryTile: View {
-    let tile: LibraryTileModel
-
-    var body: some View {
-        Button {
-            HapticManager.light()
-            tile.action()
-        } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .top, spacing: 6) {
-                    MedxSymbolMark(tile.symbol, hue: tile.hue, size: 44)
-
-                    Spacer(minLength: 0)
-
-                    if let badge = tile.badge {
-                        MedxPill(badge, hue: tile.hue, weight: .solid)
-                            .fixedSize()
-                    }
-                }
-
-                Spacer(minLength: 10)
-
-                Text(tile.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-
-                Text(tile.detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2, reservesSpace: true)
-                    .multilineTextAlignment(.leading)
-            }
-            .padding(14)
-            // A uniform floor rather than an aspect ratio: the grid should stay square-ish at the
-            // default text size but grow with the label, not clip it.
-            .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
-            .medxCard()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
-        }
-        .buttonStyle(BouncyButtonStyle())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(tile.title)
-        .accessibilityValue(tile.badge ?? "")
-        .accessibilityHint(tile.detail)
+        return countBadge(downloads.completedItems.count)
     }
 }

@@ -20,7 +20,7 @@ P18-batch -medxScreen batch
 P19-search -medxScreen search
 P20-downloads -medxScreen downloads
 P21-login -medxDemoSignedOut YES
-P22-videosubject-swipe -medxScreen videosubject -medxSwipeOpen YES
+P22-videosubject -medxScreen videosubject
 P23-runner-answered -medxScreen runner-answered
 P24-runner-lowtime -medxScreen runner-lowtime
 P25-runner-submit -medxScreen runner-submit

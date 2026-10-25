@@ -173,3 +173,13 @@ public struct MedxTopGlow: View {
         .accessibilityHidden(true)
     }
 }
+
+// MARK: - Copy
+
+/// The sentences that are said in more than one place, so they are said the same way.
+public enum MedxCopy {
+    /// How the class rows work — the same line under a subject's classes and the VOD feed.
+    public static let classGestures = "Tap a class to play it. Swipe left to save it offline, swipe right to play."
+    /// How the download rows work.
+    public static let downloadGestures = "Swipe left to delete a download. Swipe right to pause, resume or play it."
+}

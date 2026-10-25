@@ -1,132 +1,115 @@
 import SwiftUI
 
-/// Mode picker shown before a sitting starts. Two choices, described plainly.
+/// The one mode picker. A module, a batch paper and a Marrow paper all ask the same question
+/// before a sitting starts — revision or exam — so they share this sheet; what differs is only
+/// the line under each mode, which a caller overrides to say what *this* paper's exam clock does.
+///
+/// The sheet never starts the sitting itself. It reports the pick and dismisses, and the host
+/// starts the runner from the sheet's `onDismiss`, once it has gone: raising a full-screen cover
+/// in the same update that dismisses a sheet hands the cover to the sheet's presentation on
+/// iOS 26, and the runner then looks alive but never updates — the "dead Next" of September 2026.
 public struct StartSessionSheet: View {
     public let title: String
     public let subtitle: String
     public let questionCount: Int
+    /// What exam mode does for this paper, when the default one-minute-a-question line is wrong.
+    public let examDetail: String?
+    /// What revision mode does, when there is something to say — a paper with no answer key.
+    public let revisionDetail: String?
+    /// Previous sittings of the same paper, if any.
+    public let record: MedxPaperRecord?
     public var onStart: (SittingMode) -> Void
 
     @Environment(\.dismiss) private var dismiss
 
-    public init(title: String, subtitle: String, questionCount: Int, onStart: @escaping (SittingMode) -> Void) {
+    public init(
+        title: String,
+        subtitle: String,
+        questionCount: Int,
+        examDetail: String? = nil,
+        revisionDetail: String? = nil,
+        record: MedxPaperRecord? = nil,
+        onStart: @escaping (SittingMode) -> Void
+    ) {
         self.title = title
         self.subtitle = subtitle
         self.questionCount = questionCount
+        self.examDetail = examDetail
+        self.revisionDetail = revisionDetail
+        self.record = record
         self.onStart = onStart
     }
 
     public var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    VStack(spacing: 6) {
-                        MedxSymbolMark("target", hue: MedxCandy.lime, size: 52)
-                            .padding(.bottom, 2)
+            List {
+                Section {
+                    modeRow(
+                        .revision,
+                        symbol: "bolt.fill",
+                        hue: MedxFeature.qbank.color,
+                        detail: revisionDetail ?? Self.defaultRevisionDetail
+                    )
+                    modeRow(
+                        .exam,
+                        symbol: "timer",
+                        hue: MedxFeature.tests.color,
+                        detail: examDetail ?? Self.defaultExamDetail(questions: questionCount)
+                    )
+                } header: {
+                    Text(header)
+                }
 
-                        Text(title)
-                            .font(.title3.weight(.semibold))
-                            .multilineTextAlignment(.center)
-
-                        Text(headerDetail)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(.top, 8)
-
-                    VStack(spacing: 12) {
-                        ModeCard(
-                            mode: .revision,
-                            symbol: "bolt.fill",
-                            tint: MedxCandy.mint,
-                            durationText: "60s per question"
-                        ) {
-                            start(.revision)
-                        }
-
-                        ModeCard(
-                            mode: .exam,
-                            symbol: "hourglass",
-                            tint: MedxCandy.tangerine,
-                            durationText: "\(questionCount) min total"
-                        ) {
-                            start(.exam)
-                        }
+                if let record {
+                    Section("Your sittings") {
+                        LabeledContent("Best score", value: "\(record.bestScore) of \(record.total)")
+                        LabeledContent("Sittings", value: "\(record.sittings)")
                     }
                 }
-                .padding(.horizontal, MedxSurface.gutter)
-                .padding(.bottom, 24)
             }
-            .scrollBounceBehavior(.basedOnSize)
-            // No opaque page fill: a partial sheet is Liquid Glass on iOS 26, and painting over it
-            // was hiding that. The mode cards stay as normal content on top of the glass.
-            .scrollContentBackground(.hidden)
-            .navigationTitle("Start Sitting")
+            .listStyle(.insetGrouped)
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close") { dismiss() }
+                    Button(role: .close) { dismiss() }
                 }
             }
         }
-        .presentationDetents([.height(486), .large])
-        .presentationDragIndicator(.visible)
+        .medxTaskSheet()
     }
 
-    private var headerDetail: String {
+    private var header: String {
         var parts: [String] = []
         if !subtitle.isEmpty { parts.append(subtitle) }
-        parts.append("\(questionCount) questions")
+        parts.append("\(MedxFormat.count(questionCount)) questions")
         return parts.joined(separator: " · ")
     }
 
-    private func start(_ mode: SittingMode) {
-        HapticManager.medium()
-        dismiss()
-        onStart(mode)
-    }
-}
-
-private struct ModeCard: View {
-    let mode: SittingMode
-    let symbol: String
-    let tint: Color
-    let durationText: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(alignment: .top, spacing: 14) {
-                MedxSymbolMark(symbol, hue: tint, size: 40)
-
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 8) {
-                        Text(mode.displayName)
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-
-                        MedxPill(durationText, hue: tint)
-                    }
-
-                    Text(mode.description)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                MedxDisclosure()
-                    .padding(.top, 4)
+    private func modeRow(_ mode: SittingMode, symbol: String, hue: Color, detail: String) -> some View {
+        Button {
+            HapticManager.medium()
+            onStart(mode)
+            dismiss()
+        } label: {
+            MedxFeatureRow(Self.title(for: mode), detail: detail, symbol: symbol, hue: hue) {
+                MedxRowChevron()
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .medxCard()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
         }
-        .buttonStyle(BouncyButtonStyle())
-        .accessibilityLabel("\(mode.displayName)")
-        .accessibilityHint("\(mode.description). \(durationText).")
+        .accessibilityLabel(Self.title(for: mode))
+        .accessibilityHint(detail)
+    }
+
+    static func title(for mode: SittingMode) -> String {
+        switch mode {
+        case .exam: return "Exam mode"
+        case .revision: return "Revision mode"
+        }
+    }
+
+    static let defaultRevisionDetail = "60 seconds a question. The answer and explanation show as soon as you pick."
+
+    static func defaultExamDetail(questions: Int) -> String {
+        "One \(questions)-minute clock for the paper. Answers after you submit."
     }
 }

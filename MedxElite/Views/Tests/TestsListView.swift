@@ -2,25 +2,30 @@ import SwiftUI
 
 /// The Marrow FMGE test series — 352 keyed papers in three groups, each bucketed by the month
 /// it ran with the newest month at the top, so scrolling down is scrolling back through seven
-/// years of papers.
+/// years of papers. The batch's own four papers sit in one row above them: a different library
+/// with a different shape, and folding them into a month-bucketed list would put four undated
+/// rows above seven years of papers.
 ///
 /// The whole catalogue is one Firestore document (`medx_meta/series_fmge`), so this screen costs
 /// a single read and can then filter and group in memory. Questions are only fetched when a
-/// paper is actually opened.
-///
-/// Tapping a paper does not start it. A grand paper runs as timed 50-question sections with no
-/// way back, which is not something to walk into by mistake, so the mode picker says what is
-/// about to happen first.
+/// paper is actually opened — and tapping a paper does not start it. A grand paper runs as
+/// timed 50-question sections with no way back, which is not something to walk into by mistake,
+/// so the mode picker says what is about to happen first.
 public struct TestsListView: View {
     @ObservedObject private var authService = AuthService.shared
+    @ObservedObject private var appState = AppState.shared
 
     @State private var index: MedxSeriesIndex?
-    @State private var attempts: [SittingAttempt] = []
+    /// Best score and sitting count per paper, folded once per load rather than inside `body`:
+    /// this walks every response of every attempt, and the list can be 119 rows.
+    @State private var bestByPaper: [String: MedxPaperRecord] = [:]
     @State private var loadState: MedxLoadState = .loading
     @State private var group: MedxSeriesGroup = .grand
     @State private var searchText = ""
     @State private var picked: MedxSeriesPaper?
-    @State private var activeRunnerPayload: RunnerPayload?
+    /// The pick made inside the mode sheet, started once the sheet has gone — see
+    /// `StartSessionSheet` for why not sooner.
+    @State private var pendingStart: (paper: MedxSeriesPaper, mode: SittingMode)?
 
     public init() {}
 
@@ -28,9 +33,7 @@ public struct TestsListView: View {
 
     private var uid: String? { authService.currentSession?.uid }
 
-    /// Best score and sitting count per paper, folded once per load rather than inside `body`:
-    /// this walks every response of every attempt, and the list can be 119 rows.
-    @State private var bestByPaper: [String: MedxPaperRecord] = [:]
+    private var isLoading: Bool { loadState == .loading && index == nil }
 
     private var papers: [MedxSeriesPaper] {
         let all = (index?.papers ?? []).filter { $0.group == group }
@@ -48,153 +51,136 @@ public struct TestsListView: View {
         case .mini: noun = count == 1 ? "mini test" : "mini tests"
         case .subject: noun = count == 1 ? "subject test" : "subject tests"
         }
-        return "Search \(count.formatted()) \(noun)"
+        return "Search \(MedxFormat.count(count)) \(noun)"
     }
 
     private var months: [MedxSeriesMonth] {
         MedxSeriesRules.byMonth(papers)
     }
 
-    public var body: some View {
-        Group {
-            switch loadState {
-            case .loading:
-                loadingState
-            case .failed(let message):
-                failedState(message: message)
-            case .loaded:
-                content
-            }
-        }
-        .medxBackdrop(.tests)
-        .medxScrollEdge()
-        .navigationTitle("Tests")
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                MedxProfileButton()
-            }
-        }
-        .searchable(
-            text: $searchText,
-            placement: .navigationBarDrawer(displayMode: .automatic),
-            prompt: searchPrompt
-        )
-        .task {
-            guard case .loading = loadState else { return }
-            group = MedxSeriesGroup(rawValue: UserDefaults.standard.string(forKey: Self.groupKey) ?? "") ?? .grand
-            await medxLoadRevalidating { await load() }
-        }
-        .sheet(item: $picked) { paper in
-            MedxPaperModeSheet(paper: paper, record: bestByPaper[paper.id]) { mode in
-                picked = nil
-                start(paper: paper, mode: mode)
-            }
-        }
-        .fullScreenCover(item: $activeRunnerPayload) { (payload: RunnerPayload) in
-            QuizRunnerView(payload: payload) {
-                Task { await load() }
-            }
-        }
+    /// Counted from the papers that can actually be opened, the same set the segments and the
+    /// search count, so the numbers on this screen always agree.
+    private var subtitle: String {
+        guard let index else { return "Marrow FMGE test series" }
+        let questions = index.papers.reduce(0) { $0 + $1.questions }
+        return "\(MedxFormat.count(index.papers.count)) papers · \(MedxFormat.count(questions)) questions"
     }
 
-    // MARK: - Content
+    public var body: some View {
+        list
+            .navigationTitle(MedxFeature.tests.title)
+            .navigationSubtitle(subtitle)
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    MedxProfileButton()
+                }
+            }
+            .searchable(text: $searchText, prompt: searchPrompt)
+            .searchToolbarBehavior(.minimize)
+            .task {
+                guard case .loading = loadState else { return }
+                group = MedxSeriesGroup(rawValue: UserDefaults.standard.string(forKey: Self.groupKey) ?? "") ?? .grand
+                await medxLoadRevalidating { await load() }
+            }
+            .onChange(of: group) { _, next in
+                UserDefaults.standard.set(next.rawValue, forKey: Self.groupKey)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .medxContentShouldRefresh)) { _ in
+                Task { await load() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .medxSittingDidFinish)) { _ in
+                Task { await load() }
+            }
+            .sheet(item: $picked, onDismiss: startPending) { paper in
+                StartSessionSheet(
+                    title: paper.title,
+                    subtitle: [paper.year, paper.group.label].compactMap { $0 }.joined(separator: " · "),
+                    questionCount: paper.questions,
+                    examDetail: MedxSeriesRules.examBlurb(for: paper),
+                    record: bestByPaper[paper.id]
+                ) { mode in
+                    pendingStart = (paper: paper, mode: mode)
+                }
+            }
+    }
 
-    private var content: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 20) {
-                header
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .medxCard()
+    private func startPending() {
+        guard let pending = pendingStart else { return }
+        pendingStart = nil
+        start(paper: pending.paper, mode: pending.mode)
+    }
 
-                batchRow
+    // MARK: - List
 
-                MedxSegmented(
-                    section: .tests,
-                    segments: MedxSeriesGroup.allCases.map {
-                        MedxSegment(value: $0, label: $0.label, count: index?.count(of: $0))
-                    },
-                    selection: $group
-                )
-                .onChange(of: group) { _, next in
-                    UserDefaults.standard.set(next.rawValue, forKey: Self.groupKey)
+    private var list: some View {
+        List {
+            Section {
+                NavigationLink {
+                    BatchPapersView()
+                } label: {
+                    MedxTileLabel(
+                        "ARISE batch papers",
+                        detail: "The batch's own four papers",
+                        symbol: MedxFeature.batchPapers.symbol,
+                        hue: MedxFeature.batchPapers.color
+                    )
+                }
+                .accessibilityLabel("ARISE batch papers")
+            }
+
+            if case .failed(let message) = loadState, index == nil {
+                Section {
+                    MedxEmptyState(
+                        "Couldn't load the series",
+                        symbol: "wifi.exclamationmark",
+                        message: message,
+                        actionTitle: "Try again"
+                    ) {
+                        HapticManager.light()
+                        loadState = .loading
+                        Task { await load() }
+                    }
+                }
+            } else {
+                Section {
+                    Picker("Group", selection: $group) {
+                        ForEach(MedxSeriesGroup.allCases) { item in
+                            Text(item.label).tag(item)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
                 }
 
-                if months.isEmpty {
-                    emptyGroupState
+                if isLoading {
+                    Section {
+                        MedxPlaceholderRows(count: 8)
+                    }
+                } else if months.isEmpty {
+                    Section {
+                        emptyGroupState
+                    }
                 } else {
                     ForEach(months) { month in
-                        monthSection(month)
+                        Section {
+                            ForEach(month.papers) { paper in
+                                paperRow(paper)
+                            }
+                        } header: {
+                            Text(month.label)
+                        }
                     }
                 }
             }
-            .padding(.horizontal, MedxSurface.gutter)
-            .padding(.top, 6)
-            .padding(.bottom, 28)
         }
+        .listStyle(.insetGrouped)
         .refreshable {
             // A pull always reaches the backend: cached copies are kept for offline, never
             // served in place of a fresh read the student asked for.
             await CacheManager.shared.markAllStale()
             await load()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .medxContentShouldRefresh)) { _ in
-            Task { await load() }
-        }
-    }
-
-    private var header: some View {
-        MedxPageHeader(
-            section: .tests,
-            // Counted from the papers that can actually be opened, the same set the segments and
-            // the search count, so the three numbers on this screen always agree.
-            lead: index.map {
-                "\($0.papers.count.formatted()) papers, "
-                    + "\($0.papers.reduce(0) { $0 + $1.questions }.formatted()) questions, all scored."
-            } ?? "The Marrow FMGE test series, grand, mini and subject papers.",
-            symbol: "trophy.fill"
-        )
-    }
-
-    /// The batch's own four papers. One row rather than a segment: they are a different library
-    /// with a different shape, and folding them into a month-bucketed series list would put four
-    /// undated rows above seven years of papers.
-    private var batchRow: some View {
-        NavigationLink {
-            BatchPapersView()
-        } label: {
-            HStack(spacing: 14) {
-                MedxSymbolMark("flag.pattern.checkered", hue: MedxCandy.tangerine, size: 38)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("ARISE batch papers")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    Text("The batch's own four papers")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer(minLength: 0)
-
-                MedxDisclosure()
-            }
-            .padding(14)
-            .medxCard()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("ARISE batch papers")
-    }
-
-    private func monthSection(_ month: MedxSeriesMonth) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            MedxRuleHeader(month.label, count: month.papers.count)
-
-            ForEach(month.papers) { paper in
-                paperRow(paper)
-            }
         }
     }
 
@@ -206,55 +192,45 @@ public struct TestsListView: View {
             HapticManager.light()
             picked = paper
         } label: {
-            HStack(spacing: 12) {
-                MedxSymbolMark(MedxSeriesRules.symbol(for: paper), hue: MedxCandy.tangerine, size: 38)
+            HStack(spacing: MedxSpace.m) {
+                MedxSymbolTile(MedxSeriesRules.symbol(for: paper), hue: MedxFeature.tests.color, size: 36)
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(paper.title)
-                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
-                        .lineLimit(2)
                         .multilineTextAlignment(.leading)
-
                     Text(paper.line)
-                        .font(.caption.monospacedDigit())
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
-
                     if let record {
                         ProgressView(value: record.fraction)
-                            .tint(MedxCandy.tangerine)
-                            .frame(maxWidth: 120)
+                            .tint(MedxOutcome.correct)
+                            .padding(.top, 2)
                     }
                 }
 
-                Spacer(minLength: 0)
+                Spacer(minLength: MedxSpace.s)
 
-                // Badge and chevron on one line, centred on the row.
-                HStack(spacing: 8) {
-                    if let record {
-                        MedxPill(
-                            "\(record.bestScore)/\(record.total)",
-                            hue: MedxCandy.mint,
-                            icon: "checkmark"
-                        )
-                    } else if let sections, let first = sections.first {
-                        // A grand paper's shape is the one thing worth knowing before opening
-                        // it: three timed blocks is a very different afternoon from one clock.
-                        MedxPill("\(sections.count) × \(first.count)", hue: MedxCandy.tangerine)
-                    }
-
-                    MedxDisclosure()
+                if let record {
+                    Text("\(record.bestScore)/\(record.total)")
+                        .font(.footnote.monospacedDigit())
+                        .foregroundStyle(MedxOutcome.correct)
+                } else if let sections, let first = sections.first {
+                    // A grand paper's shape is the one thing worth knowing before opening it:
+                    // three timed blocks is a very different afternoon from one clock.
+                    Text("\(sections.count) × \(first.count)")
+                        .font(.footnote.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
-                .fixedSize()
+
+                MedxRowChevron()
             }
-            .padding(14)
-            .frame(minHeight: 64)
-            .medxCard()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+            .padding(.vertical, 2)
         }
-        .buttonStyle(BouncyButtonStyle())
+        .accessibilityElement(children: .combine)
         .accessibilityLabel(paper.title)
         .accessibilityValue(accessibilityValue(paper: paper, record: record, sections: sections))
+        .accessibilityHint("Opens the mode picker")
     }
 
     private func accessibilityValue(
@@ -272,71 +248,14 @@ public struct TestsListView: View {
         return parts.joined(separator: ", ")
     }
 
-    // MARK: - States
-
-    private var loadingState: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(0..<6, id: \.self) { _ in
-                    VStack(alignment: .leading, spacing: 8) {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(Color.primary.opacity(0.08))
-                            .frame(height: 15)
-                            .frame(maxWidth: 240)
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(Color.primary.opacity(0.05))
-                            .frame(height: 11)
-                            .frame(maxWidth: 120)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
-                    .medxCard()
-                }
-            }
-            .padding(.horizontal, MedxSurface.gutter)
-            .padding(.top, 8)
-            .redacted(reason: .placeholder)
-        }
-        .allowsHitTesting(false)
-        .accessibilityLabel("Loading the test series")
-    }
-
-    private func failedState(message: String) -> some View {
-        ContentUnavailableView {
-            Label("Couldn't load the series", systemImage: "wifi.exclamationmark")
-        } description: {
-            Text(message)
-        } actions: {
-            VStack(spacing: 10) {
-                Button("Try Again") {
-                    HapticManager.light()
-                    loadState = .loading
-                    Task { await load() }
-                }
-                .medxFilledButton()
-                .buttonBorderShape(.capsule)
-
-                NavigationLink("Open batch papers instead") {
-                    BatchPapersView()
-                }
-                .font(.subheadline.weight(.semibold))
-            }
-        }
-    }
-
     private var emptyGroupState: some View {
-        ContentUnavailableView {
-            Label(
-                searchText.isEmpty ? "Nothing in this group" : "No Matches",
-                systemImage: "magnifyingglass"
-            )
-        } description: {
-            Text(searchText.isEmpty
-                 ? "No paper of that kind came through in the export."
-                 : "No paper matches “\(searchText)”.")
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 24)
+        MedxEmptyState(
+            searchText.isEmpty ? "Nothing in this group" : "No matches",
+            symbol: "magnifyingglass",
+            message: searchText.isEmpty
+                ? "No paper of that kind came through in the export."
+                : "No paper matches “\(searchText)”."
+        )
     }
 
     // MARK: - Data
@@ -344,22 +263,17 @@ public struct TestsListView: View {
     private func load() async {
         do {
             let token = try await authService.getValidIdToken()
-            async let indexTask = FirestoreService.shared.fetchSeriesIndex(idToken: token)
+            let loadedIndex = try await FirestoreService.shared.fetchSeriesIndex(idToken: token)
             // A signed-out state should not fail the catalogue — the papers are readable, only
             // the best-score badges need a uid.
-            let loadedIndex = try await indexTask
             let loadedAttempts: [SittingAttempt]
             if let uid {
-                loadedAttempts = (try? await FirestoreService.shared.fetchUserAttempts(
-                    uid: uid,
-                    idToken: token
-                )) ?? []
+                loadedAttempts = await FirestoreService.shared.fetchUserAttemptsOrEmpty(uid: uid, idToken: token)
             } else {
                 loadedAttempts = []
             }
 
             index = loadedIndex
-            attempts = loadedAttempts
             bestByPaper = MedxPaperRecord.fold(attempts: loadedAttempts, papers: loadedIndex.papers)
             loadState = .loaded
         } catch {
@@ -370,19 +284,20 @@ public struct TestsListView: View {
     }
 
     private func start(paper: MedxSeriesPaper, mode: SittingMode) {
-        HapticManager.medium()
-        activeRunnerPayload = RunnerPayload(
-            // `series` rather than `test`: the runner's else-branch fetches from
-            // `medx_test_questions` either way, and the attempt row then matches what the PWA
-            // files so the two clients agree about what a series sitting is.
-            kind: "series",
-            id: paper.id,
-            name: paper.title,
-            subject: paper.title,
-            mode: mode,
-            gradable: true,
-            sections: mode == .exam ? MedxSeriesRules.sections(for: paper) : nil,
-            examSeconds: paper.durationMin > 0 ? paper.durationMin * 60 : nil
+        appState.startSitting(
+            RunnerPayload(
+                // `series` rather than `test`: the runner's else-branch fetches from
+                // `medx_test_questions` either way, and the attempt row then matches what the PWA
+                // files so the two clients agree about what a series sitting is.
+                kind: "series",
+                id: paper.id,
+                name: paper.title,
+                subject: paper.title,
+                mode: mode,
+                gradable: true,
+                sections: mode == .exam ? MedxSeriesRules.sections(for: paper) : nil,
+                examSeconds: paper.durationMin > 0 ? paper.durationMin * 60 : nil
+            )
         )
     }
 }
@@ -421,128 +336,5 @@ public struct MedxPaperRecord: Hashable, Sendable {
             )
         }
         return out
-    }
-}
-
-// MARK: - Mode picker
-
-/// What is about to happen, before it happens.
-///
-/// A grand paper runs as three timed 50-question blocks with no way back once a block is
-/// submitted. Starting that from a tap on a list row would be the app's most unpleasant
-/// surprise, so the sheet spells the shape out and both modes are an explicit choice.
-struct MedxPaperModeSheet: View {
-    let paper: MedxSeriesPaper
-    let record: MedxPaperRecord?
-    let onPick: (SittingMode) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    MedxPageHeader(
-                        section: .tests,
-                        eyebrow: [paper.year, "\(paper.group.rawValue) test"]
-                            .compactMap { $0 }
-                            .joined(separator: " · "),
-                        lead: paper.line,
-                        symbol: MedxSeriesRules.symbol(for: paper)
-                    )
-
-                    modeButton(
-                        mode: .exam,
-                        icon: "timer",
-                        title: "Exam mode",
-                        blurb: MedxSeriesRules.examBlurb(for: paper),
-                        hue: MedxCandy.tangerine
-                    )
-
-                    modeButton(
-                        mode: .revision,
-                        icon: "bolt.fill",
-                        title: "Revision mode",
-                        blurb: "60 seconds each. Answer and explanation the moment you pick.",
-                        hue: MedxCandy.lime
-                    )
-
-                    if let record {
-                        priorSittings(record)
-                    }
-                }
-                .padding(.horizontal, MedxSurface.gutter)
-                .padding(.top, 12)
-                .padding(.bottom, 28)
-            }
-            .medxBackdrop(.tests)
-            .navigationTitle(paper.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-    }
-
-    private func modeButton(
-        mode: SittingMode,
-        icon: String,
-        title: String,
-        blurb: String,
-        hue: Color
-    ) -> some View {
-        Button {
-            HapticManager.medium()
-            onPick(mode)
-        } label: {
-            HStack(alignment: .top, spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(MedxCandy.onSoft(hue))
-                    .frame(width: 42, height: 42)
-                    .background(hue.opacity(0.2), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                    Text(blurb)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .multilineTextAlignment(.leading)
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .medxCard()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
-        }
-        .buttonStyle(BouncyButtonStyle())
-        .accessibilityLabel(title)
-        .accessibilityHint(blurb)
-    }
-
-    private func priorSittings(_ record: MedxPaperRecord) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            MedxSectionHeader("Your sittings")
-            HStack(spacing: 8) {
-                MedxPill(
-                    "best \(record.bestScore)/\(record.total)",
-                    hue: MedxCandy.tangerine,
-                    weight: .solid
-                )
-                MedxPill(
-                    record.sittings == 1 ? "1 attempt" : "\(record.sittings) attempts",
-                    weight: .outline
-                )
-            }
-        }
     }
 }

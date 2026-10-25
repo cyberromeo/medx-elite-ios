@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Chapters and modules for one subject, in either bank. Chapters collapse, so a 247-module
-/// subject does not build 247 rows before the first frame.
+/// Chapters and modules for one subject, in either bank. Every chapter is a section and every
+/// module a row, so the shape of a 247-module subject is the shape of the page — and the list
+/// only builds the rows that are on screen.
 public struct QBankChapterView: View {
     public let subject: MedxBankSubject
     public let practisedModuleIds: Set<String>
@@ -9,8 +10,19 @@ public struct QBankChapterView: View {
     public var onStartModule: (QBankModuleSummary, SittingMode) -> Void
 
     @State private var selectedModuleForStart: QBankModuleSummary?
-    @State private var expandedChapters: Set<String> = []
+    /// The pick made inside the mode sheet, started once the sheet has gone — see
+    /// `StartSessionSheet` for why not sooner.
+    @State private var pendingStart: (module: QBankModuleSummary, mode: SittingMode)?
     @State private var searchText = ""
+
+    /// Sittings per module, keyed by module id — folded once here rather than on every `body`.
+    private let moduleResults: [String: ModuleRecord]
+
+    private struct ModuleRecord {
+        var count: Int
+        var best: Int
+        var total: Int
+    }
 
     public init(
         subject: MedxBankSubject,
@@ -22,24 +34,20 @@ public struct QBankChapterView: View {
         self.practisedModuleIds = practisedModuleIds
         self.attempts = attempts
         self.onStartModule = onStartModule
+
+        var map: [String: ModuleRecord] = [:]
+        for attempt in attempts where attempt.kind == "qbank" {
+            var record = map[attempt.sourceId] ?? ModuleRecord(count: 0, best: 0, total: attempt.total)
+            record.count += 1
+            record.best = max(record.best, attempt.score)
+            record.total = max(record.total, attempt.total)
+            map[attempt.sourceId] = record
+        }
+        moduleResults = map
     }
 
     private var chapters: [MedxBankChapter] {
         subject.chapters
-    }
-
-    /// Best score per module, keyed by module id.
-    private var moduleResults: [String: (count: Int, best: Int, total: Int)] {
-        var map: [String: (count: Int, best: Int, total: Int)] = [:]
-        for attempt in attempts where attempt.kind == "qbank" {
-            let current = map[attempt.sourceId] ?? (count: 0, best: 0, total: attempt.total)
-            map[attempt.sourceId] = (
-                count: current.count + 1,
-                best: max(current.best, attempt.score),
-                total: max(current.total, attempt.total)
-            )
-        }
-        return map
     }
 
     private var practisedCount: Int {
@@ -62,189 +70,118 @@ public struct QBankChapterView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16) {
-                summaryCard
+        List {
+            Section {
+                summary
+            }
 
-                if matchingChapters.isEmpty {
-                    ContentUnavailableView {
-                        Label {
-                            Text("No Modules")
-                        } icon: {
-                            MedxSticker(searchText.isEmpty ? "filebox" : "search", size: 42)
+            if matchingChapters.isEmpty {
+                Section {
+                    MedxEmptyState(
+                        searchText.isEmpty ? "No modules yet" : "No matches",
+                        symbol: searchText.isEmpty ? "tray" : "magnifyingglass",
+                        message: searchText.isEmpty
+                            ? "This subject has no modules yet."
+                            : "No module matches “\(searchText)”."
+                    )
+                }
+            } else {
+                ForEach(matchingChapters) { chapter in
+                    Section {
+                        ForEach(chapter.modules) { module in
+                            moduleRow(module)
                         }
-                    } description: {
-                        Text(searchText.isEmpty
-                             ? "This subject has no modules yet."
-                             : "No module matches “\(searchText)”.")
-                    }
-                    .padding(.top, 32)
-                } else {
-                    ForEach(matchingChapters) { chapter in
-                        chapterSection(chapter)
+                    } header: {
+                        Text(chapter.name.isEmpty ? "Modules" : chapter.name)
                     }
                 }
             }
-            .padding(.horizontal, MedxSurface.gutter)
-            .padding(.top, 8)
-            .padding(.bottom, 32)
         }
-        .medxBackdrop(.qbank)
-        .medxScrollEdge()
+        .listStyle(.insetGrouped)
         .navigationTitle(subject.name)
+        .navigationSubtitle("\(subject.moduleCount) modules · \(MedxFormat.count(subject.questionCount)) questions")
         .navigationBarTitleDisplayMode(.large)
-        .searchable(
-            text: $searchText,
-            placement: .navigationBarDrawer(displayMode: .automatic),
-            prompt: "Search modules"
-        )
-        .sheet(item: $selectedModuleForStart) { module in
+        .searchable(text: $searchText, prompt: "Search modules")
+        .sheet(item: $selectedModuleForStart, onDismiss: startPending) { module in
             StartSessionSheet(
                 title: module.name,
                 subtitle: subject.name,
                 questionCount: module.questionCount
             ) { mode in
-                onStartModule(module, mode)
+                pendingStart = (module: module, mode: mode)
             }
         }
-        .onAppear {
-            // Open the first chapter so the screen is never just a stack of closed rows.
-            if expandedChapters.isEmpty, let first = chapters.first {
-                expandedChapters.insert(first.id)
-            }
-        }
+    }
+
+    private func startPending() {
+        guard let pending = pendingStart else { return }
+        pendingStart = nil
+        onStartModule(pending.module, pending.mode)
     }
 
     // MARK: - Summary
 
-    private var summaryCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                MedxSymbolMark(MedxSubjectArt.symbol(for: subject.name), hue: MedxSection.qbank.fill, size: 38)
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("\(subject.moduleCount) modules")
-                        .font(.subheadline.weight(.semibold))
-                    Text("\(subject.questionCount.formatted()) questions available")
-                        .font(.caption)
+    private var summary: some View {
+        HStack(spacing: MedxSpace.l) {
+            MedxRing(
+                fraction: Double(practisedCount) / Double(max(subject.moduleCount, 1)),
+                tint: MedxOutcome.correct
+            ) {
+                VStack(spacing: 0) {
+                    MedxFigure("\(practisedCount)", style: .title3)
+                    Text("done")
+                        .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
+            }
+            .frame(width: 72, height: 72)
 
-                Spacer(minLength: 8)
-
-                MedxPill(subject.bank.label, hue: MedxSection.qbank.fill)
+            VStack(alignment: .leading, spacing: MedxSpace.xs) {
+                Text("\(MedxFormat.ratio(practisedCount, of: subject.moduleCount)) modules practised")
+                    .font(.headline)
+                Text("\(chapters.count) chapters · \(MedxFormat.count(subject.questionCount)) questions")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Text(subject.bank.eyebrow)
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
             }
 
-            ProgressView(
-                value: Double(practisedCount),
-                total: Double(max(subject.moduleCount, 1))
-            )
-            .tint(MedxTheme.successGreen)
-
-            Text("\(practisedCount) practised")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .medxCard()
-    }
-
-    // MARK: - Chapter
-
-    private func chapterSection(_ chapter: MedxBankChapter) -> some View {
-        let isExpanded = expandedChapters.contains(chapter.id) || !searchText.isEmpty
-        let modules = chapter.modules
-
-        return VStack(alignment: .leading, spacing: 8) {
-            Button {
-                HapticManager.light()
-                withAnimation(.easeOut(duration: 0.2)) {
-                    if expandedChapters.contains(chapter.id) {
-                        expandedChapters.remove(chapter.id)
-                    } else {
-                        expandedChapters.insert(chapter.id)
-                    }
-                }
-            } label: {
-                HStack(spacing: 10) {
-                    Text(chapter.name)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.leading)
-
-                    Spacer(minLength: 8)
-
-                    Text("\(modules.count)")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .medxCard(cornerRadius: 12)
-                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .disabled(!searchText.isEmpty)
-            .accessibilityLabel(chapter.name)
-            .accessibilityValue("\(modules.count) modules, \(isExpanded ? "expanded" : "collapsed")")
-
-            if isExpanded {
-                VStack(spacing: 8) {
-                    ForEach(modules) { module in
-                        moduleRow(module)
-                    }
-                }
-                .padding(.leading, 8)
-            }
-        }
+        .padding(.vertical, MedxSpace.xs)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(subject.name)
+        .accessibilityValue("\(practisedCount) of \(subject.moduleCount) modules practised")
     }
 
     // MARK: - Module
 
     private func moduleRow(_ module: QBankModuleSummary) -> some View {
-        let result = moduleResults[module.id]
+        let record = moduleResults[module.id]
 
         return Button {
             HapticManager.light()
             selectedModuleForStart = module
         } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: MedxSpace.m) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(module.name)
-                        .font(.subheadline.weight(.medium))
                         .foregroundStyle(.primary)
                         .multilineTextAlignment(.leading)
-
-                    if let result {
-                        Text("\(module.questionCount) questions · best \(result.best)/\(result.total) · \(result.count) sitting\(result.count == 1 ? "" : "s")")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(MedxTheme.successGreen)
-                    } else {
-                        Text("\(module.questionCount) questions")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text(detail(for: module, record: record))
+                        .font(.footnote)
+                        .foregroundStyle(record == nil ? Color.secondary : MedxOutcome.correct)
                 }
 
-                Spacer(minLength: 0)
+                Spacer(minLength: MedxSpace.s)
 
-                Image(systemName: result == nil ? "play.circle.fill" : "checkmark.circle.fill")
+                Image(systemName: record == nil ? "play.circle.fill" : "checkmark.circle.fill")
                     .font(.title3)
-                    .foregroundStyle(result == nil ? MedxTheme.accent : MedxTheme.successGreen)
+                    .foregroundStyle(record == nil ? MedxTheme.accent : MedxOutcome.correct)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .frame(minHeight: 60)
-            .medxTile()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.tileRadius, style: .continuous))
+            .padding(.vertical, 2)
         }
-        .buttonStyle(BouncyButtonStyle())
         // Long press to skip the mode sheet — the two modes are the whole decision.
         .contextMenu {
             Button {
@@ -262,9 +199,13 @@ public struct QBankChapterView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(module.name)
-        .accessibilityValue(result == nil
-                            ? "\(module.questionCount) questions, not attempted"
-                            : "\(module.questionCount) questions, best \(result?.best ?? 0) of \(result?.total ?? 0)")
+        .accessibilityValue(detail(for: module, record: record))
         .accessibilityHint("Opens the mode picker")
+    }
+
+    private func detail(for module: QBankModuleSummary, record: ModuleRecord?) -> String {
+        guard let record else { return "\(module.questionCount) questions" }
+        let sittings = record.count == 1 ? "1 sitting" : "\(record.count) sittings"
+        return "\(module.questionCount) questions · best \(record.best) of \(record.total) · \(sittings)"
     }
 }

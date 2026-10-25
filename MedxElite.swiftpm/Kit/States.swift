@@ -52,3 +52,33 @@ public extension View {
             .disabled(isLoading)
     }
 }
+
+// MARK: - Placeholder rows
+
+/// Rows of the right shape while a list loads — a tile, a title, a detail line, greyed — so the
+/// page arrives already laid out instead of as a spinner in the middle of nothing.
+public struct MedxPlaceholderRows: View {
+    private let count: Int
+
+    public init(count: Int = 6) {
+        self.count = count
+    }
+
+    public var body: some View {
+        ForEach(0..<count, id: \.self) { _ in
+            HStack(spacing: MedxSpace.m) {
+                MedxSymbolTile("square.fill", hue: MedxOutcome.pending, size: 36)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("A title about this long")
+                    Text("A detail line")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 2)
+        }
+        .redacted(reason: .placeholder)
+        .accessibilityHidden(true)
+    }
+}
