@@ -1,884 +1,327 @@
 import SwiftUI
-import UIKit
 
-// MARK: - Runner chrome
-//
-// The sitting screen, redesigned to the reference: a black canvas with a faint dotted grid, and
-// Liquid Glass controls floating over the question. This is the one screen glass is actually
-// *for* — chrome floating over content that is already there.
-//
-//   * `RunnerHUD` at the top: a full-width **time-remaining** bar (green, red for the last 20%)
-//     just under the status bar, then a row of a circular close button, a circular bookmark, and
-//     the countdown pill. On iPad the question counter also rides at the top-right.
-//   * `RunnerActionBar` at the bottom: `←  ·  3/50  ·  →` on iPhone; on iPad both arrows group in
-//     the right corner. The blue circle advances (and becomes finish/submit on the last question).
-//
-// The circles are built like `MedxCircleButton` — the app's proven circular control — with a plain
-// `Button`, an explicit circular frame and a `contentShape(Circle())` so the whole circle takes the
-// tap. That last part matters: `.buttonStyle(.glass)` hit-tested only the bare glyph and its
-// *interactive* glass swallowed the touch, which is what left the ✕ dead. Neutral circles wear
-// non-interactive glass (`medxGlassCircle`); the primary Next is a solid tinted fill.
-//
-// The progress track that used to live here (`MedxAnswerSheet` at `track` scale) is gone from the
-// HUD; the OMR grid still draws in the question navigator and the post-sitting review. What the top
-// bar shows now is time, exactly as the reference annotates it: the block's clock in exam mode, the
-// per-question 60s in revision.
+// The runner's pieces that are not the question itself: the clock in the navigation bar, the
+// time bar under it, the question navigator, the submit sheet, the block handover and the
+// explanation. The bars are the platform's own; nothing here draws glass.
 
-// MARK: - Dotted canvas
+// MARK: - The clock
 
-/// The faint dot grid behind the question. One `Canvas`, drawn once, no assets — low-opacity dots on
-/// a regular pitch, so the black page has texture without anything to read.
-struct RunnerDotField: View {
-    var pitch: CGFloat = 26
-    var dot: CGFloat = 1.6
+/// How much of the clock is left, in three steps, so the clock and the bar can change colour
+/// without the runner re-evaluating on every second.
+enum RunnerClockPhase: Equatable {
+    case calm, low, critical
+
+    static func of(remaining: Int, capacity: Int) -> RunnerClockPhase {
+        guard capacity > 0 else { return .calm }
+        let fraction = Double(remaining) / Double(capacity)
+        if fraction <= 0.05 || remaining <= 10 { return .critical }
+        if fraction <= 0.2 { return .low }
+        return .calm
+    }
+
+    var color: Color {
+        switch self {
+        case .calm: return .primary
+        case .low: return MedxOutcome.flagged
+        case .critical: return MedxOutcome.wrong
+        }
+    }
+}
+
+/// The clock in the navigation bar. The system ticks it: a running clock is a
+/// `Text(timerInterval:)` counting down to the deadline, so nothing in the runner redraws for
+/// it, and a held clock (a revision answer shown) is the seconds that were left.
+struct RunnerClock: View {
+    let start: Date
+    let deadline: Date
+    /// Set while the clock is held, with the seconds that were left.
+    let frozen: Int?
+    let phase: RunnerClockPhase
 
     var body: some View {
-        Canvas { context, size in
-            let color = GraphicsContext.Shading.color(.white.opacity(0.05))
-            var y: CGFloat = pitch / 2
-            while y < size.height {
-                var x: CGFloat = pitch / 2
-                while x < size.width {
-                    let rect = CGRect(x: x - dot / 2, y: y - dot / 2, width: dot, height: dot)
-                    context.fill(Path(ellipseIn: rect), with: color)
-                    x += pitch
+        HStack(spacing: 5) {
+            Image(systemName: frozen != nil ? "pause.circle.fill" : "timer")
+                .font(.footnote.weight(.semibold))
+            Group {
+                if let frozen {
+                    Text(MedxFormat.clock(frozen))
+                } else {
+                    Text(timerInterval: start...max(deadline, start), countsDown: true, showsHours: true)
                 }
-                y += pitch
             }
+            .font(.system(.subheadline, design: .rounded).weight(.bold))
+            .monospacedDigit()
         }
-        .allowsHitTesting(false)
-        .ignoresSafeArea()
+        .foregroundStyle(phase.color)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Time left")
     }
 }
 
-// MARK: - A glass button
-
-/// A round control in the runner chrome, built on the **same structure as `MedxCircleButton`** —
-/// the app's proven circular control on every other page: a plain `Button`, an explicit circular
-/// frame, and a `contentShape(Circle())` so the whole circle is the tap target. That last part is
-/// why this exists instead of `.buttonStyle(.glass)` — the glass button style hit-tested only the
-/// bare glyph and its interactive glass swallowed the touch, which is what left the ✕ dead.
-///
-/// Neutral buttons wear non-interactive Liquid Glass (`medxGlassCircle`); `prominent` is a solid
-/// tinted fill (`medxInkCircle`) — the blue Next, drawn opaque exactly as the reference shows it.
-///
-/// `hitExpansion` grows the tap target *past* the visible circle without changing the layout: the
-/// padding enlarges the hittable `Rectangle`, the matching negative padding collapses the footprint
-/// back. The ✕ uses it because, sitting in the top-left corner behind a screen protector, taps that
-/// landed a few points outside the 44pt circle were being missed even though the button was live.
-struct RunnerCircleButton: View {
-    let systemName: String
-    var prominent: Bool = false
-    var tint: Color? = nil
-    var foreground: Color = .primary
-    /// Visible circle *and* base hit target. Kept at HIG-comfortable sizes, not the oversized ones
-    /// the glass control metrics were producing.
-    var diameter: CGFloat = 44
-    /// Extra tappable margin on every side, beyond the visible circle, with no layout cost.
-    var hitExpansion: CGFloat = 0
-    var bounceOn: Bool = false
-    let action: () -> Void
-
-    private var glyph: some View {
-        Image(systemName: systemName)
-            .font(.system(size: max(15, diameter * 0.36), weight: .semibold))
-            .symbolEffect(.bounce, value: bounceOn)
-    }
-
-    var body: some View {
-        Button(action: action) {
-            if prominent {
-                glyph
-                    .foregroundStyle(.white)
-                    .medxInkCircle(diameter: diameter, tint: tint ?? MedxTheme.accent)
-            } else {
-                glyph
-                    .foregroundStyle(foreground)
-                    .medxGlassCircle(diameter: diameter)
-            }
-        }
-        .buttonStyle(MedxPressStyle())
-        .modifier(HitExpansion(amount: hitExpansion))
-    }
-}
-
-/// Enlarges a control's tap target by `amount` on every side without disturbing surrounding layout:
-/// pad out, make that whole rectangle the content shape, then pad back in by the same amount.
-private struct HitExpansion: ViewModifier {
-    let amount: CGFloat
-
-    func body(content: Content) -> some View {
-        if amount > 0 {
-            content
-                .padding(amount)
-                .contentShape(Rectangle())
-                .padding(-amount)
-        } else {
-            content
-        }
-    }
-}
-
-// MARK: - Time bar
-
-/// The progress bar that spans the top of the runner, just under the status bar. Not glass — a
-/// filled track, the one solid element above the floating controls, exactly as the reference
-/// draws it. **Green** while there is time; it flips to **red** for the final 20%. Non-interactive,
-/// so it never eats a tap meant for the close button sitting under its left end.
+/// The thin bar under the navigation bar that drains with the clock.
 struct RunnerTimeBar: View {
-    let fraction: Double
-    let isPaused: Bool
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    /// Red for the final fifth of the clock; green above it. Paused (revision, answer revealed)
-    /// reads as a full green bar.
-    private var isCritical: Bool { !isPaused && fraction <= 0.2 }
-    private var tint: Color { isCritical ? MedxDS.wrong : MedxDS.correct }
+    let start: Date
+    let deadline: Date
+    let frozen: Int?
+    let capacity: Int
+    let phase: RunnerClockPhase
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule(style: .continuous)
-                    .fill(MedxDS.line)
-                Capsule(style: .continuous)
-                    .fill(tint)
-                    .frame(width: max(0, min(1, isPaused ? 1 : fraction)) * geo.size.width)
-            }
-        }
-        .frame(height: 7)
-        .allowsHitTesting(false)
-        .animation(reduceMotion ? nil : .linear(duration: 0.9), value: fraction)
-        .animation(reduceMotion ? nil : MedxDS.snap, value: isCritical)
-        .accessibilityElement()
-        .accessibilityLabel("Time remaining")
-        .accessibilityValue("\(Int((isPaused ? 1 : fraction) * 100)) percent")
-    }
-}
-
-// MARK: - Counter
-
-/// The `3 / 50` capsule. Tapping it opens the navigator — the number you are looking at is the most
-/// natural thing to tap to go elsewhere. Figure voice so the digits do not shift as they count.
-struct RunnerCounter: View {
-    let number: Int
-    let total: Int
-    /// Matched to the neighbouring circles' diameter so the row is one uniform height.
-    var height: CGFloat = 44
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 5) {
-                Text("\(number)")
-                    .font(MedxType.value)
-                    .foregroundStyle(.primary)
-                    .contentTransition(.numericText())
-                Text("/ \(total)")
-                    .font(MedxType.value)
-                    .foregroundStyle(.secondary)
-            }
-            .fixedSize()
-            .padding(.horizontal, 16)
-            .frame(height: height)
-            .contentShape(Capsule(style: .continuous))
-            .modifier(RunnerCapsuleGlass())
-        }
-        .buttonStyle(MedxPressStyle())
-        .accessibilityLabel("Question \(number) of \(total)")
-        .accessibilityHint("Opens the question navigator")
-    }
-}
-
-/// A dark glass capsule for the counter and the timer, with an ink fallback under Reduce Transparency.
-struct RunnerCapsuleGlass: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    func body(content: Content) -> some View {
-        if !reduceTransparency {
-            content.glassEffect(.regular, in: Capsule(style: .continuous))
-        } else {
-            content.background(MedxDS.sunken, in: Capsule(style: .continuous))
-        }
-    }
-}
-
-// MARK: - HUD
-
-struct RunnerHUD: View {
-    let number: Int
-    let total: Int
-    /// Set only for a paper sat in blocks.
-    let blockLabel: String?
-    let remainingSeconds: Int
-    /// What the clock was wound to, so the ring can show a fraction.
-    let capacitySeconds: Int
-    let isPaused: Bool
-    let isBookmarked: Bool
-    /// iPad: kept for the call site; the counter now lives in the HUD's title on every device.
-    let showsInlineCounter: Bool
-    /// iPad sizes the chrome up.
-    let isPad: Bool
-    /// What is being sat ("Gram-Positive Cocci"), shown small above the question number.
-    var title: String = ""
-    /// "Exam" or "Revision", shown as the eyebrow's first word.
-    var modeLabel: String? = nil
-    /// The block's questions as answer-sheet cells, drawn as the progress track under the row.
-    var trackCells: [MedxSheetCell] = []
-    /// Index into `trackCells` of the question on screen.
-    var trackCurrent: Int? = nil
-    /// The paper number of `trackCells[0]`, so the pills are labelled the way the key numbers them.
-    var trackStart: Int = 0
-    /// Indices into `trackCells` the student has bookmarked: a small dot on the pill.
-    var trackMarked: Set<Int> = []
-    /// Tapping a pill jumps to that question (index into `trackCells`).
-    var onJump: ((Int) -> Void)? = nil
-    let onClose: () -> Void
-    let onNavigator: () -> Void
-    let onBookmark: () -> Void
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var elementHeight: CGFloat { isPad ? 48 : 42 }
-
-    private var eyebrow: String {
-        var parts: [String] = []
-        if let modeLabel, !modeLabel.isEmpty { parts.append(modeLabel) }
-        if let blockLabel, !blockLabel.isEmpty { parts.append(blockLabel) }
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty { parts.append(trimmed) }
-        return parts.joined(separator: " · ")
-    }
-
-    private var positionFraction: Double {
-        guard total > 0 else { return 0 }
-        return min(max(Double(number) / Double(total), 0), 1)
-    }
-
-    var body: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                RunnerCircleButton(
-                    systemName: "xmark",
-                    foreground: .secondary,
-                    diameter: elementHeight,
-                    hitExpansion: 10,
-                    action: onClose
-                )
-                .accessibilityLabel("Close sitting")
-
-                // The title doubles as the way into the navigator: tapping "Question 3 of 50"
-                // is where a student expects the list of questions to be.
-                Button(action: onNavigator) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        if !eyebrow.isEmpty {
-                            Text(eyebrow)
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                        }
-                        HStack(alignment: .firstTextBaseline, spacing: 5) {
-                            Text("Q\(number)")
-                                .font(MedxType.figure(19, weight: .bold))
-                                .foregroundStyle(.primary)
-                                .contentTransition(.numericText())
-                            Text("of \(total)")
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.secondary)
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.tertiary)
-                        }
-                        .lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Question \(number) of \(total)")
-                .accessibilityHint("Opens the question navigator")
-
-                RunnerTimerRing(
-                    remainingSeconds: remainingSeconds,
-                    capacitySeconds: capacitySeconds,
-                    isPaused: isPaused,
-                    height: elementHeight
-                )
-                .fixedSize()
-
-                RunnerCircleButton(
-                    systemName: isBookmarked ? "bookmark.fill" : "bookmark",
-                    tint: isBookmarked ? MedxDS.warn : nil,
-                    foreground: isBookmarked ? MedxDS.warn : .secondary,
-                    diameter: elementHeight,
-                    bounceOn: isBookmarked,
-                    action: onBookmark
-                )
-                .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark question")
-            }
-
-            // Progress: one small numbered pill per question, coloured by state. The question on
-            // screen is the same size as the rest and only changes colour.
-            if trackCells.count > 1 {
-                RunnerQuestionPills(
-                    cells: trackCells,
-                    current: trackCurrent,
-                    start: trackStart,
-                    marked: trackMarked,
-                    onJump: onJump
-                )
+        Group {
+            if let frozen {
+                ProgressView(value: Double(frozen), total: Double(max(capacity, 1)))
             } else {
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule(style: .continuous)
-                            .fill(MedxDS.sunken)
-                        Capsule(style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [MedxTheme.accent.opacity(0.75), MedxTheme.accent],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .frame(width: max(proxy.size.width * positionFraction, 6))
-                    }
+                ProgressView(timerInterval: start...max(deadline, start), countsDown: true) {
+                    EmptyView()
+                } currentValueLabel: {
+                    EmptyView()
                 }
-                .frame(height: 5)
-                .animation(reduceMotion ? nil : MedxDS.settle, value: number)
-                .accessibilityHidden(true)
             }
         }
-        .frame(maxWidth: 760)
-        .padding(.horizontal, MedxDS.gutter)
-        .padding(.top, 4)
-        .padding(.bottom, 10)
-        .frame(maxWidth: .infinity)
-        // Solid page colour behind the row (through the status bar), then a short fade, so the stem
-        // scrolling underneath never shows through the controls.
-        .background(alignment: .top) {
-            VStack(spacing: 0) {
-                MedxDS.page
-                LinearGradient(
-                    colors: [MedxDS.page, MedxDS.page.opacity(0)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 18)
-            }
-            .padding(.bottom, -18)
-            .ignoresSafeArea(edges: .top)
-            .allowsHitTesting(false)
-        }
+        .progressViewStyle(.linear)
+        .tint(phase == .calm ? MedxTheme.accent : phase.color)
+        .padding(.horizontal, MedxSpace.l)
+        .padding(.top, MedxSpace.xs)
+        .padding(.bottom, MedxSpace.s)
+        .accessibilityHidden(true)
     }
 }
 
-// MARK: - Question pills
+// MARK: - Per-question status
 
-/// The HUD's progress: a scrolling row of small numbered capsules, one per question in the block.
-/// Colour alone carries state (answered, right, wrong, timed out, untouched), the current question
-/// is the one solid light pill at the same size as the others, and a bookmarked one carries a dot.
-struct RunnerQuestionPills: View {
-    let cells: [MedxSheetCell]
-    let current: Int?
-    let start: Int
-    let marked: Set<Int>
-    let onJump: ((Int) -> Void)?
+enum RunnerQuestionStatus {
+    case unanswered
+    case answered
+    case correct
+    case wrong
+    case timedOut
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal) {
-                LazyHStack(spacing: 6) {
-                    ForEach(cells.indices, id: \.self) { index in
-                        pill(index)
-                            .id(index)
-                    }
-                }
-                .padding(.vertical, 2)
-            }
-            .scrollIndicators(.hidden)
-            .frame(height: 30)
-            .onAppear {
-                if let current { proxy.scrollTo(current, anchor: .center) }
-            }
-            .onChange(of: current) { _, next in
-                guard let next else { return }
-                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
-                    proxy.scrollTo(next, anchor: .center)
-                }
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Questions")
-    }
-
-    private func pill(_ index: Int) -> some View {
-        let isCurrent = index == current
-        let style = Self.style(for: cells[index])
-
-        return Button {
-            guard !isCurrent else { return }
-            HapticManager.selection()
-            onJump?(index)
-        } label: {
-            Text("\(start + index + 1)")
-                .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
-                .foregroundStyle(isCurrent ? MedxDS.page : style.ink)
-                .lineLimit(1)
-                .padding(.horizontal, 8)
-                .frame(minWidth: 34)
-                .frame(height: 24)
-                .background(Capsule(style: .continuous).fill(isCurrent ? Color.primary : style.fill))
-                .overlay(alignment: .topTrailing) {
-                    if marked.contains(index) {
-                        Circle()
-                            .fill(MedxDS.warn)
-                            .frame(width: 7, height: 7)
-                            .offset(x: 1, y: -1)
-                    }
-                }
-                .contentShape(Capsule(style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .disabled(onJump == nil)
-        .accessibilityLabel("Question \(start + index + 1)")
-        .accessibilityValue(isCurrent ? "Current" : Self.label(for: cells[index]))
-    }
-
-    private static func style(for cell: MedxSheetCell) -> (fill: Color, ink: Color) {
-        switch cell {
-        case .answered: return (MedxTheme.accent.opacity(0.30), MedxTheme.accent)
-        case .correct: return (MedxDS.correct.opacity(0.28), MedxDS.correct)
-        case .wrong: return (MedxDS.wrong.opacity(0.28), MedxDS.wrong)
-        case .missed: return (MedxDS.warn.opacity(0.28), MedxDS.warn)
-        case .pending: return (MedxDS.sunken, Color.secondary)
+    /// The colour this state wears, or nil where the state is "nothing has happened here yet".
+    var tint: Color? {
+        switch self {
+        case .unanswered: return nil
+        case .answered: return MedxTheme.accent
+        case .correct: return MedxOutcome.correct
+        case .wrong: return MedxOutcome.wrong
+        case .timedOut: return MedxOutcome.flagged
         }
     }
 
-    private static func label(for cell: MedxSheetCell) -> String {
-        switch cell {
+    var legendLabel: String {
+        switch self {
+        case .unanswered: return "Not answered"
         case .answered: return "Answered"
         case .correct: return "Correct"
         case .wrong: return "Wrong"
-        case .missed: return "Timed out"
-        case .pending: return "Not answered"
+        case .timedOut: return "Timed out"
         }
     }
 }
 
-// MARK: - Clock ring
+// MARK: - Outcome
 
-/// The countdown as a pill: a small ring that drains around a clock glyph, then the exact time.
-/// Green with plenty left, orange past the last third, red in the last ten seconds or the last
-/// fifth; "Done" with a tick once a revision answer pauses it.
-struct RunnerTimerRing: View {
-    let remainingSeconds: Int
-    let capacitySeconds: Int
-    let isPaused: Bool
-    var height: CGFloat = 42
+enum RunnerOutcome: Equatable {
+    case correct
+    case incorrect
+    case timedOut
+    case unanswered
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    /// Time left over the time the clock was wound to: the ring drains as the paper runs.
-    private var fraction: Double {
-        guard capacitySeconds > 0 else { return 0 }
-        return min(max(Double(remainingSeconds) / Double(capacitySeconds), 0), 1)
-    }
-
-    /// The accent while there is time, orange under a fifth, red for the last twentieth (or the
-    /// last minute of a long paper). Paused keeps the colour it had, just quieter.
-    private var tint: Color {
-        let lastMinute = capacitySeconds >= 600 && remainingSeconds <= 60
-        if fraction <= 0.05 || lastMinute || remainingSeconds <= 5 { return MedxDS.wrong }
-        if fraction <= 0.2 { return MedxDS.warn }
-        return MedxTheme.accent
-    }
-
-    private var clock: String {
-        let clamped = max(remainingSeconds, 0)
-        if clamped >= 3600 {
-            return String(format: "%d:%02d:%02d", clamped / 3600, (clamped % 3600) / 60, clamped % 60)
+    init(response: QuestionResponse?) {
+        guard let response else {
+            self = .unanswered
+            return
         }
-        return String(format: "%02d:%02d", clamped / 60, clamped % 60)
+        if response.timedOut == true {
+            self = .timedOut
+        } else if response.chosenId == nil {
+            self = .unanswered
+        } else {
+            self = response.correct ? .correct : .incorrect
+        }
     }
 
-    var body: some View {
-        HStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .stroke(tint.opacity(0.2), lineWidth: 3.5)
-                Circle()
-                    .trim(from: 0, to: fraction)
-                    .stroke(tint, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .animation(reduceMotion ? nil : .linear(duration: 1), value: fraction)
-                if isPaused {
-                    Image(systemName: "pause.fill")
-                        .font(.system(size: 8, weight: .heavy))
-                        .foregroundStyle(tint)
-                }
-            }
-            .frame(width: 24, height: 24)
-            .opacity(isPaused ? 0.6 : 1)
-
-            Text(clock)
-                .font(MedxType.figure(16, weight: .bold))
-                .monospacedDigit()
-                .foregroundStyle(fraction <= 0.2 || remainingSeconds <= 60 && capacitySeconds >= 600 ? tint : Color.primary)
-                .contentTransition(.numericText(countsDown: true))
-                .lineLimit(1)
+    var title: String {
+        switch self {
+        case .correct: return "Correct"
+        case .incorrect: return "Incorrect"
+        case .timedOut: return "Time up"
+        case .unanswered: return "Not answered"
         }
-        .padding(.horizontal, 12)
-        .frame(height: height)
-        .modifier(RunnerCapsuleGlass())
-        .accessibilityElement()
-        .accessibilityLabel(isPaused ? "Timer paused, \(clock) left" : "Time remaining \(clock)")
+    }
+
+    var icon: String {
+        switch self {
+        case .correct: return "checkmark.circle.fill"
+        case .incorrect: return "xmark.circle.fill"
+        case .timedOut: return "clock.badge.exclamationmark.fill"
+        case .unanswered: return "minus.circle.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .correct: return MedxOutcome.correct
+        case .incorrect: return MedxOutcome.wrong
+        case .timedOut: return MedxOutcome.flagged
+        case .unanswered: return MedxOutcome.pending
+        }
     }
 }
 
-// MARK: - Clock pill
+// MARK: - The navigator grid
 
-/// The countdown, as digits on a dark glass pill — the `00:57` in the mockup. The draining is now
-/// the bar's job, so this is just the exact time, monospaced so it does not twitch.
-struct RunnerTimerBadge: View {
-    let remainingSeconds: Int
-    let isPaused: Bool
-    /// Matched to the neighbouring circles' diameter so the HUD row is one uniform height.
-    var height: CGFloat = 44
-
-    private var isLow: Bool { !isPaused && remainingSeconds <= 10 }
-
-    private var tint: Color {
-        if isPaused { return MedxDS.correct }
-        return isLow ? MedxDS.wrong : .primary
-    }
-
-    private var clock: String {
-        let clamped = max(remainingSeconds, 0)
-        return String(format: "%02d:%02d", clamped / 60, clamped % 60)
-    }
-
-    var body: some View {
-        Text(isPaused ? "Done" : clock)
-            .font(MedxType.clock)
-            .foregroundStyle(tint)
-            .contentTransition(.numericText(countsDown: true))
-            .padding(.horizontal, 14)
-            .frame(height: height)
-            .modifier(RunnerCapsuleGlass())
-            .accessibilityElement()
-            .accessibilityLabel(isPaused ? "Answer revealed, timer paused" : "Time remaining \(clock)")
-    }
-}
-
-// MARK: - Action bar
-
-/// The bottom controls, built on the same circular glass structure as the prominent Next: on
-/// iPhone `←  ·  3/50  ·  →` across the width; on iPad both arrows sit together in the right
-/// corner (the counter is the HUD's job there) and step up to the `.extraLarge` glass size.
-///
-/// No Skip button and no text label, matching the mockup: in exam mode the arrow always advances
-/// (skipping is just tapping it), and in revision it stays disabled until the answer is revealed.
-struct RunnerActionBar: View {
-    let number: Int
-    let total: Int
-    let isLastQuestion: Bool
-    let canGoBack: Bool
-    let canAdvance: Bool
-    /// Kept for the call site; the counter is part of the bar on every device now.
-    let showsCounter: Bool
-    let isPad: Bool
-    let onBack: () -> Void
-    let onNavigator: () -> Void
-    let onAdvance: () -> Void
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var controlHeight: CGFloat { isPad ? 54 : 50 }
-
-    /// The app's floating tab bar on a Face ID iPhone, measured off the iPhone 14 Pro simulator on
-    /// iOS 26: 62 pt tall (a 50 pt control plus 6 pt of glass above and below), 21 pt in from each
-    /// side, and its bottom edge 21 pt above the bottom of the screen, which is inside the 34 pt
-    /// home-indicator safe area. The pill used to sit on top of that safe area (40 pt up) with
-    /// 16 pt sides, so it read as floating a little above where the tab bar lives.
-    private enum TabBarLine {
-        static let side: CGFloat = 21
-        static let bottomGap: CGFloat = 21
-    }
-
-    /// The key window's bottom safe area: 34 pt on a Face ID iPhone in portrait, 21 in landscape,
-    /// 0 on a Home-button phone.
-    private var windowBottomInset: CGFloat {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first(where: \.isKeyWindow)?
-            .safeAreaInsets.bottom ?? 0
-    }
-
-    /// Phone in portrait with a home indicator: the pill drops into the safe area to the tab
-    /// bar's exact line. Everywhere else it keeps a small gap above the safe area.
-    private var bottomPadding: CGFloat {
-        guard !isPad else { return 6 }
-        let inset = windowBottomInset
-        return inset >= 30 ? TabBarLine.bottomGap - inset : 6
-    }
-
-    private var advanceTint: Color { isLastQuestion ? MedxDS.correct : MedxTheme.accent }
-
-    var body: some View {
-        // One capsule of glass with three opaque controls on it. Nothing inside is glass, so
-        // nothing samples glass; the buttons are plain `Button`s with their own content shapes,
-        // which is what keeps every tap alive.
-        HStack(spacing: 8) {
-            Button(action: onBack) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(canGoBack ? Color.primary : Color.secondary)
-                    .frame(width: controlHeight, height: controlHeight)
-                    .background(Circle().fill(MedxDS.sunken))
-                    .contentShape(Circle())
-            }
-            .buttonStyle(MedxPressStyle())
-            .disabled(!canGoBack)
-            .opacity(canGoBack ? 1 : 0.4)
-            .accessibilityLabel("Previous question")
-
-            Button(action: onNavigator) {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.grid.3x3.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Text("\(number)/\(total)")
-                        .font(MedxType.figure(16, weight: .bold))
-                        .foregroundStyle(.primary)
-                        .contentTransition(.numericText())
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, 14)
-                .frame(height: controlHeight)
-                .background(Capsule(style: .continuous).fill(MedxDS.sunken))
-                .contentShape(Capsule(style: .continuous))
-            }
-            .buttonStyle(MedxPressStyle())
-            .fixedSize()
-            .accessibilityLabel("Question \(number) of \(total)")
-            .accessibilityHint("Opens the question navigator")
-
-            Button(action: onAdvance) {
-                HStack(spacing: 8) {
-                    Text(isLastQuestion ? "Submit" : "Next")
-                        .font(.headline.weight(.bold))
-                    Image(systemName: isLastQuestion ? "checkmark" : "arrow.right")
-                        .font(.system(size: 15, weight: .bold))
-                }
-                .foregroundStyle(.white)
-                // A compact Next on iPad, sized to its label, rather than a bar the width of
-                // the page; the phone keeps the full-width thumb target.
-                .frame(width: isPad ? 140 : nil)
-                .frame(maxWidth: isPad ? nil : .infinity)
-                .frame(height: controlHeight)
-                .background {
-                    Capsule(style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [advanceTint.opacity(0.82), advanceTint],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .shadow(color: advanceTint.opacity(canAdvance ? 0.45 : 0), radius: 10, y: 4)
-                }
-                .contentShape(Capsule(style: .continuous))
-            }
-            .buttonStyle(MedxPressStyle())
-            .disabled(!canAdvance)
-            .opacity(canAdvance ? 1 : 0.4)
-            .accessibilityLabel(isLastQuestion ? "Submit" : "Next question")
-        }
-        .padding(6)
-        .modifier(RunnerCapsuleGlass())
-        .fixedSize(horizontal: isPad, vertical: false)
-        .frame(maxWidth: isPad ? CGFloat.infinity : CGFloat.infinity)
-        .padding(.horizontal, isPad ? MedxDS.gutter : TabBarLine.side)
-        .padding(.top, 4)
-        .padding(.bottom, bottomPadding)
-        .animation(reduceMotion ? nil : MedxDS.snap, value: isLastQuestion)
-        .animation(reduceMotion ? nil : MedxDS.snap, value: canAdvance)
-    }
-}
-
-
-// MARK: - iPad landscape: navigator sidebar
-
-/// The navigator as a standing panel beside the question on an iPad in landscape: what is
-/// answered, what is open, what is flagged, every question one tap away, and Submit always in
-/// reach. The phone (and iPad portrait) gets the same grid as a sheet from the action bar.
-struct RunnerSidebarNavigator: View {
+/// Every question of the block as a numbered tile, coloured by its state. Shared by the
+/// navigator sheet on a phone and the sidebar on an iPad in landscape.
+struct RunnerNavigatorGrid: View {
     let range: Range<Int>
     let currentIndex: Int
     let furthestIndex: Int
     let statuses: [RunnerQuestionStatus]
-    /// Bookmarked questions (absolute indices): a small dot on the pill.
     let marked: Set<Int>
+    /// Revision reveals answers as you go, so jumping past the frontier is not allowed.
     let lockAhead: Bool
-    let sectionLabel: String?
-    let submitLabel: String
     let onSelect: (Int) -> Void
-    let onSubmit: () -> Void
-
-    private func status(_ index: Int) -> RunnerQuestionStatus {
-        statuses.indices.contains(index) ? statuses[index] : .unanswered
-    }
-
-    private var answered: Int { range.filter { status($0) != .unanswered }.count }
-    private var open: Int { range.count - answered }
-    private var flagged: Int { range.filter { marked.contains($0) }.count }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(sectionLabel ?? "Questions")
-                    .font(.headline.weight(.bold))
-                Spacer(minLength: 0)
-                Text("\(answered)/\(range.count)")
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(.secondary)
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 52), spacing: MedxSpace.s)], spacing: MedxSpace.s) {
+            ForEach(Array(range), id: \.self) { index in
+                tile(for: index)
             }
-
-            HStack(spacing: 8) {
-                count(answered, "answered", MedxTheme.accent)
-                count(open, "open", .secondary)
-                count(flagged, "flagged", MedxDS.warn)
-            }
-
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 5), spacing: 8) {
-                        ForEach(Array(range), id: \.self) { index in
-                            pill(index).id(index)
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-                .scrollIndicators(.hidden)
-                .onAppear { proxy.scrollTo(currentIndex, anchor: .center) }
-                .onChange(of: currentIndex) { _, index in
-                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(index, anchor: .center) }
-                }
-            }
-
-            Button(action: onSubmit) {
-                Label(submitLabel, systemImage: "checkmark.circle.fill")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(MedxCandy.ink(on: MedxTheme.accent))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 46)
-                    .background(Capsule(style: .continuous).fill(MedxTheme.accent))
-                    .contentShape(Capsule(style: .continuous))
-            }
-            .buttonStyle(MedxPressStyle())
         }
-        .padding(16)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(MedxDS.raised))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
-        )
     }
 
-    private func count(_ value: Int, _ label: String, _ tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text("\(value)")
-                .font(MedxType.figure(18, weight: .bold))
-                .foregroundStyle(tint)
-            Text(label)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(MedxDS.sunken))
-    }
-
-    private func pill(_ index: Int) -> some View {
-        let state = status(index)
+    private func tile(for index: Int) -> some View {
+        let status = statuses.indices.contains(index) ? statuses[index] : .unanswered
         let isCurrent = index == currentIndex
         let isLocked = lockAhead && index > furthestIndex
-        let hue = state.tileHue
+        let tint = status.tint
 
         return Button {
             onSelect(index)
         } label: {
             Text("\(index + 1)")
-                .font(.footnote.weight(.bold).monospacedDigit())
-                .foregroundStyle(isCurrent ? MedxDS.page : (hue ?? Color.primary))
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(isCurrent ? Color.white : (tint ?? Color.primary))
                 .frame(maxWidth: .infinity)
-                .frame(height: 34)
+                .frame(height: 40)
                 .background(
-                    Capsule(style: .continuous)
-                        .fill(isCurrent ? Color.primary : (hue?.opacity(0.26) ?? MedxDS.sunken))
+                    isCurrent ? MedxTheme.accent : (tint?.opacity(0.18) ?? Color(uiColor: .tertiarySystemFill)),
+                    in: RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
                 )
                 .overlay(alignment: .topTrailing) {
                     if marked.contains(index) {
                         Circle()
-                            .fill(MedxDS.warn)
-                            .frame(width: 7, height: 7)
-                            .offset(x: -3, y: 3)
+                            .fill(MedxOutcome.flagged)
+                            .frame(width: 8, height: 8)
+                            .padding(5)
                     }
                 }
                 .opacity(isLocked ? 0.35 : 1)
-                .contentShape(Capsule(style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
         }
-        .buttonStyle(MedxPressStyle())
+        .buttonStyle(.plain)
         .disabled(isLocked)
         .accessibilityLabel("Question \(index + 1)")
-        .accessibilityValue(isCurrent ? "Current, \(state.legendLabel)" : state.legendLabel)
+        .accessibilityValue(isCurrent ? "Current, \(status.legendLabel)" : status.legendLabel)
     }
 }
 
-// MARK: - iPad landscape: explanation beside the question
+/// The legend under a grid, as one wrapping row of chips.
+struct RunnerNavigatorLegend: View {
+    let lockAhead: Bool
 
-/// Revision on an iPad in landscape: the explanation lives in its own panel to the right of
-/// the options instead of pushing them up the screen, and says what it is waiting for until
-/// an answer is picked.
-struct RunnerExplanationPanel: View {
-    let question: Question
-    let response: QuestionResponse?
-    let isRevealed: Bool
+    private var entries: [RunnerQuestionStatus] {
+        lockAhead ? [.unanswered, .correct, .wrong, .timedOut] : [.unanswered, .answered]
+    }
 
     var body: some View {
-        ScrollView {
-            if isRevealed {
-                RunnerExplanationCard(question: question, response: response)
-                    .transition(.opacity)
-            } else {
-                VStack(spacing: 10) {
-                    Image(systemName: "text.book.closed")
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                    Text("Pick an answer")
-                        .font(.headline)
-                    Text("The key and the explanation open here.")
-                        .font(.subheadline)
+        HStack(spacing: MedxSpace.l) {
+            ForEach(Array(entries.enumerated()), id: \.offset) { _, status in
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(status.tint ?? Color(uiColor: .tertiarySystemFill))
+                        .frame(width: 10, height: 10)
+                    Text(status.legendLabel)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 60)
-                .padding(.horizontal, 20)
-                .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.1), style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
-                )
+            }
+            HStack(spacing: 6) {
+                Circle().fill(MedxOutcome.flagged).frame(width: 8, height: 8)
+                Text("Bookmarked")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
-        .scrollIndicators(.hidden)
+    }
+}
+
+// MARK: - Question navigator sheet
+
+struct QuestionNavigatorSheet: View {
+    /// The questions this sheet may offer, absolute in the paper: a sectioned sitting passes
+    /// only the block being sat, since a submitted block cannot be re-entered.
+    let range: Range<Int>
+    let currentIndex: Int
+    let furthestIndex: Int
+    let statuses: [RunnerQuestionStatus]
+    let marked: Set<Int>
+    let lockAhead: Bool
+    let sectionLabel: String?
+    let onSelect: (Int) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    private var counts: (answered: Int, open: Int, wrong: Int) {
+        var answered = 0
+        var open = 0
+        var wrong = 0
+        for index in range {
+            let status = statuses.indices.contains(index) ? statuses[index] : .unanswered
+            switch status {
+            case .unanswered: open += 1
+            case .wrong, .timedOut: answered += 1; wrong += 1
+            default: answered += 1
+            }
+        }
+        return (answered, open, wrong)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: MedxSpace.xl) {
+                    MedxStatRow {
+                        MedxStatTile("\(counts.answered)", label: "answered", symbol: "checkmark.circle.fill", hue: MedxTheme.accent)
+                        MedxStatTile("\(counts.open)", label: "left", symbol: "circle.dashed", hue: MedxOutcome.pending)
+                        if lockAhead {
+                            MedxStatTile("\(counts.wrong)", label: "wrong", symbol: "xmark.circle.fill", hue: MedxOutcome.wrong)
+                        }
+                    }
+
+                    RunnerNavigatorGrid(
+                        range: range,
+                        currentIndex: currentIndex,
+                        furthestIndex: furthestIndex,
+                        statuses: statuses,
+                        marked: marked,
+                        lockAhead: lockAhead,
+                        onSelect: onSelect
+                    )
+
+                    RunnerNavigatorLegend(lockAhead: lockAhead)
+                }
+                .padding(MedxSpace.l)
+            }
+            .navigationTitle(sectionLabel ?? "Questions")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(role: .close) { dismiss() }
+                }
+            }
+        }
     }
 }
 
@@ -899,93 +342,260 @@ struct RunnerSubmitSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    static func clock(_ seconds: Int) -> String {
-        let clamped = max(seconds, 0)
-        if clamped >= 3600 {
-            return String(format: "%d:%02d:%02d", clamped / 3600, (clamped % 3600) / 60, clamped % 60)
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: MedxSpace.xl) {
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    MedxStatRow {
+                        MedxStatTile("\(answered)", label: "answered", symbol: "checkmark.circle.fill", hue: MedxTheme.accent)
+                        MedxStatTile("\(unanswered)", label: "unanswered", symbol: "circle.dashed", hue: unanswered > 0 ? MedxOutcome.wrong : MedxOutcome.pending)
+                        MedxStatTile("\(flagged)", label: "bookmarked", symbol: "bookmark.fill", hue: flagged > 0 ? MedxOutcome.flagged : MedxOutcome.pending)
+                        if let clock {
+                            MedxStatTile(clock, label: "left", symbol: "timer", hue: MedxOutcome.pending)
+                        }
+                    }
+
+                    VStack(spacing: MedxSpace.m) {
+                        Button {
+                            HapticManager.success()
+                            onSubmit()
+                        } label: {
+                            Text("Submit")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .medxPrimary()
+
+                        if unanswered > 0, let onReviewUnanswered {
+                            Button {
+                                HapticManager.light()
+                                onReviewUnanswered()
+                            } label: {
+                                Text("Go to the first unanswered")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .medxSecondary(size: .large)
+                        }
+
+                        Button("Keep going") { dismiss() }
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.top, MedxSpace.xs)
+                    }
+                }
+                .padding(MedxSpace.l)
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
         }
-        return String(format: "%02d:%02d", clamped / 60, clamped % 60)
+    }
+}
+
+// MARK: - Between blocks
+
+/// What was just submitted and what is about to open.
+struct MedxSectionHandover: Identifiable, Hashable {
+    let closedLabel: String
+    let score: Int
+    let attempted: Int
+    let total: Int
+    let gradable: Bool
+    let nextLabel: String
+    let nextCount: Int
+    let nextMinutes: Int
+    let remainingSections: Int
+
+    var id: String { closedLabel + "→" + nextLabel }
+}
+
+/// The acknowledgement between blocks, drawn *inside* the runner. It used to be a full-screen
+/// cover, and presenting a cover over the runner fired the runner's `onDisappear`, which ended
+/// the Live Activity — so a grand test had no Lock Screen clock from block two onward. The
+/// next block's clock starts when the button is tapped, not while this is being read.
+struct RunnerHandoverOverlay: View {
+    let summary: MedxSectionHandover
+    let onContinue: () -> Void
+
+    private var fraction: Double {
+        guard summary.total > 0 else { return 0 }
+        return Double(summary.gradable ? summary.score : summary.attempted) / Double(summary.total)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.title2.weight(.bold))
-                Text(detail)
-                    .font(.subheadline)
+        ScrollView {
+            VStack(alignment: .leading, spacing: MedxSpace.l) {
+                Text("\(summary.closedLabel) submitted")
+                    .font(.caption.weight(.bold))
+                    .textCase(.uppercase)
+                    .foregroundStyle(.secondary)
+
+                Text(summary.nextLabel)
+                    .font(.largeTitle.weight(.bold))
+
+                Text("\(summary.nextCount) questions, \(summary.nextMinutes) minutes. The block you just submitted is closed for good, and this one's clock starts when you tap below.")
+                    .font(.body)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            }
 
-            HStack(spacing: 8) {
-                tile("\(answered)", "answered", MedxTheme.accent)
-                tile("\(unanswered)", "unanswered", unanswered > 0 ? MedxDS.wrong : .secondary)
-                tile("\(flagged)", "flagged", flagged > 0 ? MedxDS.warn : .secondary)
-                if let clock {
-                    tile(clock, "left", .primary)
-                }
-            }
+                MedxCard {
+                    HStack(spacing: MedxSpace.l) {
+                        MedxRing(fraction: fraction, tint: summary.gradable ? MedxOutcome.correct : MedxTheme.accent) {
+                            VStack(spacing: 0) {
+                                MedxFigure(summary.gradable ? "\(summary.score)" : "\(summary.attempted)")
+                                Text("of \(summary.total)")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(width: 88, height: 88)
 
-            VStack(spacing: 10) {
-                Button {
-                    HapticManager.success()
-                    onSubmit()
-                } label: {
-                    Text("Submit")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(MedxCandy.ink(on: MedxTheme.accent))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 52)
-                        .background(Capsule(style: .continuous).fill(MedxTheme.accent))
-                        .contentShape(Capsule(style: .continuous))
-                }
-                .buttonStyle(MedxPressStyle())
-
-                if unanswered > 0, let onReviewUnanswered {
-                    Button {
-                        HapticManager.light()
-                        onReviewUnanswered()
-                    } label: {
-                        Text("Go to first unanswered")
-                            .font(.headline)
-                            .foregroundStyle(Color.primary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 52)
-                            .background(Capsule(style: .continuous).fill(MedxDS.sunken))
-                            .contentShape(Capsule(style: .continuous))
+                        MedxStatRow {
+                            if summary.gradable {
+                                MedxStatTile("\(summary.score)", label: "correct", symbol: "checkmark.circle.fill", hue: MedxOutcome.correct)
+                            }
+                            MedxStatTile("\(summary.attempted)", label: "attempted", symbol: "circle.fill", hue: MedxTheme.accent)
+                            MedxStatTile("\(summary.remainingSections)", label: summary.remainingSections == 1 ? "block left" : "blocks left", symbol: "square.stack.fill", hue: MedxOutcome.pending)
+                        }
                     }
-                    .buttonStyle(MedxPressStyle())
                 }
 
-                Button("Keep going") { dismiss() }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 2)
+                if !summary.gradable {
+                    Text("This paper came through without an answer key, so nothing here is scored; only what you attempted is recorded.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
+            .padding(MedxSpace.l)
+            .padding(.top, MedxSpace.xl)
         }
-        .padding(24)
-        .frame(maxWidth: 520)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                HapticManager.medium()
+                onContinue()
+            } label: {
+                Text("Start \(summary.nextLabel)")
+                    .frame(maxWidth: .infinity)
+            }
+            .medxPrimary()
+            .padding(MedxSpace.l)
+        }
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+    }
+}
+
+// MARK: - Explanation
+
+/// The reveal under a revision answer, and the explanation on a review card: the outcome, the
+/// right letter, the explanation and the reference.
+struct RunnerExplanationCard: View {
+    let question: Question
+    let response: QuestionResponse?
+
+    private var outcome: RunnerOutcome { RunnerOutcome(response: response) }
+
+    private var correctLabel: String? {
+        question.options.first { question.isCorrect(optionId: $0.id) }?.label
     }
 
-    private func tile(_ value: String, _ label: String, _ tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .font(MedxType.figure(20, weight: .bold))
-                .foregroundStyle(tint)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Text(label)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+    private var reference: String {
+        question.reference?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    var body: some View {
+        MedxCard {
+            VStack(alignment: .leading, spacing: MedxSpace.m) {
+                HStack(spacing: MedxSpace.m) {
+                    Image(systemName: outcome.icon)
+                        .font(.title2)
+                        .foregroundStyle(outcome.color)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(outcome.title)
+                            .font(.headline)
+                            .foregroundStyle(outcome.color)
+                        if let correctLabel, !correctLabel.isEmpty {
+                            Text(outcome == .correct ? "You picked \(correctLabel)" : "The answer is \(correctLabel)")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+                }
+
+                Divider()
+
+                Label("Explanation", systemImage: "lightbulb.fill")
+                    .font(.subheadline.weight(.semibold))
+
+                if let explanation = question.explanation, !explanation.isEmpty {
+                    HTMLRichTextView(html: explanation, fontSize: 15, weight: .regular, textColor: .secondary)
+                } else {
+                    Text("No explanation came with this question.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                if !reference.isEmpty {
+                    Label(reference, systemImage: "book.closed")
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                }
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(MedxDS.sunken))
+        .overlay {
+            RoundedRectangle(cornerRadius: MedxRadius.card, style: .continuous)
+                .strokeBorder(outcome.color.opacity(0.35), lineWidth: 1)
+                .allowsHitTesting(false)
+        }
+    }
+}
+
+// MARK: - Figure and source tag
+
+/// A tappable exported figure. Bare filenames are resolved against the image CDN, the same way
+/// the ones inside the HTML are.
+struct RunnerFigure: View {
+    let raw: String
+
+    var body: some View {
+        if let url = MedxRichText.figureURL(raw) {
+            Button {
+                HapticManager.light()
+                MedxImageZoom.present(url)
+            } label: {
+                CachedAsyncImage(url: url, contentMode: .fit)
+                    .frame(maxWidth: .infinity)
+                    .frame(maxHeight: 280)
+                    .clipShape(RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Figure")
+            .accessibilityHint("Opens the image full screen")
+        }
+    }
+}
+
+/// A small neutral chip naming where a question came from, truncating in the middle so both
+/// the paper and the session stay readable ("FMGE…June 2023").
+struct MedxSourceTag: View {
+    let text: String
+
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Label(text, systemImage: "doc.text")
+            .font(.caption2.weight(.semibold))
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
+            .frame(maxWidth: 220, alignment: .leading)
+            .accessibilityLabel("From \(text)")
     }
 }

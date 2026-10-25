@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Post-sitting review. A score header, a filter, then one flat card per question with its
-/// key and explanation.
+/// Post-sitting review: the score, the blocks if there were any, a filter, then one grouped
+/// section per question with its key and explanation. The option rows are the runner's own, in
+/// their revealed state, so the review and the sitting cannot draw an answer two ways.
 public struct SittingReviewView: View {
     public let sourceId: String
     public let name: String
@@ -10,10 +11,9 @@ public struct SittingReviewView: View {
     public let responses: [Int: QuestionResponse]
     public let gradable: Bool
     public let elapsedSeconds: Int
-    /// Per-block scores for a sectioned paper. Empty for everything else, which is what keeps
-    /// the breakdown off every ordinary sitting's review.
+    /// Per-block scores for a sectioned paper. Empty for everything else.
     public let sections: [MedxAttemptSection]
-    /// The palette the paper was opened wearing — see `RunnerPayload.section`.
+    /// Kept for the call sites; the review wears the one accent like every other screen.
     public let section: MedxSection
     /// Where each question came from, for a mixed paper (keyed by question id).
     public let questionTags: [Int: String]
@@ -57,49 +57,17 @@ public struct SittingReviewView: View {
     private var attemptedCount: Int { responses.values.filter { $0.chosenId != nil }.count }
     private var wrongCount: Int { responses.values.filter { $0.chosenId != nil && !$0.correct }.count }
     private var skippedCount: Int { totalCount - attemptedCount }
+    private var percent: Int { MedxFormat.percent(scoreCount, of: totalCount) }
 
-    // MARK: - Section breakdown
-
-    /// Block by block, in the order they were sat. Worth its own section rather than folding into the
-    /// hero: on a 150-question grand paper the interesting thing is almost always *which* of the three
-    /// blocks went wrong, and that is invisible in a single total.
-    private var sectionBreakdown: some View {
-        Section {
-            ForEach(sections) { block in
-                MedxRow(
-                    lead: gradable ? "\(block.score)" : "\(block.attempted)",
-                    title: block.label,
-                    detail: blockLine(block)
-                ) {
-                    MedxAnswerSheet(
-                        fraction: Double(gradable ? block.score : block.attempted) / Double(max(block.total, 1)),
-                        label: gradable
-                            ? "\(block.score) of \(block.total) correct"
-                            : "\(block.attempted) of \(block.total) attempted"
-                    )
-                }
-                .medxListRow()
-            }
-        } header: {
-            MedxHeader("Blocks", count: sections.count)
-        } footer: {
-            Text("Each one was timed on its own and submitted for good.")
+    /// A practice paper without a key is never scored, and never painted red.
+    private var verdict: String {
+        guard gradable else { return "Not scored" }
+        switch percent {
+        case 85...: return "Excellent"
+        case 70..<85: return "Solid effort"
+        case 50..<70: return "Getting there"
+        default: return "Keep going"
         }
-    }
-
-    private func blockLine(_ block: MedxAttemptSection) -> String {
-        let minutes = block.seconds / 60
-        let seconds = block.seconds % 60
-        let clock = String(format: "%d:%02d", minutes, seconds)
-        return "\(block.attempted) of \(block.total) attempted · \(clock)"
-    }
-
-    private var formattedElapsed: String {
-        let seconds = max(elapsedSeconds, 0)
-        if seconds >= 3600 {
-            return String(format: "%dh %02dm", seconds / 3600, (seconds % 3600) / 60)
-        }
-        return String(format: "%02d:%02d", seconds / 60, seconds % 60)
     }
 
     private var filteredQuestions: [Question] {
@@ -118,17 +86,50 @@ public struct SittingReviewView: View {
 
     public var body: some View {
         NavigationStack {
-            GeometryReader { geo in
-                if sizeClass == .regular, geo.size.width > geo.size.height {
-                    wideReview
-                } else {
-                    reviewList
-                        // iPad portrait: full-width cards up to a readable measure, centred.
-                        .frame(maxWidth: sizeClass == .regular ? CGFloat(760) : CGFloat.infinity)
-                        .frame(maxWidth: .infinity)
+            List {
+                heroSection
+
+                if !sections.isEmpty {
+                    blocksSection
+                }
+
+                Section {
+                    Picker("Show", selection: $filter) {
+                        Text("All (\(totalCount))").tag(ReviewFilter.all)
+                        if gradable {
+                            Text("Wrong (\(wrongCount))").tag(ReviewFilter.wrong)
+                        }
+                        Text("Skipped (\(skippedCount))").tag(ReviewFilter.skipped)
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                if filteredQuestions.isEmpty, filter != .all {
+                    Section {
+                        MedxEmptyState(
+                            filter == .wrong ? "Nothing wrong" : "Nothing skipped",
+                            symbol: "checkmark.seal",
+                            message: filter == .wrong ? "Every answered question was right." : "Every question was answered."
+                        )
+                    }
+                }
+
+                ForEach(Array(filteredQuestions.enumerated()), id: \.element.id) { _, question in
+                    Section {
+                        QuestionReviewCard(
+                            questionNumber: (questions.firstIndex { $0.id == question.id } ?? 0) + 1,
+                            question: question,
+                            response: responses[question.id],
+                            gradable: gradable,
+                            sourceId: sourceId,
+                            sourceName: name,
+                            subject: subject,
+                            sourceTag: questionTags[question.id]
+                        )
+                    }
                 }
             }
-            .medxPage()
+            .listStyle(.insetGrouped)
             .navigationTitle(name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -137,425 +138,91 @@ public struct SittingReviewView: View {
                         HapticManager.medium()
                         onDone()
                     }
-                    .font(MedxType.title)
+                    .fontWeight(.semibold)
                 }
             }
         }
-    }
-
-    private var filterRow: some View {
-        HStack(spacing: 8) {
-            filterChip(.all, label: "All", count: totalCount, tint: MedxTheme.accent)
-            filterChip(.wrong, label: "Wrong", count: wrongCount, tint: MedxDS.wrong)
-            filterChip(.skipped, label: "Skipped", count: skippedCount, tint: .gray)
-        }
-    }
-
-    /// iPhone and iPad portrait: the hero, the filter, then one card per question.
-    private var reviewList: some View {
-        List {
-            heroSection
-
-            if !sections.isEmpty {
-                sectionBreakdown
-            }
-
-            Section {
-                filterRow
-                    .medxPlainRow()
-
-                if filteredQuestions.isEmpty, filter != .all {
-                    emptyFilterState
-                        .medxPlainRow()
-                }
-            }
-
-            ForEach(Array(filteredQuestions.enumerated()), id: \.element.id) { _, question in
-                Section {
-                    QuestionReviewCard(
-                        questionNumber: (questions.firstIndex { $0.id == question.id } ?? 0) + 1,
-                        question: question,
-                        response: responses[question.id],
-                        sourceId: sourceId,
-                        sourceName: name,
-                        subject: subject,
-                        sourceTag: questionTags[question.id]
-                    )
-                    .medxListRow()
-                }
-            }
-        }
-        .medxList()
-    }
-
-    // MARK: - iPad landscape
-
-    @Environment(\.horizontalSizeClass) private var sizeClass
-    @State private var selectedId: Int?
-
-    private var selectedQuestion: Question? {
-        let pool = filteredQuestions
-        if let selectedId, let hit = pool.first(where: { $0.id == selectedId }) { return hit }
-        return pool.first
-    }
-
-    /// The results across the full width, then two panes: the paper's questions on the left
-    /// (filtered All / Wrong / Skipped), the one picked on the right with its options and
-    /// explanation.
-    private var wideReview: some View {
-        VStack(spacing: 16) {
-            wideHero
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-
-            HStack(alignment: .top, spacing: 16) {
-                VStack(spacing: 10) {
-                    filterRow
-                    ScrollView {
-                        LazyVStack(spacing: 6) {
-                            ForEach(filteredQuestions) { question in
-                                reviewRow(question)
-                            }
-                        }
-                        .padding(.bottom, 20)
-                    }
-                    .scrollIndicators(.hidden)
-                    .overlay {
-                        if filteredQuestions.isEmpty, filter != .all { emptyFilterState }
-                    }
-                }
-                .frame(width: 380)
-
-                ScrollView {
-                    if let question = selectedQuestion {
-                        QuestionReviewCard(
-                            questionNumber: (questions.firstIndex { $0.id == question.id } ?? 0) + 1,
-                            question: question,
-                            response: responses[question.id],
-                            sourceId: sourceId,
-                            sourceName: name,
-                            subject: subject,
-                            sourceTag: questionTags[question.id]
-                        )
-                        .id(question.id)
-                        .padding(20)
-                        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(MedxDS.row))
-                        .frame(maxWidth: 760)
-                        .frame(maxWidth: .infinity)
-                        .padding(.bottom, 20)
-                    }
-                }
-                .scrollIndicators(.hidden)
-            }
-            .padding(.horizontal, 20)
-        }
-    }
-
-    private var wideHero: some View {
-        HStack(alignment: .center, spacing: 24) {
-            scoreRing
-                .frame(width: 104, height: 104)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(verdict)
-                    .font(.title3.weight(.bold))
-                Text(gradable
-                     ? "\(scoreCount) of \(totalCount) correct"
-                     : "\(attemptedCount) of \(totalCount) attempted")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-                Label(formattedElapsed, systemImage: "clock")
-                    .font(.footnote.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            .frame(width: 200, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
-                    if gradable {
-                        statTile(value: scoreCount, label: "Correct", icon: "checkmark", tint: MedxDS.correct)
-                        statTile(value: wrongCount, label: "Wrong", icon: "xmark", tint: MedxDS.wrong)
-                    } else {
-                        statTile(value: attemptedCount, label: "Attempted", icon: "pencil", tint: MedxTheme.accent)
-                    }
-                    statTile(value: skippedCount, label: "Skipped", icon: "arrow.uturn.right", tint: .gray)
-                }
-                MedxAnswerSheet(cells: reviewCells, scale: .sheet, label: sheetSummary)
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .padding(18)
-        .background {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(MedxDS.row)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-                }
-        }
-    }
-
-    private func reviewRow(_ question: Question) -> some View {
-        let number = (questions.firstIndex { $0.id == question.id } ?? 0) + 1
-        let response = responses[question.id]
-        let tint: Color = {
-            guard let response, response.chosenId != nil else { return .gray }
-            guard gradable else { return MedxTheme.accent }
-            return response.correct ? MedxDS.correct : MedxDS.wrong
-        }()
-        let isSelected = selectedQuestion?.id == question.id
-        let stem = question.plain ?? question.displayText
-            .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-            .replacingOccurrences(of: "&nbsp;", with: " ")
-
-        return Button {
-            HapticManager.selection()
-            selectedId = question.id
-        } label: {
-            HStack(alignment: .center, spacing: 12) {
-                Text("\(number)")
-                    .font(.footnote.weight(.bold).monospacedDigit())
-                    .foregroundStyle(tint == .gray ? Color.primary : Color.white)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(tint == .gray ? MedxDS.sunken : tint))
-                Text(stem.trimmingCharacters(in: .whitespacesAndNewlines))
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(isSelected ? MedxTheme.accent.opacity(0.16) : MedxDS.row)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Question \(number)")
-    }
-
-    private func filterChip(_ value: ReviewFilter, label: String, count: Int, tint: Color) -> some View {
-        let isOn = filter == value
-        return Button {
-            guard !isOn else { return }
-            HapticManager.selection()
-            withAnimation(.snappy(duration: 0.25)) { filter = value }
-        } label: {
-            HStack(spacing: 6) {
-                Text(label)
-                    .font(.subheadline.weight(.bold))
-                Text("\(count)")
-                    .font(.caption.weight(.bold).monospacedDigit())
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
-                    .background(Capsule(style: .continuous).fill(isOn ? Color.white.opacity(0.25) : tint.opacity(0.15)))
-            }
-            .foregroundStyle(isOn ? Color.white : Color.primary)
-            .frame(maxWidth: .infinity)
-            .frame(height: 40)
-            .background(Capsule(style: .continuous).fill(isOn ? tint : MedxDS.raised))
-            .contentShape(Capsule(style: .continuous))
-        }
-        .buttonStyle(.borderless)
-        .accessibilityLabel("\(label), \(count)")
-        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
     }
 
     // MARK: - Hero
 
-    /// The whole sitting as one grid, and this is the screen the answer sheet was designed for: it is the
-    /// only place in the app with real per-question outcomes to draw, and "which third of the paper went
-    /// wrong" is legible from it in a way no percentage is.
     private var heroSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .center, spacing: 18) {
-                    scoreRing
-                        .frame(width: 112, height: 112)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(verdict)
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.85)
-                        Text(gradable
-                             ? "\(scoreCount) of \(totalCount) correct"
-                             : "\(attemptedCount) of \(totalCount) attempted")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        Label(formattedElapsed, systemImage: "clock")
-                            .font(.footnote.weight(.semibold).monospacedDigit())
-                            .foregroundStyle(.secondary)
-                        if !subject.isEmpty {
-                            Text(subject)
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
+            VStack(alignment: .leading, spacing: MedxSpace.l) {
+                HStack(spacing: MedxSpace.l) {
+                    MedxRing(
+                        fraction: Double(gradable ? scoreCount : attemptedCount) / Double(max(totalCount, 1)),
+                        tint: gradable ? MedxTheme.accent : MedxOutcome.pending
+                    ) {
+                        VStack(spacing: 0) {
+                            MedxFigure(gradable ? "\(percent)%" : "\(attemptedCount)")
+                            Text(gradable ? "score" : "attempted")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(width: 96, height: 96)
+
+                    VStack(alignment: .leading, spacing: MedxSpace.xs) {
+                        Text(verdict)
+                            .font(.title3.weight(.bold))
+                        Text(gradable ? "\(scoreCount) of \(totalCount) correct" : "\(attemptedCount) of \(totalCount) attempted")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Label(MedxFormat.duration(elapsedSeconds), systemImage: "clock")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        if !subject.isEmpty, subject != name {
+                            Text(subject)
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+
+                    Spacer(minLength: 0)
                 }
 
-                HStack(spacing: 8) {
+                MedxStatRow {
                     if gradable {
-                        statTile(value: scoreCount, label: "Correct", icon: "checkmark", tint: MedxDS.correct)
-                        statTile(value: wrongCount, label: "Wrong", icon: "xmark", tint: MedxDS.wrong)
+                        MedxStatTile("\(scoreCount)", label: "correct", symbol: "checkmark.circle.fill", hue: MedxOutcome.correct)
+                        MedxStatTile("\(wrongCount)", label: "wrong", symbol: "xmark.circle.fill", hue: MedxOutcome.wrong)
                     } else {
-                        statTile(value: attemptedCount, label: "Attempted", icon: "pencil", tint: MedxTheme.accent)
+                        MedxStatTile("\(attemptedCount)", label: "attempted", symbol: "circle.fill", hue: MedxTheme.accent)
                     }
-                    statTile(value: skippedCount, label: "Skipped", icon: "arrow.uturn.right", tint: .gray)
-                }
-
-                MedxAnswerSheet(cells: reviewCells, scale: .sheet, label: sheetSummary)
-
-                if !gradable {
-                    Text("This paper has no official answer key, so nothing here is scored, only what you attempted is recorded.")
-                        .font(MedxType.body)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    MedxStatTile("\(skippedCount)", label: "skipped", symbol: "arrow.right.circle.fill", hue: MedxOutcome.pending)
                 }
             }
-            .padding(18)
-            .background {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(MedxDS.row)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            .padding(.vertical, MedxSpace.xs)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(verdict)
+            .accessibilityValue(gradable ? "\(scoreCount) of \(totalCount) correct" : "\(attemptedCount) of \(totalCount) attempted")
+        }
+    }
+
+    // MARK: - Blocks
+
+    /// Block by block, in the order they were sat: on a 150-question grand paper the interesting
+    /// thing is almost always *which* of the three blocks went wrong.
+    private var blocksSection: some View {
+        Section {
+            ForEach(sections) { block in
+                LabeledContent {
+                    Text(gradable ? "\(block.score) of \(block.total)" : "\(block.attempted) of \(block.total)")
+                        .monospacedDigit()
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(block.label)
+                        Text("\(block.attempted) attempted · \(MedxFormat.clock(block.seconds))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
+                }
             }
-            .medxPlainRow()
+        } header: {
+            Text("Blocks")
+        } footer: {
+            Text("Each one was timed on its own and submitted for good.")
         }
-    }
-
-    private var scorePercent: Int {
-        guard totalCount > 0 else { return 0 }
-        return Int((Double(gradable ? scoreCount : attemptedCount) / Double(totalCount) * 100).rounded())
-    }
-
-    private var ringTint: Color {
-        guard gradable else { return MedxTheme.accent }
-        switch scorePercent {
-        case 75...: return MedxDS.correct
-        case 50..<75: return MedxTheme.accent
-        default: return MedxDS.warn
-        }
-    }
-
-    private var verdict: String {
-        guard gradable else { return "Sitting saved" }
-        switch scorePercent {
-        case 85...: return "Outstanding"
-        case 70..<85: return "Great work"
-        case 50..<70: return "Solid effort"
-        default: return "Keep going"
-        }
-    }
-
-    @State private var ringProgress: Double = 0
-
-    private var scoreRing: some View {
-        let target = totalCount > 0 ? Double(gradable ? scoreCount : attemptedCount) / Double(totalCount) : 0
-        return ZStack {
-            Circle()
-                .stroke(ringTint.opacity(0.18), lineWidth: 11)
-            Circle()
-                .trim(from: 0, to: ringProgress)
-                .stroke(
-                    AngularGradient(
-                        colors: [ringTint.opacity(0.65), ringTint, ringTint],
-                        center: .center,
-                        startAngle: .degrees(-90),
-                        endAngle: .degrees(270)
-                    ),
-                    style: StrokeStyle(lineWidth: 11, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-            VStack(spacing: 0) {
-                Text("\(scorePercent)%")
-                    .font(MedxType.figure(28, weight: .bold))
-                    .foregroundStyle(.primary)
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(1)
-                Text(gradable ? "score" : "done")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(14)
-        }
-        .onAppear {
-            withAnimation(.spring(response: 0.9, dampingFraction: 0.85).delay(0.15)) {
-                ringProgress = target
-            }
-        }
-        .accessibilityElement()
-        .accessibilityLabel("Score \(scorePercent) percent")
-    }
-
-    private func statTile(value: Int, label: String, icon: String, tint: Color) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .heavy))
-                .foregroundStyle(.white)
-                .frame(width: 22, height: 22)
-                .background(Circle().fill(tint))
-            VStack(alignment: .leading, spacing: 0) {
-                Text("\(value)")
-                    .font(MedxType.figure(17, weight: .bold))
-                    .foregroundStyle(.primary)
-                Text(label)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 9)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(tint.opacity(0.12)))
-    }
-
-    /// One cell per question, in paper order, from the real response.
-    private var reviewCells: [MedxSheetCell] {
-        questions.map { question in
-            guard let response = responses[question.id] else { return .pending }
-            if response.timedOut == true { return .missed }
-            guard response.chosenId != nil else { return .pending }
-            guard gradable else { return .answered }
-            return response.correct ? .correct : .wrong
-        }
-    }
-
-    private var heroCaption: String {
-        let percent = totalCount > 0
-            ? Int((Double(gradable ? scoreCount : attemptedCount) / Double(totalCount) * 100).rounded())
-            : 0
-        let lead = subject.isEmpty ? "sitting complete" : subject
-        return gradable ? "\(percent)% · \(lead)" : lead
-    }
-
-    private var sheetSummary: String {
-        gradable
-            ? "\(scoreCount) correct, \(wrongCount) wrong, \(skippedCount) not attempted"
-            : "\(attemptedCount) of \(totalCount) attempted"
-    }
-
-    private var emptyFilterState: some View {
-        ContentUnavailableView {
-            Label(
-                filter == .wrong ? "Nothing wrong here" : "Nothing skipped",
-                systemImage: filter == .wrong ? "checkmark.circle" : "target"
-            )
-        } description: {
-            Text(filter == .wrong
-                 ? "You didn't get any question wrong in this sitting."
-                 : "You attempted every question in this sitting.")
-        }
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -565,6 +232,7 @@ private struct QuestionReviewCard: View {
     let questionNumber: Int
     let question: Question
     let response: QuestionResponse?
+    let gradable: Bool
     let sourceId: String
     let sourceName: String
     let subject: String
@@ -572,7 +240,6 @@ private struct QuestionReviewCard: View {
 
     @ObservedObject private var activityStore = ActivityStore.shared
     @ObservedObject private var authService = AuthService.shared
-    @State private var isExplanationExpanded = true
 
     private var uid: String? { authService.currentSession?.uid }
 
@@ -580,14 +247,25 @@ private struct QuestionReviewCard: View {
         activityStore.isBookmarked(questionId: question.id, sourceId: sourceId, uid: uid)
     }
 
-    private var outcome: RunnerOutcome { RunnerOutcome(response: response) }
+    /// An ungraded paper has no outcome to report, only whether the question was attempted.
+    private var outcome: RunnerOutcome {
+        guard gradable else {
+            return response?.chosenId == nil ? .unanswered : .correct
+        }
+        return RunnerOutcome(response: response)
+    }
+
+    private var outcomeTitle: String {
+        guard gradable else { return response?.chosenId == nil ? "Not answered" : "Attempted" }
+        return outcome.title
+    }
 
     private var reference: String {
         question.reference?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: MedxSpace.m) {
             header
 
             HTMLRichTextView(html: question.displayText, fontSize: 16, weight: .semibold)
@@ -598,11 +276,22 @@ private struct QuestionReviewCard: View {
                 }
             }
 
-            optionList
+            VStack(spacing: MedxSpace.s) {
+                ForEach(Array(question.options.enumerated()), id: \.offset) { pair in
+                    QuestionOptionButton(
+                        option: pair.element,
+                        index: pair.offset,
+                        isChosen: response?.chosenId == pair.element.id,
+                        isCorrect: gradable && question.isCorrect(optionId: pair.element.id),
+                        isRevealed: gradable,
+                        isLocked: true
+                    ) {}
+                }
+            }
 
             explanationSection
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, MedxSpace.xs)
         .contextMenu {
             Button {
                 toggleBookmark()
@@ -616,17 +305,18 @@ private struct QuestionReviewCard: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: MedxSpace.s) {
             Text("Q\(questionNumber)")
-                .font(.caption.weight(.bold).monospacedDigit())
+                .font(.caption.weight(.bold))
+                .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Capsule(style: .continuous).fill(MedxDS.sunken))
+                .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
 
-            Label(outcome.title, systemImage: outcome.icon)
+            Label(outcomeTitle, systemImage: gradable ? outcome.icon : "circle.fill")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(outcome.color)
+                .foregroundStyle(gradable ? outcome.color : Color.secondary)
 
             if let sourceTag, !sourceTag.isEmpty {
                 MedxSourceTag(sourceTag)
@@ -638,13 +328,12 @@ private struct QuestionReviewCard: View {
                 toggleBookmark()
             } label: {
                 Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
-                    .font(.footnote.weight(.bold))
-                    .foregroundStyle(isBookmarked ? MedxDS.warn : Color.secondary)
+                    .foregroundStyle(isBookmarked ? MedxOutcome.flagged : Color.secondary)
                     .symbolEffect(.bounce, value: isBookmarked)
                     .frame(width: 32, height: 32)
                     .contentShape(Circle())
             }
-            .buttonStyle(MedxPressStyle())
+            .buttonStyle(.plain)
             .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark question")
         }
     }
@@ -661,94 +350,24 @@ private struct QuestionReviewCard: View {
         HapticManager.selection()
     }
 
-    private var optionList: some View {
-        VStack(spacing: 8) {
-            ForEach(Array(question.options.enumerated()), id: \.offset) { pair in
-                let option = pair.element
-                let isChosen = response?.chosenId == option.id
-                let isCorrect = question.isCorrect(optionId: option.id)
-                let tint: Color? = isCorrect
-                    ? MedxDS.correct
-                    : (isChosen ? MedxDS.wrong : nil)
-
-                HStack(alignment: .medxFirstLine, spacing: 12) {
-                    Text(MedxOptionLetter.of(option, at: pair.offset))
-                        .font(.footnote.weight(.bold))
-                        .foregroundStyle(tint == nil ? Color.primary : Color.white)
-                        .frame(width: 26, height: 26)
-                        .background(Circle().fill(tint ?? MedxDS.sunken))
-
-                    HTMLRichTextView(
-                        html: option.text,
-                        fontSize: 15,
-                        weight: .regular,
-                        maxImageHeight: 180,
-                        interactive: false
-                    )
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .medxFirstLineGuide(fontSize: 15)
-                    .layoutPriority(1)
-
-                    Group {
-                        if isCorrect {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(MedxDS.correct)
-                        } else if isChosen {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(MedxDS.wrong)
-                        } else {
-                            Color.clear
-                        }
-                    }
-                    .frame(width: 22, height: 22)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 12)
-                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-                .medxOptionSurface(state: tint, emphasized: tint != nil)
-            }
-        }
-    }
-
     @ViewBuilder
     private var explanationSection: some View {
         if (question.explanation?.isEmpty == false) || !reference.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Button {
-                    withAnimation(.easeOut(duration: 0.18)) {
-                        isExplanationExpanded.toggle()
-                    }
-                } label: {
-                    HStack {
-                        Text("Explanation")
-                            .font(MedxType.title)
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Image(systemName: isExplanationExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .contentShape(Rectangle())
+            VStack(alignment: .leading, spacing: MedxSpace.s) {
+                Label("Explanation", systemImage: "lightbulb.fill")
+                    .font(.subheadline.weight(.semibold))
+
+                if let explanation = question.explanation, !explanation.isEmpty {
+                    HTMLRichTextView(html: explanation, fontSize: 15, weight: .regular, textColor: .secondary)
                 }
-                .buttonStyle(.plain)
 
-                if isExplanationExpanded {
-                    if let explanation = question.explanation, !explanation.isEmpty {
-                        HTMLRichTextView(html: explanation, fontSize: 15, weight: .regular, textColor: .secondary)
-                            .padding(.top, 2)
-                    }
-
-                    if !reference.isEmpty {
-                        Label(reference, systemImage: "book.closed")
-                            .font(MedxType.body)
-                            .foregroundStyle(.tertiary)
-                    }
+                if !reference.isEmpty {
+                    Label(reference, systemImage: "book.closed")
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
                 }
             }
-            .padding(14)
-            .background(MedxDS.shape(MedxDS.control).fill(MedxDS.sunken))
+            .padding(.top, MedxSpace.xs)
         }
     }
 }

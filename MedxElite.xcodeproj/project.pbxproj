@@ -121,6 +121,7 @@
 		9B00117F2A00000100000001 /* WatchHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00117E2A00000100000001 /* WatchHistoryView.swift */; };
 		9B0011812A00000100000001 /* ActivityLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011802A00000100000001 /* ActivityLogView.swift */; };
 		9B0011832A00000100000001 /* DownloadsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011822A00000100000001 /* DownloadsView.swift */; };
+		9B0011852A00000100000001 /* SittingSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011842A00000100000001 /* SittingSnapshot.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -256,6 +257,7 @@
 		9B00117E2A00000100000001 /* WatchHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/WatchHistoryView.swift; sourceTree = "<group>"; };
 		9B0011802A00000100000001 /* ActivityLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/ActivityLogView.swift; sourceTree = "<group>"; };
 		9B0011822A00000100000001 /* DownloadsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Videos/DownloadsView.swift; sourceTree = "<group>"; };
+		9B0011842A00000100000001 /* SittingSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SittingSnapshot.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -317,6 +319,7 @@
 				9B0011232A00000100000001 /* CustomModule.swift */,
 				9B00112D2A00000100000001 /* Vod.swift */,
 				9B0011332A00000100000001 /* Duel.swift */,
+				9B0011842A00000100000001 /* SittingSnapshot.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -684,6 +687,7 @@
 				9B00117F2A00000100000001 /* WatchHistoryView.swift in Sources */,
 				9B0011812A00000100000001 /* ActivityLogView.swift in Sources */,
 				9B0011832A00000100000001 /* DownloadsView.swift in Sources */,
+				9B0011852A00000100000001 /* SittingSnapshot.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -295,7 +295,9 @@ public struct MainTabView: View {
         appState.startSitting(
             RunnerPayload(
                 kind: "qbank",
-                id: "revision-" + String(UUID().uuidString.prefix(8)),
+                // One id per day, so a revision left half-way is offered back the same day
+                // instead of a fresh random id orphaning its saved sitting.
+                id: "revision-" + Date().formatted(.iso8601.year().month().day()),
                 name: "Today's revision",
                 subject: due.first?.subject ?? "",
                 mode: .revision,
