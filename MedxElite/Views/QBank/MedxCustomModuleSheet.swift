@@ -1,18 +1,20 @@
 import SwiftUI
 
-/// Builds a sitting to order: pick the subjects, narrow the scope, choose a length and a
-/// mode, and the questions are assembled from whatever source can supply them.
+/// Quick sitting: a sitting built to order. Pick the subjects, narrow the scope, choose a length
+/// and a mode, and the questions are assembled from whatever source can supply them.
 ///
 /// There are three sources, tried in this order, because each is cheaper than the next:
 /// bookmarks (already whole `Question` values on device), the question index (needs one
 /// module fetch per distinct module), and finally random module sampling (used when nothing
 /// is indexed yet, so the feature works on a fresh install).
+///
+/// A sheet rather than a push: it is a builder that ends in a sitting, and `AppState.startSitting`
+/// waits for the sheet to go before the runner comes up.
 public struct MedxCustomModuleSheet: View {
     @ObservedObject private var index = MedxQuestionIndexStore.shared
     @ObservedObject private var activityStore = ActivityStore.shared
     @ObservedObject private var authService = AuthService.shared
     @ObservedObject private var appState = AppState.shared
-    @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
 
     @State private var subjects: [MedxBankSubject] = []
     @State private var selectedSubjectIds: Set<String> = []
@@ -64,31 +66,39 @@ public struct MedxCustomModuleSheet: View {
 
     public var body: some View {
         NavigationStack {
-            Form {
+            List {
                 subjectSection
                 scopeSection
                 shapeSection
                 availabilitySection
             }
-            .navigationTitle("Custom module")
+            .listStyle(.insetGrouped)
+            .navigationTitle(MedxFeature.quickSitting.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                startBar
+                ToolbarItem(placement: .confirmationAction) {
+                    if isBuilding {
+                        ProgressView()
+                    } else {
+                        Button("Start") { build() }
+                            .buttonStyle(.glassProminent)
+                            .disabled(isLoading)
+                    }
+                }
             }
             .alert("Couldn't build that sitting", isPresented: $buildFailed) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Nothing matched those choices. Try a wider scope, or turn on offline search in Settings so the whole bank is available.")
+                Text("Nothing matched those choices. Try a wider scope, or set up offline search so the whole bank is available.")
             }
             .task { await load() }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .presentationSizing(.page)
     }
 
     // MARK: - Sections
@@ -98,14 +108,12 @@ public struct MedxCustomModuleSheet: View {
             NavigationLink {
                 MedxSubjectMultiPicker(subjects: subjects, selection: $selectedSubjectIds)
             } label: {
-                HStack {
-                    Label("Subjects", systemImage: "books.vertical")
-                    Spacer()
+                LabeledContent {
                     Text(subjectSummary)
-                        .foregroundStyle(.secondary)
                         .lineLimit(1)
+                } label: {
+                    Label("Subjects", systemImage: MedxFeature.qbank.symbol)
                 }
-                .frame(minHeight: 44)
             }
         } footer: {
             Text("Leave it on all subjects for a mixed paper.")
@@ -129,11 +137,10 @@ public struct MedxCustomModuleSheet: View {
                 Label("Bookmarked only", systemImage: "bookmark")
             }
         }
-        .tint(MedxTheme.accent)
     }
 
     private var shapeSection: some View {
-        Section("Sitting") {
+        Section {
             Picker("Questions", selection: $length) {
                 ForEach(Self.lengths, id: \.self) { value in
                     Text("\(value)").tag(value)
@@ -146,12 +153,12 @@ public struct MedxCustomModuleSheet: View {
                 Text("Exam").tag(SittingMode.exam)
             }
             .pickerStyle(.segmented)
-
+        } header: {
+            Text("Sitting")
+        } footer: {
             Text(mode == .exam
-                 ? "\(length) minutes total, graded at the end."
-                 : "60 seconds per question, answer revealed as you go.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                 ? "One \(length)-minute clock, answers after you submit."
+                 : "60 seconds a question, the answer shown as you go.")
         }
     }
 
@@ -159,53 +166,24 @@ public struct MedxCustomModuleSheet: View {
     private var availabilitySection: some View {
         Section {
             if let availableCount {
-                HStack {
-                    Label("Matching questions", systemImage: "number")
-                    Spacer()
-                    Text("\(availableCount.formatted())")
-                        .font(.body.monospacedDigit())
-                        .foregroundStyle(availableCount >= length ? MedxTheme.successGreen : MedxTheme.warningOrange)
+                LabeledContent {
+                    Text(MedxFormat.count(availableCount))
+                        .monospacedDigit()
+                        .foregroundStyle(availableCount >= length ? MedxOutcome.correct : MedxOutcome.flagged)
                         .contentTransition(.numericText())
+                } label: {
+                    Label("Matching questions", systemImage: "number")
                 }
-                .frame(minHeight: 44)
             } else {
-                Label("Sampled from your subjects", systemImage: "dice")
-                    .frame(minHeight: 44)
+                Label("Sampled from your subjects", systemImage: MedxFeature.quickSitting.symbol)
             }
         } footer: {
             if availableCount == nil {
-                Text("Offline search is not set up yet, so questions come from a handful of modules. Turn it on in Settings to pick from the whole bank.")
+                Text("Offline search is not set up yet, so questions come from a handful of modules. Set it up from Library ▸ Search questions to pick from the whole bank.")
             } else if let availableCount, availableCount < length {
-                Text("Only \(availableCount) match, the sitting will be that long.")
+                Text("Only \(availableCount) match, so the sitting will be that long.")
             }
         }
-    }
-
-    private var startBar: some View {
-        Button {
-            build()
-        } label: {
-            HStack(spacing: 8) {
-                if isBuilding {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(.white)
-                    Text("Assembling…")
-                } else {
-                    Image(systemName: "play.fill")
-                    Text("Start sitting")
-                }
-            }
-            .font(.body.weight(.semibold))
-            .frame(maxWidth: .infinity, minHeight: 50)
-        }
-        .medxFilledButton()
-        .buttonBorderShape(.capsule)
-        .tint(MedxTheme.accent)
-        .disabled(isLoading || isBuilding)
-        .padding(.horizontal, MedxSurface.gutter)
-        .padding(.vertical, 10)
-        .medxBar(topDivider: true)
     }
 
     // MARK: - Building
@@ -228,7 +206,9 @@ public struct MedxCustomModuleSheet: View {
             appState.startSitting(
                 RunnerPayload(
                     kind: "qbank",
-                    id: "custom-" + String(UUID().uuidString.prefix(8)),
+                    // One id per set of choices, so a sitting left half-way with the same choices
+                    // is offered back instead of a fresh random id orphaning its saved sitting.
+                    id: "quick-" + MedxStableHash.of(choicesKey),
                     name: sittingName,
                     subject: selectedSubjectIds.count == 1 ? subjectSummary : "Custom",
                     mode: mode,
@@ -239,13 +219,24 @@ public struct MedxCustomModuleSheet: View {
         }
     }
 
+    private var choicesKey: String {
+        [
+            selectedSubjectIds.sorted().joined(separator: "+"),
+            filters.status.rawValue,
+            filters.imageBased ? "img" : "-",
+            filters.bookmarkedOnly ? "bm" : "-",
+            String(length),
+            mode.rawValue
+        ].joined(separator: "#")
+    }
+
     private var sittingName: String {
         var parts: [String] = []
         if filters.bookmarkedOnly { parts.append("Bookmarked") }
         if filters.status != .any { parts.append(filters.status.label) }
         if filters.imageBased { parts.append("image-based") }
         parts.append(subjectSummary.lowercased())
-        return "Custom · " + parts.joined(separator: ", ")
+        return "Quick · " + parts.joined(separator: ", ")
     }
 
     private func assemble() async -> [Question] {
@@ -264,7 +255,7 @@ public struct MedxCustomModuleSheet: View {
         return await sampleFromModules()
     }
 
-    /// Capped at twelve module fetches: a custom sitting should not turn into a hundred
+    /// Capped at twelve module fetches: a quick sitting should not turn into a hundred
     /// Firestore reads because a filter happened to be narrow.
     private func sampleFromModules() async -> [Question] {
         guard let token = try? await authService.getValidIdToken() else { return [] }
@@ -369,7 +360,6 @@ struct MedxSubjectMultiPicker: View {
                                 .foregroundStyle(MedxTheme.accent)
                         }
                     }
-                    .frame(minHeight: 44)
                 }
             }
 
@@ -388,8 +378,8 @@ struct MedxSubjectMultiPicker: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(subject.name)
                                         .foregroundStyle(.primary)
-                                    Text("\(subject.questionCount.formatted()) questions")
-                                        .font(.caption)
+                                    Text("\(MedxFormat.count(subject.questionCount)) questions")
+                                        .font(.footnote)
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
@@ -399,7 +389,6 @@ struct MedxSubjectMultiPicker: View {
                                         .transition(.scale.combined(with: .opacity))
                                 }
                             }
-                            .frame(minHeight: 44)
                         }
                     }
                 } header: {
@@ -407,6 +396,7 @@ struct MedxSubjectMultiPicker: View {
                 }
             }
         }
+        .listStyle(.insetGrouped)
         .animation(.snappy(duration: 0.18), value: selection)
         .navigationTitle("Subjects")
         .navigationBarTitleDisplayMode(.inline)

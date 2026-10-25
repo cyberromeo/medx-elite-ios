@@ -115,3 +115,18 @@ public enum MedxFormat {
         return Int((Double(part) / Double(whole) * 100).rounded())
     }
 }
+
+// MARK: - A stable id
+
+/// A short id that is the same for the same input on every launch. `Hashable` is seeded per
+/// process, so it cannot name a sitting that has to be found again tomorrow; FNV-1a can.
+public enum MedxStableHash {
+    public static func of(_ text: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in text.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return String(hash, radix: 16)
+    }
+}

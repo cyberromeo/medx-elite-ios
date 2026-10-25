@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Image decks, one card at a time, nothing scored. A grid rather than a list: these decks are
+/// pure artwork, so a thumbnail says more about a subject than any row could.
 public struct FlashcardsSubjectListView: View {
     @ObservedObject private var authService = AuthService.shared
 
@@ -22,53 +24,44 @@ public struct FlashcardsSubjectListView: View {
         subjects.reduce(0) { $0 + $1.cardCount }
     }
 
+    private var isLoading: Bool { loadState == .loading && subjects.isEmpty }
+
+    private var subtitle: String {
+        guard !subjects.isEmpty else { return "Image decks, nothing scored" }
+        return "\(MedxFormat.count(totalCards)) cards · \(subjects.count) subjects"
+    }
+
     public var body: some View {
         FlashcardLayoutReader { layout in
             Group {
-                switch loadState {
-                case .loading:
-                    MedxSkeleton("Loading flashcards…")
-                case .failed(let message):
-                    ContentUnavailableView {
-                        Label {
-                            Text("Couldn't Load Flashcards")
-                        } icon: {
-                            MedxSticker("cards", size: 44)
-                        }
-                    } description: {
-                        Text(message)
-                    } actions: {
-                        Button("Try Again") {
-                            HapticManager.light()
-                            loadState = .loading
-                            Task { await loadFlashcards() }
-                        }
-                        .medxFilledButton()
-                        .buttonBorderShape(.capsule)
+                if case .failed(let message) = loadState, subjects.isEmpty {
+                    MedxEmptyState(
+                        "Couldn't load flashcards",
+                        symbol: "wifi.exclamationmark",
+                        message: message,
+                        actionTitle: "Try again"
+                    ) {
+                        HapticManager.light()
+                        loadState = .loading
+                        Task { await loadFlashcards() }
                     }
-                case .loaded:
-                    if subjects.isEmpty {
-                        ContentUnavailableView {
-                            Label {
-                                Text("No Flashcards")
-                            } icon: {
-                                MedxSticker("cards", size: 44)
-                            }
-                        } description: {
-                            Text("Flashcard subjects will appear here when available.")
-                        }
-                    } else {
-                        content(layout: layout)
-                    }
+                } else if loadState == .loaded, subjects.isEmpty {
+                    MedxEmptyState(
+                        "No flashcards yet",
+                        symbol: MedxFeature.flashcards.symbol,
+                        message: "Flashcard subjects appear here once they are published."
+                    )
+                } else {
+                    grid(layout: layout)
                 }
             }
-            .medxBackdrop(.cards)
-            .medxScrollEdge()
+            .background(Color(uiColor: .systemGroupedBackground))
         }
-        .navigationTitle("Cards")
+        .navigationTitle(MedxFeature.flashcards.title)
+        .navigationSubtitle(subtitle)
         .navigationBarTitleDisplayMode(.large)
         #if DEBUG
-        // Screenshot runs only (`-medxScreen deck`): opens the first item once loaded.
+        // Screenshot runs only (`-medxScreen deck`): opens the first subject once loaded.
         .navigationDestination(item: $debugPick) { item in
             FlashcardStudyView(subject: item)
         }
@@ -82,9 +75,6 @@ public struct FlashcardsSubjectListView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 FlashcardArtworkMenu {
                     Image(systemName: "rectangle.on.rectangle.angled")
-                        .font(.system(size: 16, weight: .semibold))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
                 }
             }
 
@@ -92,59 +82,48 @@ public struct FlashcardsSubjectListView: View {
                 MedxProfileButton()
             }
         }
-        .searchable(
-            text: $searchText,
-            placement: .navigationBarDrawer(displayMode: .automatic),
-            prompt: "Search flashcards"
-        )
+        .searchable(text: $searchText, prompt: "Search flashcards")
         .task {
             guard case .loading = loadState else { return }
             await medxLoadRevalidating { await loadFlashcards() }
         }
     }
 
-    private func content(layout: FlashcardLayout) -> some View {
+    // MARK: - Grid
+
+    private func grid(layout: FlashcardLayout) -> some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16) {
-                MedxPageHeader(
-                    section: .cards,
-                    lead: "Image decks, one card at a time. Nothing here is scored."
-                )
-
-                MedxMetricsRow {
-                    MedxMetric(
-                        icon: "rectangle.stack.fill",
-                        value: totalCards.formatted(),
-                        label: "cards",
-                        color: MedxIconHue.yellow
-                    )
-                    MedxMetric(
-                        icon: "books.vertical.fill",
-                        value: "\(subjects.count)",
-                        label: "subjects",
-                        color: MedxIconHue.sky
-                    )
-                }
-
-                if filteredSubjects.isEmpty {
-                    ContentUnavailableView {
-                        Label {
-                            Text("No Matches")
-                        } icon: {
-                            MedxSticker("search", size: 40)
-                        }
-                    } description: {
-                        Text("No subject matches “\(searchText)”.")
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 158, maximum: 260), spacing: MedxSpace.m)],
+                spacing: MedxSpace.m
+            ) {
+                if isLoading {
+                    ForEach(0..<6, id: \.self) { _ in
+                        placeholderTile
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 32)
                 } else {
-                    subjectGrid(layout: layout)
+                    ForEach(filteredSubjects) { subject in
+                        NavigationLink {
+                            FlashcardStudyView(subject: subject)
+                        } label: {
+                            subjectTile(subject, layout: layout)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(subject.name)
+                        .accessibilityValue("\(subject.cardCount) cards")
+                    }
                 }
             }
-            .padding(.horizontal, MedxSurface.gutter)
-            .padding(.top, 6)
-            .padding(.bottom, 28)
+            .padding(.horizontal, MedxSpace.l)
+            .padding(.vertical, MedxSpace.m)
+
+            if !isLoading, filteredSubjects.isEmpty {
+                MedxEmptyState(
+                    "No matches",
+                    symbol: "magnifyingglass",
+                    message: "No subject matches “\(searchText)”."
+                )
+            }
         }
         .refreshable {
             // A pull always reaches the backend: cached copies are kept for offline, never
@@ -157,27 +136,7 @@ public struct FlashcardsSubjectListView: View {
         }
     }
 
-    /// Two-up cards with a real preview: these decks are pure artwork, so a thumbnail says
-    /// more about a subject than any icon can.
-    private func subjectGrid(layout: FlashcardLayout) -> some View {
-        LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 158, maximum: 260), spacing: 12)],
-            spacing: 12
-        ) {
-            ForEach(filteredSubjects) { subject in
-                NavigationLink {
-                    FlashcardStudyView(subject: subject)
-                } label: {
-                    subjectCard(subject, layout: layout)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(subject.name)
-                .accessibilityValue("\(subject.cardCount) cards")
-            }
-        }
-    }
-
-    private func subjectCard(_ subject: FlashcardSubject, layout: FlashcardLayout) -> some View {
+    private func subjectTile(_ subject: FlashcardSubject, layout: FlashcardLayout) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .bottomLeading) {
                 Color.clear
@@ -186,35 +145,25 @@ public struct FlashcardsSubjectListView: View {
                         if let preview = previewURL(for: subject, layout: layout) {
                             CachedAsyncImage(url: preview, contentMode: .fill, maxPixelSize: 700)
                         } else {
-                            MedxSurface.tileFill
-                                .overlay(
-                                    MedxSticker(
-                                        MedxSubjectArt.sticker(for: subject.name),
-                                        size: 40,
-                                        tilt: -7
-                                    )
-                                )
+                            Color(uiColor: .tertiarySystemFill)
+                                .overlay {
+                                    Image(systemName: MedxSubjectArt.symbol(for: subject.name))
+                                        .font(.largeTitle)
+                                        .foregroundStyle(.secondary)
+                                }
                         }
                     }
                     .clipped()
 
                 Text("\(subject.cardCount)")
-                    .font(.caption2.weight(.bold).monospacedDigit())
+                    .font(.caption.weight(.bold))
+                    .monospacedDigit()
                     .foregroundStyle(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.black.opacity(0.5), in: Capsule())
-                    .padding(10)
+                    .background(Color.black.opacity(0.55), in: Capsule())
+                    .padding(MedxSpace.s)
             }
-            .clipShape(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: MedxSurface.cardRadius,
-                    bottomLeadingRadius: 0,
-                    bottomTrailingRadius: 0,
-                    topTrailingRadius: MedxSurface.cardRadius,
-                    style: .continuous
-                )
-            )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(subject.name)
@@ -223,15 +172,36 @@ public struct FlashcardsSubjectListView: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
-                Text(subject.cardCount == 1 ? "1 visual card" : "\(subject.cardCount) visual cards")
+                Text(subject.cardCount == 1 ? "1 card" : "\(subject.cardCount) cards")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 11)
+            .padding(MedxSpace.m)
         }
-        .medxCard()
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: MedxRadius.card, style: .continuous))
+    }
+
+    private var placeholderTile: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Color(uiColor: .tertiarySystemFill)
+                .aspectRatio(4.0 / 3.0, contentMode: .fit)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("A subject name")
+                    .font(.subheadline.weight(.semibold))
+                Text("24 cards")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(MedxSpace.m)
+        }
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: MedxRadius.card, style: .continuous))
+        .redacted(reason: .placeholder)
+        .accessibilityHidden(true)
     }
 
     private func previewURL(for subject: FlashcardSubject, layout: FlashcardLayout) -> URL? {
@@ -242,6 +212,8 @@ public struct FlashcardsSubjectListView: View {
         }
         return nil
     }
+
+    // MARK: - Data
 
     private func loadFlashcards() async {
         do {

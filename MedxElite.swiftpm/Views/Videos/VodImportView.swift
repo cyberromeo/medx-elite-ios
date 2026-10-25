@@ -17,7 +17,7 @@ public struct VodImportView: View {
     @State private var selectedSubjectId: String?
     @State private var structureState: MedxLoadState = .loading
 
-    // What is already filed, so a recording that has a home is greyed out.
+    // What is already filed, so a recording that has a home is marked.
     @State private var filedSubjectById: [String: String] = [:]
 
     // The bucket, paged.
@@ -32,7 +32,7 @@ public struct VodImportView: View {
     @State private var autoPages = 0
     @State private var playing: RecordedVideo?
 
-    // Imported in this session, so numbering and the filed badge keep up before a reload.
+    // Imported in this session, so numbering and the filed mark keep up before a reload.
     @State private var sessionAdded: Set<String> = []
     @State private var sessionTitlesBySubject: [String: [String]] = [:]
     @State private var adding: String?
@@ -80,237 +80,154 @@ public struct VodImportView: View {
         return nil
     }
 
+    private var subtitle: String {
+        guard ready, let folder = selectedFolder, let subject = selectedSubject else {
+            return "Pick a batch and a subject"
+        }
+        return "Filing into \(folder.name) · \(subject.name)"
+    }
+
     // MARK: - Body
 
     public var body: some View {
         List {
-            Section {
-                header
-                    .medxCardRow(vertical: 5)
-                destinationCard
-                    .medxCardRow(vertical: 5)
-                tools
-                    .medxCardRow(vertical: 5)
-                if let failure {
-                    errorNote(failure)
-                        .medxCardRow(vertical: 5)
+            destinationSection
+            folderSection
+
+            if let failure {
+                Section {
+                    HStack(spacing: MedxSpace.m) {
+                        Label(failure, systemImage: "exclamationmark.triangle.fill")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: MedxSpace.s)
+                        Button("Dismiss") { self.failure = nil }
+                            .medxSecondary(size: .small)
+                    }
                 }
             }
 
-            Section {
-                ForEach(shown) { item in
-                    row(item)
-                        .medxCardRow(vertical: 5)
+            if isLoading, items.isEmpty {
+                Section {
+                    MedxPlaceholderRows(count: 8)
                 }
-            } header: {
-                if !shown.isEmpty {
-                    MedxRuleHeader("Bucket", count: shown.count)
-                        .textCase(nil)
-                        .listRowInsets(
-                            EdgeInsets(top: 6, leading: MedxSurface.gutter, bottom: 6, trailing: MedxSurface.gutter)
-                        )
+            } else if shown.isEmpty {
+                Section {
+                    MedxEmptyState(
+                        "Nothing loaded matches",
+                        symbol: "magnifyingglass",
+                        message: "Load more, clear the filter, or find a recording by its exact folder code."
+                    )
+                }
+            } else {
+                Section {
+                    ForEach(shown) { item in
+                        row(item)
+                    }
+                } header: {
+                    Text("Bucket · \(MedxFormat.count(shown.count))")
+                } footer: {
+                    Text("Tap a recording to preview it. Add files it into the batch and subject above.")
                 }
             }
 
-            Section {
-                VStack(spacing: 12) { footer }
-                    .medxCardRow(vertical: 8)
+            pagingSection
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle(MedxFeature.importClasses.title)
+        .navigationSubtitle(subtitle)
+        .navigationBarTitleDisplayMode(.large)
+        .searchable(text: $query, prompt: "Filter by key, folder or name")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Toggle(isOn: $onlyCC) {
+                    Label("Subtitled only", systemImage: "captions.bubble")
+                }
+                .toggleStyle(.button)
+                .accessibilityLabel("Only recordings with subtitles")
             }
         }
-        .medxCardList(.videos)
-        .navigationTitle("Import to Classes")
-        .navigationBarTitleDisplayMode(.large)
         .refreshable { await reload() }
         .task {
             if case .loading = structureState { await loadStructure() }
             if items.isEmpty { await loadMore(auto: false) }
+        }
+        .onChange(of: selectedFolderId) { _, _ in
+            selectedSubjectId = selectedFolder?.subjects.first?.id
         }
         .fullScreenCover(item: $playing) { video in
             VideoPlayerView(video: video) { playing = nil }
         }
     }
 
-    // MARK: - Header
+    // MARK: - Destination
 
-    private var header: some View {
-        MedxPageHeader(
-            section: .videos,
-            eyebrow: "ARISE · file into the library",
-            lead: "Preview a recording, then add it to a batch and subject. "
-                + "It shows up in Classes, numbered for you."
-        )
-    }
-
-    // MARK: - Destination picker
-
-    private var destinationCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Filing into")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(ready ? "\(selectedFolder?.name ?? "") · \(selectedSubject?.name ?? "")" : "Pick a batch and subject")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(ready ? .primary : .secondary)
-                        .lineLimit(2)
-                }
-                Spacer(minLength: 8)
-                MedxSymbolMark("tray.and.arrow.down.fill", hue: MedxCandy.violet, size: 40)
-            }
-
+    private var destinationSection: some View {
+        Section {
             switch structureState {
             case .loading:
-                HStack(spacing: 8) {
+                HStack(spacing: MedxSpace.s) {
                     ProgressView().controlSize(.small)
                     Text("Loading the library structure…")
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
             case .failed(let message):
-                HStack(spacing: 8) {
-                    Text(message).font(.caption).foregroundStyle(.secondary)
-                    Spacer(minLength: 8)
+                HStack(spacing: MedxSpace.m) {
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: MedxSpace.s)
                     Button("Retry") { Task { await loadStructure() } }
-                        .font(.caption.weight(.semibold))
+                        .medxSecondary(size: .small)
                 }
             case .loaded:
-                HStack(spacing: 8) {
-                    batchMenu
-                    subjectMenu
-                }
-                if ready {
-                    Text("Next add files “\(selectedSubject?.name ?? "") — Class \(nextNumber)”.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .medxCard()
-    }
-
-    private var batchMenu: some View {
-        Menu {
-            ForEach(folders) { folder in
-                Button {
-                    HapticManager.selection()
-                    selectedFolderId = folder.id
-                    selectedSubjectId = folder.subjects.first?.id
-                } label: {
-                    Label(folder.name, systemImage: folder.id == selectedFolderId ? "checkmark" : "folder")
-                }
-            }
-        } label: {
-            pickerLabel(icon: "folder.fill", text: selectedFolder?.name ?? "Batch")
-        }
-    }
-
-    private var subjectMenu: some View {
-        Menu {
-            if let folder = selectedFolder, !folder.subjects.isEmpty {
-                ForEach(folder.subjects) { subject in
-                    Button {
-                        HapticManager.selection()
-                        selectedSubjectId = subject.id
-                    } label: {
-                        Label(subject.name, systemImage: subject.id == selectedSubjectId ? "checkmark" : "square.stack")
+                Picker("Batch", selection: $selectedFolderId) {
+                    ForEach(folders) { folder in
+                        Text(folder.name).tag(Optional(folder.id))
                     }
                 }
-            } else {
-                Text("No subjects in this batch")
-            }
-        } label: {
-            pickerLabel(icon: "square.stack.3d.up.fill", text: selectedSubject?.name ?? "Subject")
-        }
-        .disabled(selectedFolder?.subjects.isEmpty ?? true)
-    }
+                .pickerStyle(.menu)
 
-    private func pickerLabel(icon: String, text: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(MedxCandy.onSoft(MedxCandy.violet))
-            Text(text)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-            Image(systemName: "chevron.up.chevron.down")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.tertiary)
-        }
-        .padding(.horizontal, 12)
-        .frame(height: 38)
-        .frame(maxWidth: .infinity)
-        .background(MedxCandy.violetSoft, in: Capsule())
-    }
-
-    // MARK: - Tools
-
-    private var tools: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    TextField("Filter by key, folder or name", text: $query)
-                        .textFieldStyle(.plain)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .submitLabel(.search)
-                    if !query.isEmpty {
-                        Button { query = "" } label: {
-                            Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Clear filter")
+                Picker("Subject", selection: $selectedSubjectId) {
+                    ForEach(selectedFolder?.subjects ?? []) { subject in
+                        Text(subject.name).tag(Optional(subject.id))
                     }
                 }
-                .padding(.horizontal, 12)
-                .frame(height: 38)
-                .background(MedxSurface.fieldFill, in: Capsule())
-
-                Button {
-                    HapticManager.selection()
-                    onlyCC.toggle()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "captions.bubble").font(.caption.weight(.bold))
-                        Text("CC").font(.caption.weight(.bold))
-                    }
-                    .foregroundStyle(onlyCC ? MedxCandy.onSoft(MedxCandy.blue) : .secondary)
-                    .padding(.horizontal, 12)
-                    .frame(height: 38)
-                    .background(onlyCC ? MedxCandy.blueSoft : MedxSurface.fieldFill, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Only recordings with subtitles")
+                .pickerStyle(.menu)
+                .disabled(selectedFolder?.subjects.isEmpty ?? true)
             }
+        } header: {
+            Text("Filing into")
+        } footer: {
+            if ready {
+                Text("The next add files “\(selectedSubject?.name ?? "") — Class \(nextNumber)”.")
+            }
+        }
+    }
 
-            // The bucket has no text index, so a filter only reaches what is paged in. `folder`
-            // is indexed, which makes an exact folder code the one search that reaches all ~2,900.
-            HStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "number")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    TextField("Find a recording by its exact folder code", text: $folderKey)
-                        .textFieldStyle(.plain)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .submitLabel(.go)
-                        .onSubmit { Task { await fetchByFolderKey() } }
-                }
-                .padding(.horizontal, 12)
-                .frame(height: 38)
-                .background(MedxSurface.fieldFill, in: Capsule())
+    // MARK: - Folder code
+
+    private var folderSection: some View {
+        Section {
+            HStack(spacing: MedxSpace.m) {
+                TextField("Exact folder code", text: $folderKey)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .submitLabel(.go)
+                    .onSubmit { Task { await fetchByFolderKey() } }
 
                 Button("Fetch") { Task { await fetchByFolderKey() } }
-                    .font(.subheadline.weight(.semibold))
+                    .medxSecondary(size: .small)
                     .disabled(folderKey.trimmingCharacters(in: .whitespaces).isEmpty)
             }
+        } header: {
+            Text("Find by folder code")
+        } footer: {
+            // The bucket has no text index, so the search field only reaches what is paged in.
+            // `folder` is indexed, which makes an exact folder code the one search that reaches
+            // all ~2,900.
+            Text("The search field only reaches what is loaded. A folder code reaches the whole bucket.")
         }
     }
 
@@ -321,152 +238,123 @@ public struct VodImportView: View {
         let video = item.asRecordedVideo
         let filedIn = filedSubject(for: item)
         let isAdding = adding == item.id
+        let playable = !item.streamUrl.isEmpty
 
-        return HStack(spacing: 8) {
+        return HStack(spacing: MedxSpace.m) {
             Button {
-                guard !item.streamUrl.isEmpty else { HapticManager.error(); return }
+                guard playable else {
+                    HapticManager.error()
+                    return
+                }
                 HapticManager.light()
                 playing = video
             } label: {
-                HStack(spacing: 12) {
-                    MedxSymbolMark(
+                HStack(spacing: MedxSpace.m) {
+                    MedxSymbolTile(
                         filedIn == nil ? "play.circle.fill" : "checkmark",
-                        hue: filedIn == nil ? MedxCandy.blue : MedxTheme.successGreen,
+                        hue: filedIn == nil ? MedxFeature.vod.color : MedxOutcome.correct,
                         size: 36
                     )
-                    VStack(alignment: .leading, spacing: 3) {
+
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(label.title)
-                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
-                        Text([label.sub, item.formattedDuration, item.streamUrl.isEmpty ? "no stream" : nil]
-                            .compactMap { $0 }
-                            .filter { !$0.isEmpty }
-                            .joined(separator: " · "))
-                            .font(.caption.monospacedDigit())
+                        Text(detailLine(item, label: label))
+                            .font(.footnote)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        if let filedIn {
+                            Text("Filed in \(filedIn)")
+                                .font(.footnote)
+                                .foregroundStyle(MedxOutcome.correct)
+                        }
                     }
+
                     Spacer(minLength: 0)
-                    if item.hasSubtitles {
-                        Image(systemName: "captions.bubble")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.tertiary)
-                    }
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(item.streamUrl.isEmpty)
+            .disabled(!playable)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(label.title)
 
-            addControl(item, filedIn: filedIn, isAdding: isAdding)
+            if filedIn == nil {
+                Button {
+                    Task { await add(item) }
+                } label: {
+                    if isAdding {
+                        ProgressView()
+                    } else {
+                        Text("Add")
+                    }
+                }
+                .medxPrimary(size: .small)
+                .disabled(!ready || isAdding || !playable)
+                .accessibilityLabel(ready ? "Add to \(selectedSubject?.name ?? "")" : "Pick a subject first")
+            }
         }
-        .padding(12)
-        .frame(minHeight: 58)
-        .medxCard()
+        .padding(.vertical, 2)
         .contextMenu {
-            if !item.streamUrl.isEmpty {
+            if playable {
                 Button {
                     HapticManager.light()
                     playing = video
-                } label: { Label("Play", systemImage: "play.circle") }
+                } label: {
+                    Label("Play", systemImage: "play.circle")
+                }
             }
             Button {
                 UIPasteboard.general.string = item.rawKey
-            } label: { Label("Copy file key", systemImage: "doc.on.doc") }
+            } label: {
+                Label("Copy file key", systemImage: "doc.on.doc")
+            }
         }
     }
 
+    private func detailLine(_ item: MedxVodItem, label: (title: String, sub: String, opaque: Bool)) -> String {
+        var parts: [String] = []
+        if !label.sub.isEmpty { parts.append(label.sub) }
+        if !item.formattedDuration.isEmpty { parts.append(item.formattedDuration) }
+        if item.hasSubtitles { parts.append("Subtitled") }
+        if item.streamUrl.isEmpty { parts.append("No stream") }
+        return parts.joined(separator: " · ")
+    }
+
+    // MARK: - Paging
+
     @ViewBuilder
-    private func addControl(_ item: MedxVodItem, filedIn: String?, isAdding: Bool) -> some View {
-        if let filedIn {
-            HStack(spacing: 4) {
-                Image(systemName: "checkmark").font(.caption2.weight(.black))
-                Text(filedIn).font(.caption2.weight(.semibold)).lineLimit(1)
-            }
-            .foregroundStyle(MedxTheme.successGreen)
-            .padding(.horizontal, 10)
-            .frame(height: 32)
-            .background(MedxTheme.successGreen.opacity(0.14), in: Capsule())
-            .accessibilityLabel("Already filed in \(filedIn)")
-        } else {
-            Button {
-                Task { await add(item) }
-            } label: {
-                HStack(spacing: 4) {
-                    if isAdding {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "plus").font(.caption.weight(.black))
+    private var pagingSection: some View {
+        if !items.isEmpty {
+            Section {
+                if isLoading {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                        Spacer()
                     }
-                    Text("Add").font(.caption.weight(.bold))
+                } else if !isDone {
+                    Button {
+                        HapticManager.light()
+                        Task { await loadMore(auto: false) }
+                    } label: {
+                        Label("Older uploads", systemImage: "arrow.down")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .onAppear {
+                        guard autoPages < Self.autoPageLimit, query.isEmpty else { return }
+                        Task { await loadMore(auto: true) }
+                    }
+                } else {
+                    Text("That is everything, \(MedxFormat.count(items.count)) recordings.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
                 }
-                .foregroundStyle(ready && !item.streamUrl.isEmpty ? MedxCandy.onSoft(MedxCandy.violet) : Color.secondary)
-                .padding(.horizontal, 12)
-                .frame(height: 32)
-                .background(
-                    (ready && !item.streamUrl.isEmpty ? MedxCandy.violetSoft : MedxSurface.fieldFill),
-                    in: Capsule()
-                )
             }
-            .buttonStyle(.plain)
-            .disabled(!ready || isAdding || item.streamUrl.isEmpty)
-            .accessibilityLabel(ready ? "Add to \(selectedSubject?.name ?? "")" : "Pick a subject first")
         }
-    }
-
-    // MARK: - Footer
-
-    @ViewBuilder
-    private var footer: some View {
-        if isLoading {
-            ProgressView().frame(maxWidth: .infinity).padding(.vertical, 20)
-        } else if shown.isEmpty {
-            ContentUnavailableView {
-                Label("Nothing loaded matches", systemImage: "magnifyingglass")
-            } description: {
-                Text("Load more, clear the filter, or find a recording by its exact folder code.")
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
-        }
-
-        if !isDone, !isLoading {
-            Color.clear
-                .frame(height: 1)
-                .onAppear {
-                    guard autoPages < Self.autoPageLimit, query.isEmpty else { return }
-                    Task { await loadMore(auto: true) }
-                }
-            Button {
-                HapticManager.light()
-                Task { await loadMore(auto: false) }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.down").font(.footnote.weight(.bold))
-                    Text("Older uploads").font(.subheadline.weight(.semibold))
-                }
-                .frame(maxWidth: .infinity, minHeight: 44)
-            }
-            .medxBorderedButton()
-            .buttonBorderShape(.capsule)
-        }
-    }
-
-    private func errorNote(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(MedxTheme.warningOrange)
-            Text(message).font(.caption).foregroundStyle(.secondary)
-            Spacer(minLength: 8)
-            Button("Dismiss") { failure = nil }
-                .font(.caption.weight(.semibold))
-        }
-        .padding(12)
-        .medxCard()
     }
 
     // MARK: - Data

@@ -41,3 +41,6 @@
 41-player-offline -medxScreen player-offline
 42-runner-custom-next -medxScreen runner-custom-next
 43-runner-zoom -medxScreen runner-zoom
+44-quick -medxScreen quick
+45-history -medxScreen history
+46-log -medxScreen log

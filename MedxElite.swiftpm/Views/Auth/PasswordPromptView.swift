@@ -16,67 +16,62 @@ public struct PasswordPromptView: View {
 
     public var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                header
+            List {
+                Section {
+                    VStack(spacing: MedxSpace.m) {
+                        ProfileAvatarView(profile: profile, size: 72)
 
-                VStack(alignment: .leading, spacing: 8) {
+                        VStack(spacing: 2) {
+                            Text(profile.displayName)
+                                .font(.title3.weight(.semibold))
+                            Text(profile.email)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, MedxSpace.l)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                    .accessibilityElement(children: .combine)
+                }
+
+                Section {
                     SecureField("Password", text: $password)
                         .focused($isFocused)
                         .textContentType(.password)
                         .submitLabel(.go)
                         .onSubmit(handleSignIn)
-                        .font(.body)
-                        .padding(14)
-                        .background(MedxSurface.cardFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(
-                                    isFocused ? MedxTheme.accent.opacity(0.55) : MedxSurface.separator.opacity(0.35),
-                                    lineWidth: isFocused ? 1.5 : MedxSurface.hairline
-                                )
-                        )
-                        .animation(.easeInOut(duration: 0.18), value: isFocused)
-
+                } footer: {
                     if let error = localError ?? authService.errorMessage {
                         Label(error, systemImage: "exclamationmark.triangle.fill")
-                            .font(.footnote)
-                            .foregroundStyle(MedxTheme.destructiveRed)
-                            .transition(.opacity)
+                            .foregroundStyle(MedxOutcome.wrong)
+                    } else if authService.hasSavedPassword(for: profile.id) {
+                        Label("A password is saved in the Keychain for this profile.", systemImage: "key.fill")
                     }
                 }
-                .padding(.horizontal, 24)
 
-                Spacer(minLength: 20)
-
-                VStack(spacing: 10) {
+                Section {
                     Button(action: handleSignIn) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: MedxSpace.s) {
                             if authService.isBusy {
                                 ProgressView()
                                     .controlSize(.small)
                                 Text("Signing in…")
                             } else {
-                                Text("Sign In")
+                                Text("Sign in")
                             }
                         }
-                        .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .frame(maxWidth: .infinity)
                     }
-                    .medxFilledButton()
-                    .buttonBorderShape(.capsule)
+                    .medxPrimary()
                     .disabled(password.isEmpty || authService.isBusy)
-
-                    if authService.hasSavedPassword(for: profile.id) {
-                        Label("Password saved in the Keychain", systemImage: "key.fill")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 28)
             }
-            .medxBackdrop(.home)
-            .navigationTitle("Sign In")
+            .listStyle(.insetGrouped)
+            .navigationTitle("Sign in")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -93,25 +88,7 @@ public struct PasswordPromptView: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-    }
-
-    private var header: some View {
-        VStack(spacing: 12) {
-            ProfileAvatarView(profile: profile, size: 72)
-
-            VStack(spacing: 3) {
-                Text(profile.displayName)
-                    .font(.title3.weight(.semibold))
-                Text(profile.email)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.top, 28)
-        .padding(.bottom, 28)
-        .accessibilityElement(children: .combine)
+        .medxTaskSheet()
     }
 
     private func handleSignIn() {

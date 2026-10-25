@@ -1,14 +1,15 @@
 import SwiftUI
 
-// MARK: - Bookmarked Questions View
+// MARK: - Bookmarks
 
+/// Every question bookmarked in a sitting or a review, newest first, with a subject filter in the
+/// toolbar menu. A row opens the question drawn with the runner's own rows, key revealed.
 struct BookmarkedQuestionsView: View {
     let uid: String?
     @ObservedObject private var activityStore = ActivityStore.shared
     @State private var searchText = ""
-    @State private var selectedSubject: String = "All"
+    @State private var selectedSubject: String?
     @State private var showClearAllConfirm = false
-    @State private var practicePayload: RunnerPayload?
 
     init(uid: String?) {
         self.uid = uid
@@ -19,92 +20,41 @@ struct BookmarkedQuestionsView: View {
     }
 
     private var availableSubjects: [String] {
-        let list = Set(allBookmarks.map { $0.subject }.filter { !$0.isEmpty })
-        return ["All"] + list.sorted()
+        Set(allBookmarks.map(\.subject).filter { !$0.isEmpty }).sorted()
     }
 
     private var filteredBookmarks: [BookmarkedQuestion] {
         allBookmarks.filter { bookmark in
-            let matchesSubject = selectedSubject == "All" || bookmark.subject == selectedSubject
-            let matchesSearch = searchText.isEmpty ||
-                bookmark.previewText.localizedCaseInsensitiveContains(searchText) ||
-                bookmark.sourceName.localizedCaseInsensitiveContains(searchText) ||
-                bookmark.subject.localizedCaseInsensitiveContains(searchText)
+            let matchesSubject = selectedSubject == nil || bookmark.subject == selectedSubject
+            let matchesSearch = searchText.isEmpty
+                || bookmark.previewText.localizedCaseInsensitiveContains(searchText)
+                || bookmark.sourceName.localizedCaseInsensitiveContains(searchText)
+                || bookmark.subject.localizedCaseInsensitiveContains(searchText)
             return matchesSubject && matchesSearch
         }
+    }
+
+    private var subtitle: String {
+        if let selectedSubject { return selectedSubject }
+        return allBookmarks.count == 1 ? "1 question" : "\(MedxFormat.count(allBookmarks.count)) questions"
     }
 
     var body: some View {
         Group {
             if allBookmarks.isEmpty {
-                ContentUnavailableView(
-                    "No Bookmarks",
-                    systemImage: "bookmark",
-                    description: Text("Bookmark MCQs during a sitting session or review to revise them here.")
+                MedxEmptyState(
+                    "No bookmarks yet",
+                    symbol: MedxFeature.bookmarks.symbol,
+                    message: "Bookmark a question during a sitting or its review and it is kept here."
                 )
             } else {
                 List {
-                    // Subject Filter Chips
-                    if availableSubjects.count > 2 {
-                        Section {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(availableSubjects, id: \.self) { subj in
-                                        Button {
-                                            HapticManager.selection()
-                                            selectedSubject = subj
-                                        } label: {
-                                            Text(subj)
-                                                .font(.caption.weight(.semibold))
-                                                .foregroundColor(selectedSubject == subj ? .white : .primary)
-                                                .padding(.horizontal, 12)
-                                                .padding(.vertical, 6)
-                                                .background(
-                                                    selectedSubject == subj ? MedxTheme.primaryPurple : Color(uiColor: .tertiarySystemFill),
-                                                    in: Capsule()
-                                                )
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                                .padding(.vertical, 4)
-                            }
-                        }
-                    }
-
                     Section {
                         ForEach(filteredBookmarks) { bookmark in
                             NavigationLink {
                                 BookmarkedQuestionDetailView(bookmark: bookmark, uid: uid)
                             } label: {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(bookmark.previewText)
-                                        .font(.body)
-                                        .lineLimit(3)
-
-                                    HStack(spacing: 6) {
-                                        if !bookmark.subject.isEmpty {
-                                            Text(bookmark.subject)
-                                                .font(.caption2.weight(.bold).monospacedDigit())
-                                                .foregroundColor(MedxTheme.primaryPurple)
-                                                .padding(.horizontal, 7)
-                                                .padding(.vertical, 2)
-                                                .background(MedxTheme.primaryPurple.opacity(0.12), in: Capsule())
-                                        }
-
-                                        Text(bookmark.sourceName)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-
-                                        Spacer()
-
-                                        Text(bookmark.formattedDate)
-                                            .font(.caption)
-                                            .foregroundStyle(Color(uiColor: .tertiaryLabel))
-                                    }
-                                }
-                                .padding(.vertical, 4)
+                                row(bookmark)
                             }
                             .swipeActions(edge: .trailing) {
                                 Button(role: .destructive) {
@@ -116,46 +66,73 @@ struct BookmarkedQuestionsView: View {
                             }
                         }
                     } footer: {
-                        Text("\(filteredBookmarks.count) of \(allBookmarks.count) bookmarked questions")
-                            .font(.caption)
+                        Text("\(filteredBookmarks.count) of \(allBookmarks.count) bookmarks. Swipe left to remove one.")
                     }
                 }
-                .searchable(text: $searchText, prompt: "Search bookmarks…")
+                .listStyle(.insetGrouped)
+                .searchable(text: $searchText, prompt: "Search bookmarks")
             }
         }
-        .navigationTitle("Bookmarks")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(MedxFeature.bookmarks.title)
+        .navigationSubtitle(subtitle)
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             if !allBookmarks.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        if availableSubjects.count > 1 {
+                            Picker("Subject", selection: $selectedSubject) {
+                                Text("All subjects").tag(String?.none)
+                                ForEach(availableSubjects, id: \.self) { subject in
+                                    Text(subject).tag(String?.some(subject))
+                                }
+                            }
+                            Divider()
+                        }
                         Button(role: .destructive) {
                             showClearAllConfirm = true
                         } label: {
-                            Label("Clear All Bookmarks", systemImage: "trash")
+                            Label("Clear all bookmarks", systemImage: "trash")
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
-                            .frame(width: 44, height: 44)
                     }
+                    .accessibilityLabel("Filter and manage bookmarks")
                 }
             }
         }
         .confirmationDialog(
-            "Clear All Bookmarks?",
-            isPresented: $showClearAllConfirm
+            "Clear all bookmarks?",
+            isPresented: $showClearAllConfirm,
+            titleVisibility: .visible
         ) {
-            Button("Clear All", role: .destructive) {
+            Button("Clear \(allBookmarks.count) bookmarks", role: .destructive) {
                 HapticManager.medium()
                 activityStore.clearAllBookmarks(uid: uid)
             }
+            Button("Keep them", role: .cancel) {}
         } message: {
-            Text("This will remove all bookmarked questions locally and from your cloud account.")
+            Text("They go from this device and from your account.")
         }
+    }
+
+    private func row(_ bookmark: BookmarkedQuestion) -> some View {
+        VStack(alignment: .leading, spacing: MedxSpace.xs) {
+            Text(bookmark.previewText)
+                .lineLimit(3)
+
+            Text([bookmark.subject, bookmark.sourceName, bookmark.formattedDate]
+                .filter { !$0.isEmpty }
+                .joined(separator: " · "))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .padding(.vertical, 2)
     }
 }
 
-// MARK: - Bookmarked Question Detail View
+// MARK: - One bookmark
 
 private struct BookmarkedQuestionDetailView: View {
     let bookmark: BookmarkedQuestion
@@ -163,110 +140,74 @@ private struct BookmarkedQuestionDetailView: View {
     @ObservedObject private var activityStore = ActivityStore.shared
     @Environment(\.dismiss) private var dismiss
 
+    private var question: Question { bookmark.question }
+
+    private var reference: String {
+        question.reference?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                // Header meta badge
-                HStack {
-                    if !bookmark.subject.isEmpty {
-                        Text(bookmark.subject)
-                            .font(.caption.weight(.bold).monospacedDigit())
-                            .foregroundColor(MedxTheme.primaryPurple)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 4)
-                            .background(MedxTheme.primaryPurple.opacity(0.12), in: Capsule())
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: MedxSpace.m) {
+                    Text([bookmark.sourceName, bookmark.formattedDate].filter { !$0.isEmpty }.joined(separator: " · "))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    HTMLRichTextView(html: question.displayText, fontSize: 16, weight: .semibold)
+
+                    if let images = question.images, !images.isEmpty {
+                        ForEach(images, id: \.self) { raw in
+                            RunnerFigure(raw: raw)
+                        }
                     }
 
-                    Text(bookmark.sourceName)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Spacer()
-
-                    Text(bookmark.formattedDate)
-                        .font(.caption)
-                        .foregroundColor(Color(uiColor: .tertiaryLabel))
-                }
-
-                // Question HTML display
-                HTMLRichTextView(html: bookmark.question.displayText, fontSize: 17, weight: .semibold)
-
-                // Images if any
-                if let imgs = bookmark.question.images, !imgs.isEmpty {
-                    ForEach(imgs, id: \.self) { imgUrl in
-                        CachedAsyncImage(url: URL(string: imgUrl))
-                            .frame(maxHeight: 220)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    VStack(spacing: MedxSpace.s) {
+                        ForEach(Array(question.options.enumerated()), id: \.offset) { pair in
+                            QuestionOptionButton(
+                                option: pair.element,
+                                index: pair.offset,
+                                isChosen: false,
+                                isCorrect: question.isCorrect(optionId: pair.element.id),
+                                isRevealed: question.hasAnswerKey,
+                                isLocked: true
+                            ) {}
+                        }
                     }
-                }
 
-                // Options with Answer Key
-                VStack(spacing: 10) {
-                    ForEach(Array(bookmark.question.options.enumerated()), id: \.offset) { pair in
-                        let option = pair.element
-                        let isCorrect = bookmark.question.isCorrect(optionId: option.id)
+                    if (question.explanation?.isEmpty == false) || !reference.isEmpty {
+                        VStack(alignment: .leading, spacing: MedxSpace.s) {
+                            Label("Explanation", systemImage: "lightbulb.fill")
+                                .font(.subheadline.weight(.semibold))
 
-                        HStack(alignment: .medxFirstLine, spacing: 12) {
-                            Text(MedxOptionLetter.of(option, at: pair.offset))
-                                .font(.footnote.weight(.bold).monospacedDigit())
-                                .foregroundColor(isCorrect ? .white : .primary)
-                                .frame(width: 28, height: 28)
-                                .background(isCorrect ? MedxTheme.successGreen : Color.primary.opacity(0.08))
-                                .clipShape(Circle())
+                            if let explanation = question.explanation, !explanation.isEmpty {
+                                HTMLRichTextView(html: explanation, fontSize: 15, weight: .regular, textColor: .secondary)
+                            }
 
-                            HTMLRichTextView(html: option.text, fontSize: 14, weight: .regular)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .medxFirstLineGuide(fontSize: 14)
-                                .layoutPriority(1)
-
-                            Spacer(minLength: 0)
-
-                            if isCorrect {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.headline)
-                                    .foregroundColor(MedxTheme.successGreen)
+                            if !reference.isEmpty {
+                                Label(reference, systemImage: "book.closed")
+                                    .font(.footnote)
+                                    .foregroundStyle(.tertiary)
                             }
                         }
-                        .padding(14)
-                        .frame(maxWidth: .infinity, minHeight: 52, alignment: .center)
-                        .background(isCorrect ? MedxTheme.successGreen.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .strokeBorder(isCorrect ? MedxTheme.successGreen.opacity(0.4) : Color.clear, lineWidth: 1)
-                        )
+                        .padding(.top, MedxSpace.xs)
                     }
                 }
+                .padding(.vertical, MedxSpace.xs)
+            }
 
-                // Explanation
-                if let explanation = bookmark.question.explanation, !explanation.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label("Explanation", systemImage: "lightbulb.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(MedxTheme.warningOrange)
-                        HTMLRichTextView(html: explanation, fontSize: 15, weight: .regular, textColor: .secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
-                    .medxCard()
-                }
-
-                // Remove Bookmark Button
+            Section {
                 Button(role: .destructive) {
                     HapticManager.medium()
                     activityStore.removeBookmark(bookmark, uid: uid)
                     dismiss()
                 } label: {
-                    Label("Remove Bookmark", systemImage: "bookmark.slash")
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                    Label("Remove bookmark", systemImage: "bookmark.slash")
                 }
-                .medxBorderedButton()
-                .tint(MedxTheme.destructiveRed)
-                .padding(.top, 10)
             }
-            .padding(20)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
-        .navigationTitle("Question Details")
+        .listStyle(.insetGrouped)
+        .navigationTitle(bookmark.subject.isEmpty ? "Question" : bookmark.subject)
         .navigationBarTitleDisplayMode(.inline)
     }
 }

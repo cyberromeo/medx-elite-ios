@@ -24,6 +24,14 @@ public struct MainTabView: View {
 
     private var uid: String? { authService.currentSession?.uid }
 
+    /// `openDuelId` as the item a cover wants: a `String` is not `Identifiable`, a request is.
+    private var roomRequest: Binding<MedxRoomRequest?> {
+        Binding(
+            get: { appState.openDuelId.map { MedxRoomRequest(id: $0) } },
+            set: { appState.openDuelId = $0?.id }
+        )
+    }
+
     public var body: some View {
         layout
             // Re-identified when the accent changes so every screen inside repaints at once;
@@ -38,16 +46,16 @@ public struct MainTabView: View {
                 SettingsView()
                     .medxFullSheet()
             }
-            .sheet(isPresented: $appState.showSearch) {
-                MedxQuestionSearchView(seed: appState.searchSeed)
-                    .medxPageSheet()
-            }
             .sheet(isPresented: $appState.showQuickSitting) {
                 MedxCustomModuleSheet()
-                    .medxPageSheet()
             }
-            .fullScreenCover(isPresented: $appState.showFaceoff) {
-                FaceoffLobbyView()
+            // The duel room, from wherever it was asked for: the lobby, a Home invite card, a
+            // notification or a link. Hosted here so no lobby has to be on screen first.
+            .fullScreenCover(item: roomRequest) { request in
+                DuelRoomView(gameId: request.id) {
+                    appState.openDuelId = nil
+                    NotificationCenter.default.post(name: .medxSittingDidFinish, object: nil)
+                }
             }
             .sheet(item: $appState.pendingModulePick) { pick in
                 StartSessionSheet(

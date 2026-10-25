@@ -2,64 +2,67 @@ import SwiftUI
 
 // MARK: - Lobby state
 
-/// The lobby's own data: every open lobby, and this profile's finished games.
+/// The lobby's own data: this profile's finished games, and the actions. The open lobbies come
+/// from `MedxLobbyWatcher.shared`, the one stream Home's invite card and the Library badge
+/// already read, so opening this screen does not open a second one.
 ///
-/// There are two people using this app, so there are no game codes — the join card is a live
-/// subscription to every open lobby, filtered to the other one's. Joining is a single tap, and it is
-/// also the readiness signal: the host's Start button is dead until it writes a player row.
+/// There are two people using this app, so there are no game codes — the join row is every open
+/// lobby the other one dealt. Joining is a single tap, and it is also the readiness signal: the
+/// host's Start button is dead until it writes a player row.
 @MainActor
 final class MedxFaceoffLobby: ObservableObject {
-    @Published private(set) var lobbies: [MedxDuelGame]?
     @Published private(set) var history: [MedxDuelGame]?
     @Published var failure: String?
     @Published var busy: String?
+    /// Whether the game server answers, once a transport has been resolved; `nil` before.
+    @Published private(set) var remoteWorks: Bool?
 
-    let transport: MedxDuelTransport
-    private var subscription: MedxDuelSubscription?
+    private let injected: MedxDuelTransport?
+    private var live: MedxDuelTransport?
 
     init(transport: MedxDuelTransport? = nil) {
-        self.transport = transport ?? MedxDuelTransportFactory.make()
+        self.injected = transport
     }
 
-    deinit { subscription?.cancel() }
-
-    var remoteWorks: Bool? { transport.remoteWorks }
+    /// Resolved on first use, never at init: this object is created with its view, and resolving
+    /// a transport while the SDK sign-in is still in flight is what used to latch the poller for
+    /// the rest of the session.
+    private var transport: MedxDuelTransport {
+        if let injected { return injected }
+        if let live { return live }
+        let made = MedxDuelTransportFactory.make()
+        live = made
+        return made
+    }
 
     private var uid: String? { AuthService.shared.currentSession?.uid }
 
     /// Gated on a uid: a read that fires before auth resolves reports a permission error that is a
     /// race, not a rules problem.
     func start() {
-        guard uid != nil, subscription == nil else { return }
-        transport.setUrgency(.lobby)
-        subscription = transport.watchOpenLobbies { [weak self] games in
-            self?.lobbies = games
-        }
+        guard uid != nil else { return }
+        remoteWorks = transport.remoteWorks
+        MedxLobbyWatcher.shared.start()
         Task { await reloadHistory() }
-    }
-
-    func stop() {
-        subscription?.cancel()
-        subscription = nil
     }
 
     func reloadHistory() async {
         guard let uid else { return }
         do {
             history = try await transport.listMyDuels(uid: uid)
+            remoteWorks = transport.remoteWorks
         } catch {
             failure = "Your past faceoffs could not be read."
         }
     }
 
-    /// A lobby the *other* one dealt and nobody has joined. Stale ones go cold rather than sitting
-    /// in the list forever.
+    /// Lobbies the *other* one dealt and nobody has joined, from the shared stream.
     var theirs: [MedxDuelGame] {
-        (lobbies ?? []).filter { $0.hostUid != uid && MedxDuelRules.isOfferable($0) }
+        MedxLobbyWatcher.shared.theirs
     }
 
     var mine: [MedxDuelGame] {
-        (lobbies ?? []).filter { $0.hostUid == uid && MedxDuelRules.isOfferable($0) }
+        MedxLobbyWatcher.shared.lobbies.filter { $0.hostUid == uid && MedxDuelRules.isOfferable($0) }
     }
 
     var played: [MedxDuelGame] {
@@ -190,15 +193,18 @@ struct MedxRoomRequest: Identifiable, Hashable {
 
 // MARK: - The lobby
 
+/// Pushed from Library. The room itself is a cover the shell hosts, so a Join here, an invite on
+/// Home and a notification all open the same thing the same way.
 public struct FaceoffLobbyView: View {
     @StateObject private var lobby = MedxFaceoffLobby()
+    @ObservedObject private var watcher = MedxLobbyWatcher.shared
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var authService = AuthService.shared
 
     @State private var showHostSheet = false
-    @State private var openRoom: MedxRoomRequest?
-
-    @Environment(\.dismiss) private var dismiss
+    /// A game dealt inside the host sheet, opened once the sheet has gone — raising the room's
+    /// cover in the same update that dismisses the sheet hands it to the sheet's presentation.
+    @State private var dealtRoom: String?
 
     public init() {}
 
@@ -208,245 +214,202 @@ public struct FaceoffLobbyView: View {
         Profile.allProfiles.first { $0.uid != uid }
     }
 
+    private var subtitle: String {
+        let total = lobby.record.total
+        guard total > 0 else { return "One question, one minute, two of you" }
+        return total == 1 ? "1 played" : "\(total) played"
+    }
+
     public var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 18) {
-                    header
+        List {
+            if lobby.remoteWorks == false {
+                Section {
+                    Label(
+                        "Faceoff cannot reach its game server right now, so it cannot run. Nothing else in the app is affected.",
+                        systemImage: "icloud.slash"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                }
+            }
 
-                    if lobby.remoteWorks == false {
-                        warning
-                    }
-
+            if !lobby.theirs.isEmpty {
+                Section("Waiting for you") {
                     ForEach(lobby.theirs) { game in
-                        inviteCard(game)
+                        inviteRow(game)
                     }
+                }
+            }
 
+            if !lobby.mine.isEmpty {
+                Section("Your open lobby") {
                     ForEach(lobby.mine) { game in
-                        waitingCard(game)
+                        waitingRow(game)
                     }
+                }
+            }
 
-                    hostButton
-
-                    if lobby.record.total > 0 {
-                        recordSection
-                        historySection
-                    } else if lobby.history != nil, lobby.theirs.isEmpty, lobby.mine.isEmpty {
-                        emptyState
+            Section {
+                Button {
+                    HapticManager.medium()
+                    showHostSheet = true
+                } label: {
+                    HStack(spacing: MedxSpace.m) {
+                        MedxTileLabel(
+                            "Host a faceoff",
+                            detail: "Deal a paper and \(other?.displayName ?? "the other one") gets a Join button on their Home screen",
+                            symbol: "plus",
+                            hue: MedxFeature.faceoff.color
+                        )
+                        .foregroundStyle(.primary)
+                        Spacer(minLength: MedxSpace.s)
+                        MedxRowChevron()
                     }
+                }
+                .disabled(lobby.remoteWorks == false || uid == nil)
+            } footer: {
+                Text("A right answer is \(MedxDuelRules.basePoints) points plus whatever is still on the clock: \(MedxDuelRules.maxPoints) if you are instant, \(MedxDuelRules.basePoints) if you scrape it, nothing if you are wrong. A faceoff counts as a sitting for both of you.")
+            }
 
-                    footer
-                }
-                .padding(.horizontal, MedxSurface.gutter)
-                .padding(.top, 6)
-                .padding(.bottom, 28)
-            }
-            .medxBackdrop(.duel)
-            .medxScrollEdge()
-            .navigationTitle("Faceoff")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Close") { dismiss() }
+            if lobby.record.total > 0 {
+                recordSection
+                historySection
+            } else if lobby.history != nil, lobby.theirs.isEmpty, lobby.mine.isEmpty {
+                Section {
+                    MedxEmptyState(
+                        "No faceoffs yet",
+                        symbol: MedxFeature.faceoff.symbol,
+                        message: "Deal a paper and \(other?.displayName ?? "the other one") gets a Join button on their Home screen the moment it lands."
+                    )
                 }
             }
-            .refreshable { await lobby.reloadHistory() }
-            .onAppear {
-                lobby.start()
-                // A deep link or a Home invite card can ask for a specific room before this screen
-                // even exists, so the request is picked up here rather than raced for.
-                if let pending = appState.openDuelId {
-                    appState.openDuelId = nil
-                    openRoom = MedxRoomRequest(id: pending)
+
+            if let failure = lobby.failure {
+                Section {
+                    Label(failure, systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(MedxOutcome.wrong)
                 }
             }
-            .onDisappear { lobby.stop() }
-            .sheet(isPresented: $showHostSheet) {
-                FaceoffHostSheet(lobby: lobby) { gameId in
-                    showHostSheet = false
-                    openRoom = MedxRoomRequest(id: gameId)
-                }
-            }
-            .fullScreenCover(item: $openRoom) { request in
-                DuelRoomView(gameId: request.id) {
-                    openRoom = nil
-                    Task { await lobby.reloadHistory() }
-                }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle(MedxFeature.faceoff.title)
+        .navigationSubtitle(subtitle)
+        .navigationBarTitleDisplayMode(.large)
+        .refreshable { await lobby.reloadHistory() }
+        .task { lobby.start() }
+        .onReceive(NotificationCenter.default.publisher(for: .medxSittingDidFinish)) { _ in
+            Task { await lobby.reloadHistory() }
+        }
+        .sheet(isPresented: $showHostSheet, onDismiss: openDealtRoom) {
+            FaceoffHostSheet(lobby: lobby) { gameId in
+                dealtRoom = gameId
+                showHostSheet = false
             }
         }
     }
 
-    // MARK: - Pieces
-
-    private var header: some View {
-        MedxPageHeader(
-            section: .duel,
-            lead: "One question, one minute, two of you. A right answer is 40 points plus whatever "
-                + "is still on the clock, \(MedxDuelRules.maxPoints) if you are instant, "
-                + "\(MedxDuelRules.basePoints) if you scrape it, nothing if you are wrong."
-        )
+    private func openDealtRoom() {
+        guard let dealtRoom else { return }
+        self.dealtRoom = nil
+        appState.openDuelId = dealtRoom
     }
 
-    private var warning: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "icloud.slash")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(MedxTheme.warningOrange)
-            Text("Faceoff cannot reach its game server right now, so it cannot run. Nothing "
-                 + "else in the app is affected.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(12)
-        .medxCard()
-    }
+    // MARK: - Rows
 
-    private func inviteCard(_ game: MedxDuelGame) -> some View {
+    private func inviteRow(_ game: MedxDuelGame) -> some View {
         let host = Profile.byId(game.hostProfile) ?? Profile.byUid(game.hostUid)
-        let hue = host?.duelFill ?? MedxCandy.pink
 
-        return HStack(spacing: 12) {
-            MedxSticker(host?.sticker ?? "bolt", size: 30, tilt: -7)
-                .frame(width: 40, height: 40)
-                .background(hue.opacity(0.2), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        return HStack(spacing: MedxSpace.m) {
+            if let host {
+                ProfileAvatarView(profile: host, size: 36)
+            } else {
+                MedxSymbolTile(MedxFeature.faceoff.symbol, hue: MedxFeature.faceoff.color, size: 36)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(host?.displayName ?? "Someone") is waiting")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                Text("\(game.source?.name ?? "a paper") · \(game.total) q")
-                    .font(.caption)
+                Text("\(game.source?.name ?? "A paper") · \(game.total) questions")
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
-            Spacer(minLength: 0)
+            Spacer(minLength: MedxSpace.s)
 
-            Button {
+            Button(lobby.busy == game.id ? "Joining…" : "Join") {
+                HapticManager.medium()
                 Task {
                     if let id = await lobby.join(game) {
-                        openRoom = MedxRoomRequest(id: id)
+                        appState.openDuelId = id
                     }
                 }
-            } label: {
-                Text(lobby.busy == game.id ? "Joining" : "Join")
-                    .font(.subheadline.weight(.bold))
-                    .frame(minWidth: 62, minHeight: 34)
-                    .padding(.horizontal, 6)
             }
-            .medxFilled(hue)
+            .medxPrimary(size: .small)
             .disabled(lobby.busy != nil)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .medxCard(raised: true)
+        .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(host?.displayName ?? "Someone") is waiting to play")
     }
 
-    private func waitingCard(_ game: MedxDuelGame) -> some View {
-        HStack(spacing: 12) {
-            MedxSticker("hourglass", size: 26, tilt: 6)
-                .frame(width: 38, height: 38)
-                .background(MedxSurface.fieldFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    private func waitingRow(_ game: MedxDuelGame) -> some View {
+        Button {
+            appState.openDuelId = game.id
+        } label: {
+            HStack(spacing: MedxSpace.m) {
+                MedxSymbolTile("hourglass", hue: MedxOutcome.pending, size: 36)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Waiting for \(other?.displayName ?? "the other one")")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                Text("\(game.source?.name ?? "a paper") · \(game.total) q")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Waiting for \(other?.displayName ?? "the other one")")
+                        .foregroundStyle(.primary)
+                    Text("\(game.source?.name ?? "A paper") · \(game.total) questions")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: MedxSpace.s)
+
+                MedxRowChevron()
             }
-
-            Spacer(minLength: 0)
-
-            Button {
-                openRoom = MedxRoomRequest(id: game.id)
-            } label: {
-                // Same label height as the trash beside it, so the two capsules match.
-                Text("Open")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(height: 30)
-            }
-            .medxBorderedButton()
-            .buttonBorderShape(.capsule)
-
+            .padding(.vertical, 2)
+        }
+        .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
                 Task { await lobby.cancel(game) }
             } label: {
-                Image(systemName: "trash")
-                    .font(.caption.weight(.bold))
-                    .frame(width: 34, height: 30)
+                Label("Cancel lobby", systemImage: "trash")
             }
-            .medxBorderedButton()
-            .buttonBorderShape(.capsule)
-            .disabled(lobby.busy != nil)
-            .accessibilityLabel("Cancel this lobby")
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .medxCard()
-    }
-
-    private var hostButton: some View {
-        Button {
-            HapticManager.medium()
-            showHostSheet = true
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "plus")
-                    .font(.subheadline.weight(.bold))
-                Text("Host a faceoff")
-                    .font(.body.weight(.semibold))
-            }
-            .frame(maxWidth: .infinity, minHeight: 50)
-        }
-        .medxFilled(MedxSection.duel.fill)
-        .disabled(lobby.remoteWorks == false)
+        .disabled(lobby.busy != nil)
+        .accessibilityLabel("Your open lobby")
+        .accessibilityHint("Opens the room. Swipe left to cancel it.")
     }
 
     private var recordSection: some View {
         let record = lobby.record
 
-        return VStack(alignment: .leading, spacing: 10) {
-            MedxSectionHeader("The record", subtitle: "\(record.total) played")
-
-            VStack(spacing: 10) {
-                HStack(spacing: 0) {
-                    ForEach(Profile.allProfiles) { profile in
-                        VStack(spacing: 4) {
-                            MedxSticker(profile.sticker, size: 30, tilt: profile.id == Profile.graveyard.id ? -8 : 8)
-                            Text("\(record.wins[profile.uid] ?? 0)")
-                                .font(.system(.largeTitle, design: .rounded).weight(.bold))
-                                .monospacedDigit()
-                                .foregroundStyle(profile.duelFill)
-                            Text(profile.displayName)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
+        return Section {
+            MedxStatRow {
+                ForEach(Profile.allProfiles) { profile in
+                    MedxStatTile(
+                        "\(record.wins[profile.uid] ?? 0)",
+                        label: "\(profile.displayName) won",
+                        symbol: "trophy.fill",
+                        hue: profile.duelTint
+                    )
                 }
-
-                if record.draws > 0 {
-                    Text(record.draws == 1 ? "1 dead heat" : "\(record.draws) dead heats")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
+                MedxStatTile("\(record.draws)", label: "dead heats", symbol: "equal.circle.fill", hue: MedxOutcome.pending)
             }
-            .padding(16)
-            .frame(maxWidth: .infinity)
-            .medxCard()
+            .padding(.vertical, MedxSpace.xs)
+        } header: {
+            Text("The record")
         }
     }
 
     private var historySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            MedxSectionHeader("Recent")
-
+        Section("Recent") {
             ForEach(lobby.played.prefix(8)) { game in
                 historyRow(game)
             }
@@ -460,68 +423,36 @@ public struct FaceoffLobbyView: View {
         let line = game.uids.map { "\(scores[$0]?.points ?? 0)" }.joined(separator: " – ")
 
         return Button {
-            openRoom = MedxRoomRequest(id: game.id)
+            appState.openDuelId = game.id
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: MedxSpace.m) {
+                MedxSymbolTile(
+                    winner == nil ? "equal" : "trophy.fill",
+                    hue: winner?.duelTint ?? MedxOutcome.pending,
+                    size: 36
+                )
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(game.source?.name ?? "Faceoff")
-                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
-                    Text("\(game.total) q · \(line)")
-                        .font(.caption.monospacedDigit())
+                    Text("\(game.total) questions · \(line)")
+                        .font(.footnote.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
 
-                Spacer(minLength: 0)
+                Spacer(minLength: MedxSpace.s)
 
-                if let winner {
-                    MedxPill(winner.displayName, hue: winner.duelFill, weight: .solid)
-                } else {
-                    MedxPill("dead heat", weight: .outline)
-                }
+                Text(winner.map { "\($0.displayName) won" } ?? "Dead heat")
+                    .font(.footnote)
+                    .foregroundStyle(winner?.duelTint ?? Color.secondary)
 
-                MedxDisclosure()
+                MedxRowChevron()
             }
-            .padding(12)
-            .medxCard()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+            .padding(.vertical, 2)
         }
-        .buttonStyle(.plain)
         .accessibilityLabel(game.source?.name ?? "Faceoff")
         .accessibilityValue(winner.map { "\($0.displayName) won, \(line)" } ?? "dead heat, \(line)")
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 12) {
-            MedxSticker("bolt", size: 62, tilt: -8)
-            Text("No faceoffs yet")
-                .font(.headline)
-            Text("Deal a paper and \(other?.displayName ?? "the other one") gets a Join button on "
-                 + "their Home screen the moment it lands.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
-        .padding(.horizontal, 12)
-    }
-
-    private var footer: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
-            Text("A faceoff counts as a sitting for both of you, so the questions land in your "
-                 + "accuracy, your streak and your daily goal like any other paper.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.horizontal, 4)
-        .padding(.top, 6)
     }
 }
 
@@ -543,6 +474,7 @@ enum MedxFaceoffTab: Hashable {
         [.custom] + MedxSeriesGroup.allCases.map { MedxFaceoffTab.group($0) }
 }
 
+/// Pick a source and a length, deal. A list with a search field, Deal in the bar.
 struct FaceoffHostSheet: View {
     @ObservedObject var lobby: MedxFaceoffLobby
     let onDealt: (String) -> Void
@@ -573,45 +505,71 @@ struct FaceoffHostSheet: View {
         return length > 0 ? min(length, picked.available) : picked.available
     }
 
+    private var dealLine: String {
+        if let failure = lobby.failure { return failure }
+        guard picked != nil else { return "Pick a source below." }
+        return "\(dealt) question\(dealt == 1 ? "" : "s"), shuffled, a minute each, "
+            + "\(MedxFormat.count(MedxDuelRules.possiblePoints(dealt))) points on the table. Both of you see the same deck."
+    }
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 14) {
-                        MedxSegmented(
-                            section: .duel,
-                            segments: MedxFaceoffTab.all.map { MedxSegment(value: $0, label: $0.label) },
-                            selection: $tab
-                        )
-                        .onChange(of: tab) { _, _ in query = "" }
-
-                        lengthRow
-                        searchField
-                        list
+            List {
+                Section {
+                    Picker("Source", selection: $tab) {
+                        ForEach(MedxFaceoffTab.all, id: \.self) { item in
+                            Text(item.label).tag(item)
+                        }
                     }
-                    .padding(.horizontal, MedxSurface.gutter)
-                    .padding(.top, 12)
-                    .padding(.bottom, 20)
+                    .pickerStyle(.segmented)
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
                 }
 
-                dealBar
+                Section {
+                    Picker("Length", selection: $length) {
+                        ForEach(MedxDuelRules.lengths, id: \.self) { value in
+                            Text(value == 0 ? "All" : "\(value)").tag(value)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Questions")
+                } footer: {
+                    Text(dealLine)
+                        .foregroundStyle(lobby.failure == nil ? Color.secondary : MedxOutcome.wrong)
+                }
+
+                sourceSection
             }
-            .medxBackdrop(.duel)
+            .listStyle(.insetGrouped)
+            .searchable(text: $query, prompt: tab == .custom ? "Find a custom module" : "Find a paper")
             .navigationTitle("Host a faceoff")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    if lobby.busy == "deal" {
+                        ProgressView()
+                    } else {
+                        Button("Deal") { deal() }
+                            .disabled(picked == nil)
+                    }
                 }
             }
             .task {
-                length = MedxDuelRules.lengths.contains(UserDefaults.standard.integer(forKey: Self.lengthKey))
-                    ? UserDefaults.standard.integer(forKey: Self.lengthKey)
-                    : 20
+                let saved = UserDefaults.standard.integer(forKey: Self.lengthKey)
+                length = MedxDuelRules.lengths.contains(saved) ? saved : 20
                 await customStore.loadIfNeeded(uid: uid)
                 await loadSeriesIfNeeded()
             }
+            .onChange(of: length) { _, next in
+                UserDefaults.standard.set(next, forKey: Self.lengthKey)
+            }
             .onChange(of: tab) { _, _ in
+                query = ""
                 Task { await loadSeriesIfNeeded() }
             }
             .sheet(item: $draft) { editing in
@@ -630,105 +588,73 @@ struct FaceoffHostSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .presentationSizing(.page)
     }
 
-    private var lengthRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Length")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            MedxSegmented(
-                section: .duel,
-                segments: MedxDuelRules.lengths.map {
-                    MedxSegment(value: $0, label: $0 == 0 ? "All" : "\($0)")
-                },
-                selection: $length
-            )
-            .onChange(of: length) { _, next in
-                UserDefaults.standard.set(next, forKey: Self.lengthKey)
+    private func deal() {
+        guard let picked else { return }
+        HapticManager.medium()
+        Task {
+            if let gameId = await lobby.deal(pick: picked, length: length) {
+                onDealt(gameId)
             }
         }
     }
 
-    private var searchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
-            TextField(tab == .custom ? "Find a custom module" : "Find a paper", text: $query)
-                .textFieldStyle(.plain)
-                .autocorrectionDisabled()
-            if !query.isEmpty {
-                Button {
-                    query = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .padding(.horizontal, 12)
-        .frame(height: 38)
-        .background(MedxSurface.fieldFill, in: Capsule())
-    }
-
-    // MARK: - The list
+    // MARK: - Sources
 
     @ViewBuilder
-    private var list: some View {
+    private var sourceSection: some View {
         switch tab {
-        case .custom: customList
-        case .group(let group): paperList(group)
+        case .custom: customSection
+        case .group(let group): paperSection(group)
         }
     }
 
-    private var customList: some View {
-        VStack(spacing: 8) {
+    private var customSection: some View {
+        Section {
             Button {
                 guard let uid else { return }
                 HapticManager.medium()
                 draft = MedxCustomModule.blank(uid: uid)
             } label: {
-                sourceRow(
-                    symbol: "plus.rectangle.on.rectangle",
-                    title: "Build a new one",
-                    detail: "Pick chapters out of either bank, then deal it straight into the game",
-                    isOn: false
-                )
+                HStack(spacing: MedxSpace.m) {
+                    MedxTileLabel(
+                        "Build a new one",
+                        detail: "Pick chapters out of either bank, then deal it straight into the game",
+                        symbol: "plus",
+                        hue: MedxFeature.customModules.color
+                    )
+                    .foregroundStyle(.primary)
+                    Spacer(minLength: MedxSpace.s)
+                    MedxRowChevron()
+                }
             }
-            .buttonStyle(.plain)
 
             let matches = customMatches
             if customStore.isLoading, matches.isEmpty {
-                ProgressView().frame(maxWidth: .infinity).padding(.vertical, 20)
+                MedxPlaceholderRows(count: 3)
             } else if matches.isEmpty {
-                Text("No custom modules yet, build one above, or pick a Marrow paper from the "
-                     + "other tabs.")
-                    .font(.caption)
+                Text("No custom modules yet. Build one above, or pick a Marrow paper from the other tabs.")
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 4)
             }
 
             ForEach(matches) { module in
-                Button {
-                    HapticManager.selection()
+                sourceRow(
+                    symbol: MedxFeature.customModules.symbol,
+                    hue: MedxFeature.customModules.color,
+                    title: module.name,
+                    detail: "\(module.effectiveCount) questions · \(module.sources.count) module"
+                        + (module.sources.count == 1 ? "" : "s")
+                        + (module.author.map { " · \($0.displayName)" } ?? ""),
+                    isOn: picked == .custom(module)
+                ) {
                     picked = .custom(module)
-                } label: {
-                    sourceRow(
-                        symbol: "slider.horizontal.3",
-                        title: module.name,
-                        detail: "\(module.effectiveCount) q · \(module.sources.count) module"
-                            + (module.sources.count == 1 ? "" : "s")
-                            + (module.author.map { " · \($0.displayName)" } ?? ""),
-                        isOn: picked == .custom(module)
-                    )
                 }
-                .buttonStyle(.plain)
             }
+        } header: {
+            Text("Custom modules")
         }
     }
 
@@ -738,45 +664,39 @@ struct FaceoffHostSheet: View {
         return customStore.modules.filter { $0.name.localizedCaseInsensitiveContains(needle) }
     }
 
-    private func paperList(_ group: MedxSeriesGroup) -> some View {
+    private func paperSection(_ group: MedxSeriesGroup) -> some View {
         let papers = paperMatches(group)
 
-        return VStack(spacing: 8) {
+        return Section {
             if isLoadingSeries, series == nil {
-                ProgressView().frame(maxWidth: .infinity).padding(.vertical, 24)
+                MedxPlaceholderRows(count: 6)
             }
 
-            ForEach(Array(papers.prefix(Self.listCap)).indices, id: \.self) { index in
-                let paper = papers[index]
-                Button {
-                    HapticManager.selection()
+            ForEach(Array(papers.prefix(Self.listCap))) { paper in
+                sourceRow(
+                    symbol: MedxSeriesRules.symbol(for: paper),
+                    hue: MedxFeature.tests.color,
+                    title: paper.title,
+                    detail: paper.line,
+                    isOn: picked == .series(paper)
+                ) {
                     picked = .series(paper)
-                } label: {
-                    sourceRow(
-                        symbol: MedxSeriesRules.symbol(for: paper),
-                        title: paper.title,
-                        detail: paper.line,
-                        isOn: picked == .series(paper)
-                    )
                 }
-                .buttonStyle(.plain)
             }
 
             if papers.count > Self.listCap {
-                Text("\(papers.count - Self.listCap) more, search to narrow it down.")
-                    .font(.caption)
+                Text("\(papers.count - Self.listCap) more. Search to narrow it down.")
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 4)
             }
 
             if series != nil, papers.isEmpty {
                 Text("Nothing matches that.")
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 4)
             }
+        } header: {
+            Text(group.label)
         }
     }
 
@@ -787,92 +707,43 @@ struct FaceoffHostSheet: View {
         return hits.sorted { $0.startAt > $1.startAt }
     }
 
-    // MARK: - Row and bar
-
     private func sourceRow(
         symbol: String,
+        hue: Color,
         title: String,
         detail: String,
-        isOn: Bool
+        isOn: Bool,
+        action: @escaping () -> Void
     ) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(isOn ? MedxSection.duel.onSoft : Color.secondary)
-                .frame(width: 34, height: 34)
-                .background(
-                    isOn ? MedxSection.duel.soft : MedxSurface.fieldFill,
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                )
-                .accessibilityHidden(true)
+        Button {
+            HapticManager.selection()
+            action()
+        } label: {
+            HStack(spacing: MedxSpace.m) {
+                MedxSymbolTile(symbol, hue: hue, size: 36)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 0)
-
-            if isOn {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(MedxSection.duel.fill)
-            }
-        }
-        .padding(12)
-        .frame(minHeight: 54)
-        .medxTile(accentColor: MedxSection.duel.fill, isSelected: isOn)
-        .contentShape(RoundedRectangle(cornerRadius: MedxSurface.tileRadius, style: .continuous))
-        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
-    }
-
-    private var dealBar: some View {
-        VStack(spacing: 6) {
-            if let failure = lobby.failure {
-                Text(failure)
-                    .font(.caption)
-                    .foregroundStyle(MedxTheme.warningOrange)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else if picked != nil {
-                Text("\(dealt) question\(dealt == 1 ? "" : "s"), shuffled, a minute each, "
-                     + "\(MedxDuelRules.possiblePoints(dealt)) points on the table. "
-                     + "Both of you see the same deck.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Button {
-                guard let picked else { return }
-                Task {
-                    if let gameId = await lobby.deal(pick: picked, length: length) {
-                        onDealt(gameId)
-                    }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-            } label: {
-                Text(dealLabel)
-                    .font(.body.weight(.semibold))
-                    .frame(maxWidth: .infinity, minHeight: 50)
-            }
-            .medxFilled(MedxSection.duel.fill)
-            .disabled(picked == nil || lobby.busy == "deal")
-        }
-        .padding(.horizontal, MedxSurface.gutter)
-        .padding(.vertical, 10)
-        .medxBar(topDivider: true)
-    }
 
-    private var dealLabel: String {
-        if lobby.busy == "deal" { return "Dealing…" }
-        guard picked != nil else { return "Pick a source" }
-        return "Deal \(dealt) questions"
+                Spacer(minLength: MedxSpace.s)
+
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isOn ? MedxTheme.accent : Color.secondary)
+            }
+            .padding(.vertical, 2)
+        }
+        .accessibilityLabel(title)
+        .accessibilityValue(detail)
+        .accessibilityAddTraits(isOn ? [.isSelected] : [])
     }
 
     /// The catalogue is one document but a big one, and the lobby does not need it until a paper tab

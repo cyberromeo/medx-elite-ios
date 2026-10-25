@@ -12,107 +12,77 @@ public struct ProfileSelectView: View {
 
     public var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                Spacer(minLength: 24)
+            List {
+                Section {
+                    VStack(spacing: MedxSpace.m) {
+                        MedxLogoMark(size: 78)
 
-                branding
+                        Text("MedX Elite")
+                            .font(.largeTitle.weight(.bold))
 
-                VStack(spacing: 12) {
+                        Text("Choose your profile to continue")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, MedxSpace.xl)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                    .accessibilityElement(children: .combine)
+                }
+
+                Section {
                     ForEach(Profile.allProfiles) { profile in
-                        profileCard(profile)
+                        profileRow(profile)
+                    }
+                } footer: {
+                    VStack(alignment: .leading, spacing: MedxSpace.s) {
+                        if let error = authService.errorMessage {
+                            Label(error, systemImage: "exclamationmark.triangle.fill")
+                                .foregroundStyle(MedxOutcome.wrong)
+                        }
+                        Label("Passwords stay in the iOS Keychain.", systemImage: "lock.shield")
                     }
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 32)
-
-                if let error = authService.errorMessage {
-                    Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                        .padding(.top, 18)
-                        .transition(.opacity)
-                }
-
-                Spacer(minLength: 24)
-
-                Label("Credentials stored in the iOS Keychain", systemImage: "lock.shield")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .padding(.bottom, 20)
             }
-            .frame(maxWidth: .infinity)
-            .medxBackdrop(.home, intensity: 1.5)
+            .listStyle(.insetGrouped)
             .sheet(item: $selectedProfile) { profile in
                 PasswordPromptView(profile: profile)
             }
         }
     }
 
-    private var branding: some View {
-        VStack(spacing: 10) {
-            MedxLogoMark(size: 78)
-
-            Text("MedX Elite")
-                .font(.largeTitle.weight(.bold))
-
-            Text("Choose your profile to continue")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private func profileCard(_ profile: Profile) -> some View {
+    private func profileRow(_ profile: Profile) -> some View {
         Button {
             handleProfileTap(profile)
         } label: {
-            HStack(spacing: 14) {
-                ProfileAvatarView(profile: profile, size: 52)
-                    .overlay(alignment: .bottomTrailing) {
-                        MedxSticker(profile.sticker, size: 20)
-                            .padding(3)
-                            .background(MedxSurface.cardFill, in: Circle())
-                            .offset(x: 3, y: 3)
-                    }
+            HStack(spacing: MedxSpace.m) {
+                ProfileAvatarView(profile: profile, size: 44)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(profile.displayName)
-                        .font(.headline)
                         .foregroundStyle(.primary)
-
-                    Text("@\(profile.handle)")
-                        .font(.subheadline)
+                    Text("@\(profile.handle) · \(profile.duelTag)")
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
-
-                    Text(profile.tag)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(profile.duelFill)
                         .lineLimit(1)
                 }
 
-                Spacer(minLength: 0)
+                Spacer(minLength: MedxSpace.s)
 
                 if authService.isBusy, selectedProfile?.id == profile.id {
                     ProgressView()
                         .controlSize(.small)
                 } else if authService.hasSavedPassword(for: profile.id) {
                     Image(systemName: "faceid")
-                        .font(.title3)
-                        .foregroundStyle(MedxTheme.successGreen)
+                        .foregroundStyle(MedxOutcome.correct)
                         .accessibilityLabel("Password saved")
                 } else {
-                    MedxDisclosure()
+                    MedxRowChevron()
                 }
             }
-            .padding(16)
-            .frame(minHeight: 76)
-            .medxCard()
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
+            .padding(.vertical, 2)
         }
-        .buttonStyle(BouncyButtonStyle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Sign in as \(profile.displayName)")
     }

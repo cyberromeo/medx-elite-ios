@@ -5,8 +5,8 @@ import SwiftUI
 /// every door pushes, so Back always means the same thing. Settings is the profile button's and
 /// the batch papers live under Tests, so neither is here.
 ///
-/// Search, quick sitting and Faceoff still open through `AppState` (a sheet, a sheet and a
-/// cover): those screens carry their own navigation and are rebuilt in the next gate.
+/// Quick sitting is the one door that is a sheet: it is a builder that ends in a sitting, and
+/// `AppState.startSitting` knows to wait for a sheet to go before the runner comes up.
 public struct LibraryView: View {
     @ObservedObject private var appState = AppState.shared
     @ObservedObject private var activityStore = ActivityStore.shared
@@ -26,7 +26,7 @@ public struct LibraryView: View {
                 door(.flashcards) { FlashcardsSubjectListView() }
                 door(.customModules, badge: countBadge(customModules.modules.count)) { CustomModulesView() }
                 routeDoor(.quickSitting, route: .quickSitting)
-                routeDoor(.search, route: .search(nil))
+                door(.search) { MedxQuestionSearchView() }
             }
 
             Section("Watch") {
@@ -35,7 +35,7 @@ public struct LibraryView: View {
             }
 
             Section("Play") {
-                routeDoor(.faceoff, route: .faceoff, badge: waitingBadge)
+                door(.faceoff, badge: waitingBadge) { FaceoffLobbyView() }
             }
 
             Section("Yours") {
@@ -70,6 +70,8 @@ public struct LibraryView: View {
             case .downloads: DownloadsView()
             case .watchHistory: WatchHistoryView(uid: uid)
             case .activityLog: MedxActivityLogHost(uid: uid)
+            case .search(let seed): MedxQuestionSearchView(seed: seed ?? "")
+            case .faceoff: FaceoffLobbyView()
             }
         }
         .task {
@@ -96,7 +98,7 @@ public struct LibraryView: View {
         .accessibilityValue(badge ?? "")
     }
 
-    /// A door that goes through `AppState` — the sheets and the cover, until they are rebuilt.
+    /// A door that goes through `AppState` — the quick-sitting sheet.
     private func routeDoor(_ feature: MedxFeature, route: MedxRoute, badge: String? = nil) -> some View {
         Button {
             HapticManager.light()

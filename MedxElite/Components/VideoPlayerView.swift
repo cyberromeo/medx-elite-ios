@@ -94,19 +94,9 @@ public struct VideoPlayerView: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 11)
             .padding(.vertical, 6)
-            // `.clear` glass rather than `.regular`: this floats over video, which is bright and
-            // already carries the detail, so the badge wants to be a lens on it rather than a
-            // frosted card in front of it. One of the three places glass is still allowed — it
-            // floats over content, and video is the most refractable content there is.
-            .medxSurface(
-                Capsule(style: .continuous),
-                MedxSurfaceSpec(
-                    material: .glass(clear: true),
-                    fill: Color.black.opacity(0.35),
-                    strokeHue: .white,
-                    strokeOpacity: 0.22
-                )
-            )
+            // A plain scrim, like the flashcard viewer's chrome: it floats over video for two
+            // seconds and should not refract it.
+            .background(Color.black.opacity(0.55), in: Capsule())
             .accessibilityLabel("Playing the offline download")
     }
 
@@ -127,8 +117,8 @@ public struct VideoPlayerView: View {
     private var errorView: some View {
         VStack(spacing: 20) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 38))
-                .foregroundStyle(MedxDS.warn)
+                .font(.largeTitle)
+                .foregroundStyle(MedxOutcome.flagged)
                 .accessibilityHidden(true)
 
             VStack(spacing: 8) {
@@ -154,16 +144,10 @@ public struct VideoPlayerView: View {
                     Label("Retry", systemImage: "arrow.clockwise")
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .medxFilledButton()
-                .buttonBorderShape(.capsule)
-                .tint(.white)
-                .foregroundStyle(.black)
+                .medxPrimary()
 
                 Button("Close") { closePlayer() }
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .medxBorderedButton()
-                    .buttonBorderShape(.capsule)
-                    .tint(.white)
+                    .medxSecondary()
             }
             .frame(maxWidth: 320)
         }

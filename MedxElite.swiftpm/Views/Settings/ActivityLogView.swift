@@ -1,7 +1,8 @@
 import SwiftUI
 
-// MARK: - Activity Log View (Unified Watch History & Test Attempts)
+// MARK: - Activity log
 
+/// Every sitting and every class watched, in one list, newest first.
 struct ActivityLogView: View {
     let uid: String?
     @Binding var attempts: [SittingAttempt]
@@ -9,13 +10,12 @@ struct ActivityLogView: View {
     @State private var selectedFilter: LogFilter = .all
     @State private var searchText = ""
     @State private var pendingDeletion: ActivityLogItem?
-    @State private var showClearOptions = false
+    @State private var confirmClearAttempts = false
     @State private var deletionError = false
-    @State private var isDeleting = false
 
     enum LogFilter: String, CaseIterable, Identifiable {
         case all = "All"
-        case videos = "Videos"
+        case videos = "Classes"
         case qbank = "QBank"
         case tests = "Tests"
 
@@ -47,115 +47,84 @@ struct ActivityLogView: View {
                 if case .attempt(let att) = item, Self.paperKinds.contains(att.kind) { matchesCategory = true } else { matchesCategory = false }
             }
 
-            let matchesSearch = searchText.isEmpty ||
-                item.title.localizedCaseInsensitiveContains(searchText) ||
-                item.subtitle.localizedCaseInsensitiveContains(searchText)
+            let matchesSearch = searchText.isEmpty
+                || item.title.localizedCaseInsensitiveContains(searchText)
+                || item.subtitle.localizedCaseInsensitiveContains(searchText)
 
             return matchesCategory && matchesSearch
         }
     }
 
+    private var subtitle: String {
+        allItems.count == 1 ? "1 entry" : "\(MedxFormat.count(allItems.count)) entries"
+    }
+
     var body: some View {
         Group {
             if allItems.isEmpty {
-                ContentUnavailableView(
-                    "No Activity Log",
-                    systemImage: "list.bullet.rectangle.portrait",
-                    description: Text("Your video watch history and QBank/test attempts will appear in this unified log.")
+                MedxEmptyState(
+                    "Nothing logged yet",
+                    symbol: MedxFeature.activityLog.symbol,
+                    message: "Every sitting and every class you watch is listed here."
                 )
             } else {
                 List {
-                    // Filter picker
                     Section {
-                        Picker("Filter Activity", selection: $selectedFilter) {
+                        Picker("Show", selection: $selectedFilter) {
                             ForEach(LogFilter.allCases) { filter in
                                 Text(filter.rawValue).tag(filter)
                             }
                         }
                         .pickerStyle(.segmented)
-                        .padding(.vertical, 2)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
                     }
 
                     Section {
                         ForEach(filteredItems) { item in
-                            HStack(spacing: 14) {
-                                MedxSymbolMark(item.symbol, hue: item.color, size: 34)
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(item.title.medxDisplayTitle)
-                                        .font(.headline)
-                                        .lineLimit(2)
-
-                                    Text(item.subtitle)
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-
-                                    Text(item.formattedDate)
-                                        .font(.caption)
-                                        .foregroundStyle(Color(uiColor: .tertiaryLabel))
-                                }
-
-                                Spacer()
-
-                                Button(role: .destructive) {
-                                    pendingDeletion = item
-                                } label: {
-                                    Image(systemName: "trash")
-                                        .foregroundColor(.secondary)
-                                        .frame(width: 44, height: 44)
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("Delete \(item.title)")
-                            }
-                            .padding(.vertical, 4)
-                            .swipeActions(edge: .trailing) {
-                                Button(role: .destructive) {
-                                    pendingDeletion = item
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
+                            row(item)
                         }
                     } footer: {
-                        Text("\(filteredItems.count) activity entries")
-                            .font(.caption)
+                        Text("\(MedxFormat.count(filteredItems.count)) entries. Swipe left to delete one, here and from your account.")
                     }
                 }
-                .searchable(text: $searchText, prompt: "Search activity log…")
+                .listStyle(.insetGrouped)
+                .searchable(text: $searchText, prompt: "Search the log")
             }
         }
-        .navigationTitle("Activity Log")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(MedxFeature.activityLog.title)
+        .navigationSubtitle(subtitle)
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             if !allItems.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button(role: .destructive) {
+                            HapticManager.medium()
                             activityStore.clearAllWatchHistory(uid: uid)
                         } label: {
-                            Label("Clear Watch History", systemImage: "play.slash")
+                            Label("Clear watch history", systemImage: "play.slash")
                         }
 
                         Button(role: .destructive) {
-                            Task {
-                                await clearAllAttempts()
-                            }
+                            confirmClearAttempts = true
                         } label: {
-                            Label("Clear All Test Attempts", systemImage: "doc.badge.gearshape")
+                            Label("Clear every sitting", systemImage: "doc.badge.gearshape")
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
-                            .frame(width: 44, height: 44)
                     }
+                    .accessibilityLabel("Manage the log")
                 }
             }
         }
         .confirmationDialog(
-            "Delete Activity Entry?",
+            "Delete this entry?",
             isPresented: Binding(
                 get: { pendingDeletion != nil },
                 set: { if !$0 { pendingDeletion = nil } }
             ),
+            titleVisibility: .visible,
             presenting: pendingDeletion
         ) { item in
             Button("Delete", role: .destructive) {
@@ -164,11 +133,55 @@ struct ActivityLogView: View {
         } message: { item in
             Text(item.deleteMessage)
         }
-        .alert("Failed to Delete", isPresented: $deletionError) {
+        .confirmationDialog(
+            "Clear every sitting?",
+            isPresented: $confirmClearAttempts,
+            titleVisibility: .visible
+        ) {
+            Button("Clear \(attempts.count) sittings", role: .destructive) {
+                Task { await clearAllAttempts() }
+            }
+            Button("Keep them", role: .cancel) {}
+        } message: {
+            Text("Every sitting goes from your account, and the streak, goal and accuracy figures with it.")
+        }
+        .alert("Couldn't delete that", isPresented: $deletionError) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Could not delete from cloud. Please check your internet connection and try again.")
+            Text("It could not be removed from your account. Check your connection and try again.")
         }
+    }
+
+    private func row(_ item: ActivityLogItem) -> some View {
+        HStack(spacing: MedxSpace.m) {
+            MedxSymbolTile(item.symbol, hue: item.feature.color, size: 36)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title.medxDisplayTitle)
+                    .lineLimit(2)
+
+                Text(item.subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                Text(item.formattedDate)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 2)
+        .swipeActions(edge: .trailing) {
+            Button(role: .destructive) {
+                pendingDeletion = item
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(item.title)
+        .accessibilityValue(item.subtitle)
     }
 
     private func deleteItem(_ item: ActivityLogItem) {
@@ -195,18 +208,30 @@ struct ActivityLogView: View {
     }
 
     private func clearAllAttempts() async {
-        guard let token = try? await AuthService.shared.getValidIdToken() else { return }
+        guard let token = try? await AuthService.shared.getValidIdToken() else {
+            deletionError = true
+            return
+        }
+        var failed = false
         for att in attempts {
-            try? await FirestoreService.shared.deleteAttempt(att, idToken: token)
+            do {
+                try await FirestoreService.shared.deleteAttempt(att, idToken: token)
+            } catch {
+                failed = true
+            }
         }
         withAnimation {
             attempts.removeAll()
         }
-        HapticManager.success()
+        if failed {
+            deletionError = true
+        } else {
+            HapticManager.success()
+        }
     }
 }
 
-// MARK: - Activity Log Item Wrapper
+// MARK: - One entry
 
 private enum ActivityLogItem: Identifiable, Hashable {
     case video(WatchHistoryEntry)
@@ -228,15 +253,15 @@ private enum ActivityLogItem: Identifiable, Hashable {
 
     var symbol: String {
         switch self {
-        case .video: return "play.rectangle.fill"
+        case .video: return "play.fill"
         case .attempt(let attempt): return MedxAttemptKind.symbol(attempt.kind)
         }
     }
 
-    var color: Color {
+    var feature: MedxFeature {
         switch self {
-        case .video: return MedxCandy.violet
-        case .attempt(let attempt): return MedxAttemptKind.hue(attempt.kind)
+        case .video: return .classes
+        case .attempt(let attempt): return MedxAttemptKind.feature(attempt.kind)
         }
     }
 
@@ -251,22 +276,22 @@ private enum ActivityLogItem: Identifiable, Hashable {
         switch self {
         case .video(let entry):
             let status = entry.isCompleted ? "Watched" : "Resume at \(entry.formattedResumeTime)"
-            return "\(entry.video.subject) · \(status) (\(Int(entry.progress * 100))%)"
+            return "\(entry.video.subject) · \(status) · \(Int(entry.progress * 100))%"
         case .attempt(let attempt):
             let kind = MedxAttemptKind.label(attempt.kind)
             let mode = attempt.mode == "exam" ? "Exam" : "Revision"
-            return "\(kind) (\(mode)) · Score: \(attempt.score)/\(attempt.total) (\(attempt.totalPercentage)%)"
+            return "\(kind) · \(mode) · \(attempt.score) of \(attempt.total) (\(attempt.totalPercentage)%)"
         }
     }
 
     var formattedDate: String {
-        RelativeDateTimeFormatter().localizedString(for: date, relativeTo: Date())
+        MedxFormat.relative(date)
     }
 
     var deleteMessage: String {
         switch self {
-        case .video: return "Deleting this log entry will delete the watch history and clear its resume position both on this device and online."
-        case .attempt: return "Deleting this log entry will permanently remove the test/QBank attempt record on this device and online."
+        case .video: return "The watch history and resume position for this class go, on this device and from your account."
+        case .attempt: return "This sitting goes for good, on this device and from your account."
         }
     }
 }

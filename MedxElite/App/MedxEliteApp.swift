@@ -154,6 +154,13 @@ struct MedxEliteApp: App {
         case "bookmarks": appState.open(route: .bookmarks)
         case "downloads", "player-offline": appState.open(route: .downloads)
         case "settings": appState.open(route: .settings)
+        case "quick": appState.open(route: .quickSitting)
+        case "history":
+            appState.open(route: .library)
+            appState.libraryDestination = .watchHistory
+        case "log":
+            appState.open(route: .library)
+            appState.libraryDestination = .activityLog
         case "module": appState.open(route: .module(demoModule))
         case "runner-batch":
             appState.startSitting(

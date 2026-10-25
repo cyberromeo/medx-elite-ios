@@ -99,11 +99,11 @@ public enum MedxRoute: Hashable, Sendable {
     var tab: TabItem? {
         switch self {
         case .home, .todaysRevision: return .home
-        case .qbank, .search, .quickSitting, .module: return .qbank
+        case .qbank, .module: return .qbank
         case .tests: return .tests
         case .classes: return .videos
         case .library, .flashcards, .vodFeed, .importVod, .batchPapers, .bookmarks, .downloads,
-             .customModules, .faceoff, .faceoffRoom:
+             .customModules, .search, .quickSitting, .faceoff, .faceoffRoom:
             return .library
         case .settings: return nil
         }
@@ -138,11 +138,9 @@ public final class AppState: ObservableObject {
     /// `selectedTab` underneath a selected shortcut and stay invisible behind it.
     @Published public var padLibrarySelection: MedxPadLibraryTab?
 
-    // Sheet and cover routing, so an external entry point can raise any of them.
-    @Published public var showSearch = false
+    // Sheet routing, so an external entry point can raise either of them.
     @Published public var showQuickSitting = false
     @Published public var showSettings = false
-    @Published public var showFaceoff = false
     /// Non-nil while a duel room is on screen. Carries the game id so a Home invite card, a
     /// deep link and the lobby all open the same cover.
     @Published public var openDuelId: String?
@@ -160,9 +158,6 @@ public final class AppState: ObservableObject {
 
     /// Raised when a route needs a sitting assembled first; the Home screen builds it.
     @Published public var revisionRequestedAt: Date?
-
-    /// Text handed to the search screen when it opens.
-    @Published public var searchSeed: String = ""
 
     private init() {}
 
@@ -191,16 +186,15 @@ public final class AppState: ObservableObject {
         case .batchPapers:
             push(.batchPapers)
         case .search(let seed):
-            searchSeed = seed ?? ""
-            showSearch = true
+            push(.search(seed))
         case .quickSitting:
             showQuickSitting = true
         case .customModules:
             push(.customModules)
         case .faceoff:
-            showFaceoff = true
+            push(.faceoff)
         case .faceoffRoom(let gameId):
-            showFaceoff = true
+            // Straight into the room. The shell hosts it, so no lobby has to be on screen first.
             openDuelId = gameId
         case .todaysRevision:
             revisionRequestedAt = Date()
@@ -231,8 +225,7 @@ public final class AppState: ObservableObject {
     /// so Next looked dead and the paper never moved on. A screen that presents its own mode
     /// sheet starts the sitting from that sheet's `onDismiss` for the same reason.
     public func startSitting(_ payload: RunnerPayload) {
-        let sheetWasOpen = showSearch || showQuickSitting || showSettings || pendingModulePick != nil
-        showSearch = false
+        let sheetWasOpen = showQuickSitting || showSettings || pendingModulePick != nil
         showQuickSitting = false
         showSettings = false
         pendingModulePick = nil
@@ -265,6 +258,9 @@ public enum MedxLibraryDestination: Hashable, Sendable {
     case downloads
     case watchHistory
     case activityLog
+    /// Question search, optionally pre-filled.
+    case search(String?)
+    case faceoff
 }
 
 public extension Notification.Name {

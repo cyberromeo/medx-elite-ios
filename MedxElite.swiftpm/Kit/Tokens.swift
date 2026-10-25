@@ -183,3 +183,35 @@ public enum MedxCopy {
     /// How the download rows work.
     public static let downloadGestures = "Swipe left to delete a download. Swipe right to pause, resume or play it."
 }
+
+// MARK: - The two players
+
+/// Faceoff is the one place a second colour means something: which of the two of them did what.
+/// One profile wears the accent and the other the system orange, and the split between them is
+/// the wayfinding on every duel screen.
+public extension Profile {
+    var duelTint: Color {
+        id == Profile.graveyard.id ? Color(uiColor: .systemOrange) : MedxTheme.accent
+    }
+
+    /// The line under their name in the lobby.
+    var duelTag: String {
+        id == Profile.graveyard.id ? "buried in books" : "in superposition"
+    }
+}
+
+/// Which feature's tile an attempt of this kind wears in the activity log.
+public extension MedxAttemptKind {
+    var feature: MedxFeature {
+        switch self {
+        case .qbank: return .qbank
+        case .test, .series: return .tests
+        case .custom: return .customModules
+        case .duel: return .faceoff
+        }
+    }
+
+    static func feature(_ raw: String) -> MedxFeature {
+        MedxAttemptKind(rawValue: raw)?.feature ?? .qbank
+    }
+}

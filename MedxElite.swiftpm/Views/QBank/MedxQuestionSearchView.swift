@@ -4,13 +4,13 @@ import SwiftUI
 /// revision: bank, subject, image-based only, attempted / wrong / unattempted, and bookmarked.
 ///
 /// Search runs against `MedxQuestionIndexStore`, which only knows about modules that have
-/// been indexed — so the coverage banner is not decoration, it is the honest answer to "did
-/// you really look at all 32,467?".
+/// been indexed — so the subtitle and the coverage row are not decoration, they are the honest
+/// answer to "did you really look at all of them?". Pushed from Library; the search field is the
+/// navigation bar's own.
 public struct MedxQuestionSearchView: View {
     @ObservedObject private var index = MedxQuestionIndexStore.shared
     @ObservedObject private var activityStore = ActivityStore.shared
     @ObservedObject private var authService = AuthService.shared
-    @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
     @ObservedObject private var appState = AppState.shared
 
     @State private var query: String
@@ -20,8 +20,6 @@ public struct MedxQuestionSearchView: View {
     @State private var subjects: [MedxBankSubject] = []
     @State private var isPreparing = true
     @State private var isBuildingSitting = false
-
-    @Environment(\.dismiss) private var dismiss
 
     public init(seed: String = "") {
         _query = State(initialValue: seed)
@@ -43,229 +41,65 @@ public struct MedxQuestionSearchView: View {
         ].joined(separator: "#")
     }
 
+    /// The one count the prompt, the subtitle and the empty state share.
+    private var searchPrompt: String {
+        let count = index.isEmpty ? index.expectedQuestions : index.indexedCount
+        return count > 0 ? "Search \(MedxFormat.count(count)) questions" : "Search questions"
+    }
+
+    private var subtitle: String {
+        if index.isEmpty { return "Not downloaded yet" }
+        if index.isComplete { return "\(MedxFormat.count(index.indexedCount)) questions on this device" }
+        return "\(MedxFormat.count(index.indexedCount)) of \(MedxFormat.count(index.expectedQuestions)) questions on this device"
+    }
+
     public var body: some View {
-        NavigationStack {
-            content
-                .medxBackdrop(.qbank)
-                .medxScrollEdge()
-                .navigationTitle("Search questions")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar { toolbarContent }
-                .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search 32,467 questions")
-                .task { await prepare() }
-                .task(id: searchKey) { await runSearch() }
-        }
-    }
+        List {
+            if index.isEmpty {
+                emptyIndexSection
+            } else if !index.isComplete {
+                coverageSection
+            }
 
-    // MARK: - Content
+            if filters.isActive {
+                filterSection
+            }
 
-    @ViewBuilder
-    private var content: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 14) {
-                if !index.isComplete {
-                    coverageBanner
+            if isPreparing {
+                Section {
+                    MedxPlaceholderRows(count: 6)
                 }
-
-                filterRow
-
-                if isPreparing {
-                    ProgressView()
-                        .controlSize(.large)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 40)
-                } else if index.isEmpty {
-                    emptyIndexState
-                } else if results.isEmpty {
+            } else if index.isEmpty {
+                EmptyView()
+            } else if results.isEmpty {
+                Section {
                     noMatchState
-                } else {
-                    resultsSection
+                }
+            } else {
+                Section {
+                    ForEach(results) { entry in
+                        resultLink(entry)
+                    }
+                } header: {
+                    Text(results.count == 1 ? "1 match" : "\(MedxFormat.count(results.count)) matches")
+                } footer: {
+                    if results.count >= 300 {
+                        Text("Showing the first 300. Add a filter or a longer word to narrow it.")
+                    }
                 }
             }
-            .padding(.horizontal, MedxSurface.gutter)
-            .padding(.top, 10)
-            .padding(.bottom, 30)
         }
+        .listStyle(.insetGrouped)
         .scrollDismissesKeyboard(.immediately)
-    }
-
-    private var resultsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            MedxSectionHeader(
-                results.count == 1 ? "1 match" : "\(results.count) matches",
-                subtitle: results.count >= 300 ? "Showing the first 300" : nil
-            )
-
-            ForEach(results) { entry in
-                NavigationLink {
-                    MedxSearchResultDetailView(entry: entry, uid: uid)
-                } label: {
-                    resultRow(entry)
-                }
-                .buttonStyle(.plain)
-                .contextMenu {
-                    Button {
-                        practise(with: [entry], mode: .revision, name: entry.moduleName)
-                    } label: {
-                        Label("Practise this one", systemImage: "bolt")
-                    }
-                    Button {
-                        filters.subjectKey = entry.subjectKey
-                    } label: {
-                        Label("Only \(entry.subject)", systemImage: "line.3.horizontal.decrease")
-                    }
-                    Button {
-                        filters.bank = entry.bank
-                    } label: {
-                        Label("Only \(entry.bank.label)", systemImage: "square.stack.3d.up")
-                    }
-                }
-            }
-        }
-    }
-
-    private func resultRow(_ entry: MedxIndexedQuestion) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(entry.text)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-                .lineLimit(3)
-                .multilineTextAlignment(.leading)
-
-            HStack(spacing: 6) {
-                // Both banks have an Anatomy, a Pathology and a Medicine, so the subject name
-                // alone does not say where a hit came from.
-                MedxChip(entry.bank.label, tint: entry.bank == .marrow ? MedxCandy.violet : MedxCandy.lime)
-
-                MedxChip(entry.subject, tint: MedxTheme.accent)
-
-                Text(entry.moduleName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-
-                Spacer(minLength: 4)
-
-                if entry.hasImage {
-                    Image(systemName: "photo")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .accessibilityLabel("Has a figure")
-                }
-
-                statusGlyph(for: entry)
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .medxCard()
-        .contentShape(RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous))
-        .accessibilityElement(children: .combine)
-    }
-
-    /// Routed through the store rather than reading `history` directly, because deciding whether
-    /// a bare question id belongs to this entry needs the index's own two-bank ambiguity table.
-    @ViewBuilder
-    private func statusGlyph(for entry: MedxIndexedQuestion) -> some View {
-        if index.isBookmarked(entry, history: history) {
-            Image(systemName: "bookmark.fill")
-                .font(.caption2)
-                .foregroundStyle(MedxTheme.warningOrange)
-                .accessibilityLabel("Bookmarked")
-        } else if index.isWrong(entry, history: history) {
-            Image(systemName: "xmark.circle.fill")
-                .font(.caption2)
-                .foregroundStyle(MedxTheme.destructiveRed)
-                .accessibilityLabel("Answered wrong before")
-        } else if index.isAttempted(entry, history: history) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.caption2)
-                .foregroundStyle(MedxTheme.successGreen)
-                .accessibilityLabel("Attempted")
-        }
-    }
-
-    // MARK: - Filters
-
-    private var filterRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                Menu {
-                    Picker("Bank", selection: $filters.bank) {
-                        Text("Both banks").tag(MedxBank?.none)
-                        ForEach(MedxBank.allCases) { bank in
-                            Text(bank.label).tag(MedxBank?.some(bank))
-                        }
-                    }
-                } label: {
-                    filterChip(
-                        title: filters.bank?.label ?? "Both banks",
-                        icon: "square.stack.3d.up",
-                        isOn: filters.bank != nil
-                    )
-                }
-
-                Menu {
-                    Picker("Subject", selection: $filters.subjectKey) {
-                        Text("All subjects").tag(String?.none)
-                        ForEach(pickableSubjects) { subject in
-                            Text(subjectLabel(subject)).tag(String?.some(subject.id))
-                        }
-                    }
-                } label: {
-                    filterChip(
-                        title: subjects.first { $0.id == filters.subjectKey }?.name ?? "All subjects",
-                        icon: "books.vertical",
-                        isOn: filters.subjectKey != nil
-                    )
-                }
-
-                Menu {
-                    Picker("Status", selection: $filters.status) {
-                        ForEach(MedxQuestionFilters.Status.allCases) { status in
-                            Label(status.label, systemImage: status.icon).tag(status)
-                        }
-                    }
-                } label: {
-                    filterChip(
-                        title: filters.status == .any ? "Any status" : filters.status.label,
-                        icon: filters.status.icon,
-                        isOn: filters.status != .any
-                    )
-                }
-
-                Button {
-                    HapticManager.selection()
-                    filters.imageBased.toggle()
-                } label: {
-                    filterChip(title: "Image-based", icon: "photo", isOn: filters.imageBased)
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    HapticManager.selection()
-                    filters.bookmarkedOnly.toggle()
-                } label: {
-                    filterChip(title: "Bookmarked", icon: "bookmark", isOn: filters.bookmarkedOnly)
-                }
-                .buttonStyle(.plain)
-
-                if filters.isActive {
-                    Button {
-                        HapticManager.light()
-                        withAnimation(.snappy) { filters = MedxQuestionFilters() }
-                    } label: {
-                        filterChip(title: "Clear", icon: "xmark", isOn: false)
-                    }
-                    .buttonStyle(.plain)
-                    .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .padding(.vertical, 2)
-        }
-        .scrollClipDisabled()
-        // A subject belonging to the other bank, left set behind a bank chip, is a pair of filters
-        // that can never match anything — and the screen would blame the query for it.
+        .navigationTitle(MedxFeature.search.title)
+        .navigationSubtitle(subtitle)
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar { toolbarContent }
+        .searchable(text: $query, prompt: searchPrompt)
+        .task { await prepare() }
+        .task(id: searchKey) { await runSearch() }
+        // A subject belonging to the other bank, left set behind a bank filter, is a pair of
+        // filters that can never match anything — and the screen would blame the query for it.
         .onChange(of: filters.bank) { _, bank in
             guard let bank, let key = filters.subjectKey else { return }
             if subjects.first(where: { $0.id == key })?.bank != bank {
@@ -274,129 +108,232 @@ public struct MedxQuestionSearchView: View {
         }
     }
 
-    /// Narrowed by the bank chip, so picking Marrow and then opening the subject menu does not
-    /// offer forty entries half of which would contradict the chip beside it.
+    // MARK: - Results
+
+    private func resultLink(_ entry: MedxIndexedQuestion) -> some View {
+        NavigationLink {
+            MedxSearchResultDetailView(entry: entry, uid: uid)
+        } label: {
+            VStack(alignment: .leading, spacing: MedxSpace.xs) {
+                Text(entry.text)
+                    .lineLimit(3)
+
+                HStack(spacing: MedxSpace.s) {
+                    // Both banks have an Anatomy, a Pathology and a Medicine, so the subject name
+                    // alone does not say where a hit came from.
+                    Text("\(entry.bank.label) · \(entry.subject) · \(entry.moduleName)")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: MedxSpace.xs)
+
+                    if entry.hasImage {
+                        Image(systemName: "photo")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .accessibilityLabel("Has a figure")
+                    }
+
+                    statusGlyph(for: entry)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .contextMenu {
+            Button {
+                practise(with: [entry], mode: .revision, name: entry.moduleName)
+            } label: {
+                Label("Practise this one", systemImage: "bolt")
+            }
+            Button {
+                filters.subjectKey = entry.subjectKey
+            } label: {
+                Label("Only \(entry.subject)", systemImage: "line.3.horizontal.decrease")
+            }
+            Button {
+                filters.bank = entry.bank
+            } label: {
+                Label("Only \(entry.bank.label)", systemImage: "square.stack.3d.up")
+            }
+        }
+    }
+
+    /// Routed through the store rather than reading `history` directly, because deciding whether
+    /// a bare question id belongs to this entry needs the index's own two-bank ambiguity table.
+    @ViewBuilder
+    private func statusGlyph(for entry: MedxIndexedQuestion) -> some View {
+        if index.isBookmarked(entry, history: history) {
+            Image(systemName: "bookmark.fill")
+                .font(.caption)
+                .foregroundStyle(MedxOutcome.flagged)
+                .accessibilityLabel("Bookmarked")
+        } else if index.isWrong(entry, history: history) {
+            Image(systemName: "xmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(MedxOutcome.wrong)
+                .accessibilityLabel("Answered wrong before")
+        } else if index.isAttempted(entry, history: history) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(MedxOutcome.correct)
+                .accessibilityLabel("Attempted")
+        }
+    }
+
+    // MARK: - Filters
+
+    /// The filters live in a toolbar menu; this row says what is set, and clears it.
+    private var filterSection: some View {
+        Section {
+            HStack(spacing: MedxSpace.m) {
+                Label(filterSummary, systemImage: "line.3.horizontal.decrease")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                Spacer(minLength: MedxSpace.s)
+                Button("Clear") {
+                    HapticManager.light()
+                    withAnimation(.snappy) { filters = MedxQuestionFilters() }
+                }
+                .medxSecondary(size: .small)
+            }
+        }
+    }
+
+    private var filterSummary: String {
+        var parts: [String] = []
+        if let bank = filters.bank { parts.append(bank.label) }
+        if let key = filters.subjectKey, let subject = subjects.first(where: { $0.id == key }) {
+            parts.append(subject.name)
+        }
+        if filters.status != .any { parts.append(filters.status.label) }
+        if filters.imageBased { parts.append("Image-based") }
+        if filters.bookmarkedOnly { parts.append("Bookmarked") }
+        return parts.joined(separator: " · ")
+    }
+
+    /// Narrowed by the bank filter, so picking Marrow and then opening the subject menu does not
+    /// offer forty entries half of which would contradict the filter beside it.
     private var pickableSubjects: [MedxBankSubject] {
         guard let bank = filters.bank else { return subjects }
         return subjects.filter { $0.bank == bank }
     }
 
-    /// The bank is only worth spelling out when both are on the menu — with the bank chip set,
+    /// The bank is only worth spelling out when both are on the menu — with the bank filter set,
     /// every row would carry the same prefix.
     private func subjectLabel(_ subject: MedxBankSubject) -> String {
         filters.bank == nil ? "\(subject.name) · \(subject.bank.label)" : subject.name
     }
 
-    private func filterChip(title: String, icon: String, isOn: Bool) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.caption2.weight(.bold))
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-        }
-        .foregroundStyle(isOn ? Color.white : Color.primary)
-        .padding(.horizontal, 11)
-        .padding(.vertical, 7)
-        .background(isOn ? MedxTheme.accent : MedxSurface.fieldFill, in: Capsule())
-        .contentShape(Capsule())
-    }
+    // MARK: - Coverage and empty states
 
-    // MARK: - Banners and empty states
-
-    private var coverageBanner: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Image(systemName: index.isBuilding ? "arrow.down.circle" : "exclamationmark.circle")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(MedxTheme.warningOrange)
-                    .symbolEffect(.pulse, isActive: index.isBuilding)
+    private var coverageSection: some View {
+        Section {
+            HStack(spacing: MedxSpace.m) {
+                MedxSymbolTile(
+                    index.isBuilding ? "arrow.down.circle" : "exclamationmark.circle",
+                    hue: MedxOutcome.flagged,
+                    size: 36
+                )
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(index.isBuilding ? "Downloading…" : "Partly downloaded")
-                        .font(.subheadline.weight(.semibold))
                     Text(index.coverageSummary)
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
                         .contentTransition(.numericText())
                 }
 
-                Spacer(minLength: 8)
+                Spacer(minLength: MedxSpace.s)
 
                 if index.isBuilding {
                     Button("Stop") { index.cancelBuild() }
-                        .font(.caption.weight(.semibold))
-                        .medxBorderedButton()
-                        .buttonBorderShape(.capsule)
+                        .medxSecondary(size: .small)
                 } else {
-                    Button("Build") {
+                    Button("Finish") {
                         HapticManager.light()
                         index.build(subjects: subjects)
                     }
-                    .font(.caption.weight(.semibold))
-                    .medxFilledButton()
-                    .buttonBorderShape(.capsule)
+                    .medxSecondary(size: .small)
                     .disabled(subjects.isEmpty)
                 }
             }
+            .padding(.vertical, 2)
 
             ProgressView(value: index.coverage)
-                .tint(MedxTheme.accent)
+                .listRowSeparator(.hidden)
+        } footer: {
+            Text("Only the downloaded questions can be searched.")
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .medxCard()
         .animation(.snappy, value: index.indexedCount)
     }
 
-    private var emptyIndexState: some View {
-        ContentUnavailableView {
-            Label("Not downloaded yet", systemImage: "magnifyingglass")
-        } description: {
-            Text("Searching every question needs their text on this device once. "
-                 + "Downloading them takes a few minutes and can be paused.")
-        } actions: {
-            Button {
+    private var emptyIndexSection: some View {
+        Section {
+            MedxEmptyState(
+                "Not downloaded yet",
+                symbol: MedxFeature.search.symbol,
+                message: "Searching every question needs their text on this device once. Downloading them takes a few minutes and can be paused.",
+                actionTitle: index.isBuilding ? "Downloading…" : "Set up offline search"
+            ) {
+                guard !index.isBuilding else { return }
                 HapticManager.medium()
                 index.build(subjects: subjects)
-            } label: {
-                Text("Set up offline search")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(minWidth: 170, minHeight: 44)
             }
-            .medxFilledButton()
-            .buttonBorderShape(.capsule)
-            .disabled(subjects.isEmpty || index.isBuilding)
         }
-        .padding(.top, 20)
     }
 
     private var noMatchState: some View {
-        ContentUnavailableView {
-            Label(query.isEmpty && !filters.isActive ? "Search the bank" : "No matches", systemImage: "magnifyingglass")
-        } description: {
-            if query.isEmpty && !filters.isActive {
-                Text("Type at least two letters, or pick a filter to browse, "
-                     + "for example every image-based question you have got wrong.")
-            } else {
-                Text("None of the \(index.indexedCount.formatted()) questions matches that.")
-            }
-        }
-        .padding(.top, 20)
+        MedxEmptyState(
+            query.isEmpty && !filters.isActive ? "Search the bank" : "No matches",
+            symbol: "magnifyingglass",
+            message: query.isEmpty && !filters.isActive
+                ? "Type at least two letters, or set a filter to browse — every image-based question you have got wrong, say."
+                : "None of the \(MedxFormat.count(index.indexedCount)) questions matches that."
+        )
     }
 
     // MARK: - Toolbar
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Button("Done") { dismiss() }
-                .font(.body.weight(.semibold))
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                Picker("Bank", selection: $filters.bank) {
+                    Text("Both banks").tag(MedxBank?.none)
+                    ForEach(MedxBank.allCases) { bank in
+                        Text(bank.label).tag(MedxBank?.some(bank))
+                    }
+                }
+                Picker("Subject", selection: $filters.subjectKey) {
+                    Text("All subjects").tag(String?.none)
+                    ForEach(pickableSubjects) { subject in
+                        Text(subjectLabel(subject)).tag(String?.some(subject.id))
+                    }
+                }
+                Picker("Status", selection: $filters.status) {
+                    ForEach(MedxQuestionFilters.Status.allCases) { status in
+                        Label(status.label, systemImage: status.icon).tag(status)
+                    }
+                }
+                Divider()
+                Toggle(isOn: $filters.imageBased) {
+                    Label("Image-based only", systemImage: "photo")
+                }
+                Toggle(isOn: $filters.bookmarkedOnly) {
+                    Label("Bookmarked only", systemImage: "bookmark")
+                }
+            } label: {
+                Image(systemName: filters.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+            }
+            .accessibilityLabel("Filters")
+            .accessibilityValue(filters.isActive ? filterSummary : "None")
         }
 
         ToolbarItem(placement: .topBarTrailing) {
             if isBuildingSitting {
-                ProgressView().controlSize(.small)
+                ProgressView()
             } else {
                 Menu {
                     Button {
@@ -410,9 +347,10 @@ public struct MedxQuestionSearchView: View {
                         Label("Exam mode", systemImage: "timer")
                     }
                 } label: {
-                    Label("Practise these", systemImage: "play.circle")
+                    Image(systemName: "play.circle")
                 }
                 .disabled(results.count < 2)
+                .accessibilityLabel("Practise these")
             }
         }
     }
@@ -431,7 +369,8 @@ public struct MedxQuestionSearchView: View {
     // MARK: - Actions
 
     /// Turns index entries back into a real sitting. Capped at 40 so one tap cannot queue a
-    /// three-hundred-question paper by accident.
+    /// three-hundred-question paper by accident. The id is a hash of the questions, so the same
+    /// search practised twice finds its saved sitting instead of orphaning it.
     private func practise(with entries: [MedxIndexedQuestion], mode: SittingMode, name: String) {
         guard !entries.isEmpty, !isBuildingSitting else { return }
         isBuildingSitting = true
@@ -444,10 +383,11 @@ public struct MedxQuestionSearchView: View {
                 HapticManager.error()
                 return
             }
+            let key = questions.map { String($0.id) }.sorted().joined(separator: ",")
             appState.startSitting(
                 RunnerPayload(
                     kind: "qbank",
-                    id: "search-" + String(UUID().uuidString.prefix(8)),
+                    id: "search-" + MedxStableHash.of(key),
                     name: name,
                     subject: entries.first?.subject ?? "",
                     mode: mode,
@@ -494,8 +434,8 @@ public struct MedxQuestionSearchView: View {
 // MARK: - Result detail
 
 /// The full question behind a search hit, read-only: stem, figures, the marked key and the
-/// explanation. The module document is fetched on demand (and cached by `FirestoreService`,
-/// so opening a second hit from the same module is instant).
+/// explanation, drawn with the runner's own rows. The module document is fetched on demand (and
+/// cached by `FirestoreService`, so opening a second hit from the same module is instant).
 struct MedxSearchResultDetailView: View {
     let entry: MedxIndexedQuestion
     let uid: String?
@@ -503,39 +443,38 @@ struct MedxSearchResultDetailView: View {
     @State private var question: Question?
     @State private var loadState: MedxLoadState = .loading
     @ObservedObject private var activityStore = ActivityStore.shared
-    @ObservedObject private var medxTheme = MedxAccentThemeStore.shared
 
     private var isBookmarked: Bool {
         guard let question else { return false }
         return activityStore.isBookmarked(questionId: question.id, sourceId: entry.moduleId, uid: uid)
     }
 
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                header
+    private var reference: String {
+        question?.reference?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
 
-                switch loadState {
-                case .loading:
-                    ProgressView("Loading the question…")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 40)
-                case .failed(let message):
-                    ContentUnavailableView {
-                        Label("Couldn't load it", systemImage: "wifi.exclamationmark")
-                    } description: {
-                        Text(message)
-                    }
-                case .loaded:
-                    if let question {
+    var body: some View {
+        List {
+            switch loadState {
+            case .loading:
+                Section {
+                    MedxPlaceholderRows(count: 4)
+                }
+            case .failed(let message):
+                Section {
+                    MedxEmptyState("Couldn't load it", symbol: "wifi.exclamationmark", message: message)
+                }
+            case .loaded:
+                if let question {
+                    Section {
                         questionBody(question)
                     }
                 }
             }
-            .padding(MedxSurface.gutter)
         }
-        .medxBackdrop(.qbank)
+        .listStyle(.insetGrouped)
         .navigationTitle(entry.subject)
+        .navigationSubtitle("\(entry.bank.label) · \(entry.moduleName)")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if question != nil {
@@ -553,78 +492,54 @@ struct MedxSearchResultDetailView: View {
         .task { await load() }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                MedxChip(entry.bank.label, tint: entry.bank == .marrow ? MedxCandy.violet : MedxCandy.lime)
-                MedxChip(entry.subject, tint: MedxTheme.accent)
-                if !entry.chapter.isEmpty {
-                    MedxChip(entry.chapter, tint: .secondary)
-                }
-                Spacer(minLength: 0)
-            }
-
-            Text(entry.moduleName)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        }
-    }
-
     private func questionBody(_ question: Question) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 12) {
-                HTMLRichTextView(html: question.displayText, fontSize: 17, weight: .semibold)
+        VStack(alignment: .leading, spacing: MedxSpace.m) {
+            if !entry.chapter.isEmpty {
+                Text(entry.chapter)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
 
-                if let images = question.images, !images.isEmpty {
-                    ForEach(images, id: \.self) { raw in
-                        RunnerFigure(raw: raw)
-                    }
+            HTMLRichTextView(html: question.displayText, fontSize: 16, weight: .semibold)
+
+            if let images = question.images, !images.isEmpty {
+                ForEach(images, id: \.self) { raw in
+                    RunnerFigure(raw: raw)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .medxCard()
 
-            VStack(spacing: 8) {
+            VStack(spacing: MedxSpace.s) {
                 ForEach(Array(question.options.enumerated()), id: \.offset) { pair in
-                    let option = pair.element
-                    let isCorrect = question.isCorrect(optionId: option.id)
-
-                    HStack(alignment: .medxFirstLine, spacing: 12) {
-                        Text(MedxOptionLetter.of(option, at: pair.offset))
-                            .font(.footnote.weight(.bold).monospacedDigit())
-                            .foregroundStyle(isCorrect ? Color.white : Color.primary)
-                            .frame(width: 26, height: 26)
-                            .background(isCorrect ? MedxTheme.successGreen : MedxSurface.fieldFill, in: Circle())
-
-                        HTMLRichTextView(html: option.text, fontSize: 15, weight: .regular)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .medxFirstLineGuide(fontSize: 15)
-
-                        if isCorrect {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(MedxTheme.successGreen)
-                        }
-                    }
-                    .padding(13)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .medxTile(accentColor: isCorrect ? MedxTheme.successGreen : nil, isSelected: isCorrect)
+                    QuestionOptionButton(
+                        option: pair.element,
+                        index: pair.offset,
+                        isChosen: false,
+                        isCorrect: question.isCorrect(optionId: pair.element.id),
+                        isRevealed: true,
+                        isLocked: true
+                    ) {}
                 }
             }
 
-            if let explanation = question.explanation, !explanation.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
+            if (question.explanation?.isEmpty == false) || !reference.isEmpty {
+                VStack(alignment: .leading, spacing: MedxSpace.s) {
                     Label("Explanation", systemImage: "lightbulb.fill")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(MedxTheme.warningOrange)
-                    HTMLRichTextView(html: explanation, fontSize: 15, weight: .regular, textColor: .secondary)
+
+                    if let explanation = question.explanation, !explanation.isEmpty {
+                        HTMLRichTextView(html: explanation, fontSize: 15, weight: .regular, textColor: .secondary)
+                    }
+
+                    if !reference.isEmpty {
+                        Label(reference, systemImage: "book.closed")
+                            .font(.footnote)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
-                .medxCard()
+                .padding(.top, MedxSpace.xs)
             }
         }
-        .transition(.opacity)
+        .padding(.vertical, MedxSpace.xs)
     }
 
     private func toggleBookmark() {
@@ -642,7 +557,7 @@ struct MedxSearchResultDetailView: View {
     private func load() async {
         guard question == nil else { return }
         guard let token = try? await AuthService.shared.getValidIdToken() else {
-            loadState = .failed("Sign-in expired. Pull back and try again.")
+            loadState = .failed("Sign-in expired. Go back and try again.")
             return
         }
         guard let module = try? await FirestoreService.shared.fetchQBankModule(

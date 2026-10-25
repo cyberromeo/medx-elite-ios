@@ -18,25 +18,28 @@ struct MedxVersusBar: View {
         return total > 0 ? Double(mine.points) / Double(total) : 0.5
     }
 
+    private var myTint: Color { myProfile?.duelTint ?? MedxTheme.accent }
+    private var theirTint: Color { theirProfile?.duelTint ?? Color(uiColor: .systemOrange) }
+
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: MedxSpace.xs) {
             GeometryReader { geo in
                 HStack(spacing: 0) {
                     Rectangle()
-                        .fill(myProfile?.duelFill ?? MedxCandy.pink)
+                        .fill(myTint)
                         .frame(width: max(4, geo.size.width * share))
                     Rectangle()
-                        .fill(theirProfile?.duelFill ?? MedxCandy.sky)
+                        .fill(theirTint)
                 }
                 .clipShape(Capsule())
             }
-            .frame(height: 10)
+            .frame(height: 8)
             .animation(.snappy(duration: 0.35), value: share)
 
             HStack {
-                side(points: mine.points, name: myProfile?.displayName ?? "you", hue: myProfile?.duelFill, alignment: .leading)
-                Spacer(minLength: 8)
-                side(points: theirs.points, name: theirProfile?.displayName ?? "them", hue: theirProfile?.duelFill, alignment: .trailing)
+                side(points: mine.points, name: myProfile?.displayName ?? "you", tint: myTint, alignment: .leading)
+                Spacer(minLength: MedxSpace.s)
+                side(points: theirs.points, name: theirProfile?.displayName ?? "them", tint: theirTint, alignment: .trailing)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -45,18 +48,10 @@ struct MedxVersusBar: View {
                             + "\(theirProfile?.displayName ?? "them") \(theirs.points)")
     }
 
-    private func side(
-        points: Int,
-        name: String,
-        hue: Color?,
-        alignment: HorizontalAlignment
-    ) -> some View {
+    private func side(points: Int, name: String, tint: Color, alignment: HorizontalAlignment) -> some View {
         VStack(alignment: alignment, spacing: 0) {
-            Text("\(points)")
-                .font(.system(.title2, design: .rounded).weight(.bold))
-                .monospacedDigit()
-                .contentTransition(.numericText())
-                .foregroundStyle(hue ?? .primary)
+            MedxFigure("\(points)", style: .title3)
+                .foregroundStyle(tint)
             Text(name)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
@@ -68,25 +63,45 @@ struct MedxVersusBar: View {
 
 /// One live duel, from the lobby to the scoreboard.
 ///
-/// Presented as a `fullScreenCover` with no tab bar: a question with a minute on it and a tab bar
-/// over it is an invitation to lose your place by mistake.
+/// A cover the shell hosts, with no tab bar: a question with a minute on it and a tab bar over it
+/// is an invitation to lose your place by mistake. The bars are the runner's: the question counter
+/// is the title, the paper is the subtitle, the clock sits in the trailing slot and Next lives in
+/// the bottom bar.
 public struct DuelRoomView: View {
     private let gameId: String
     private let onClose: () -> Void
 
     @StateObject private var room = MedxDuelRoom()
     @State private var showLeaveAlert = false
+    @ScaledMetric(relativeTo: .largeTitle) private var countdownSize: CGFloat = 120
 
     public init(gameId: String, onClose: @escaping () -> Void) {
         self.gameId = gameId
         self.onClose = onClose
     }
 
+    private var isPlaying: Bool {
+        room.phase == .asked || room.phase == .waiting || room.phase == .reveal
+    }
+
+    private var title: String {
+        if isPlaying, room.total > 0 {
+            return "Question \(min(room.qIndex + 1, room.total)) of \(room.total)"
+        }
+        if room.phase == .done { return "Result" }
+        return room.source?.name ?? "Faceoff"
+    }
+
+    private var subtitle: String {
+        if isPlaying || room.phase == .done { return room.source?.name ?? "Faceoff" }
+        return room.total > 0 ? "\(room.total) questions · 60 s each" : "Faceoff"
+    }
+
     public var body: some View {
         NavigationStack {
             content
-                .medxBackdrop(.duel)
-                .navigationTitle(room.source?.name ?? "Faceoff")
+                .navigationTitle(title)
+                .navigationSubtitle(subtitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbar }
                 .alert("Leave this faceoff?", isPresented: $showLeaveAlert) {
@@ -110,26 +125,53 @@ public struct DuelRoomView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            Button {
+            Button(role: .close) {
                 if room.phase == .done || room.phase == .abandoned {
                     room.close()
                     onClose()
                 } else {
                     showLeaveAlert = true
                 }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.subheadline.weight(.semibold))
             }
             .accessibilityLabel("Leave faceoff")
         }
 
-        ToolbarItem(placement: .principal) {
-            if room.phase != .lobby, room.total > 0 {
-                Text("Question \(min(room.qIndex + 1, room.total)) of \(room.total)")
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
+        if isPlaying {
+            ToolbarItem(placement: .topBarTrailing) {
+                clock
             }
+
+            ToolbarSpacer(.flexible, placement: .bottomBar)
+            ToolbarItem(placement: .bottomBar) {
+                Button(nextLabel) {
+                    room.voteNext()
+                }
+                .buttonStyle(.glassProminent)
+                .disabled(room.phase != .reveal || room.iVoted)
+            }
+            ToolbarSpacer(.flexible, placement: .bottomBar)
         }
+    }
+
+    /// The clock is the loudest thing on the screen because it is what the points are made of.
+    private var clock: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "timer")
+                .font(.footnote.weight(.semibold))
+            Text("\(room.remaining)")
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .monospacedDigit()
+                .contentTransition(.numericText(countsDown: true))
+        }
+        .foregroundStyle(clockTint)
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(room.remaining) seconds left")
+    }
+
+    private var clockTint: Color {
+        if room.phase == .reveal { return .secondary }
+        return room.remaining <= 10 ? MedxOutcome.wrong : MedxTheme.accent
     }
 
     // MARK: - Phases
@@ -137,9 +179,19 @@ public struct DuelRoomView: View {
     @ViewBuilder
     private var content: some View {
         if let failure = room.failure {
-            failed(failure)
+            MedxEmptyState(
+                "Faceoff cannot run",
+                symbol: "icloud.slash",
+                message: failure + " Nothing else in the app is affected.",
+                actionTitle: "Back"
+            ) { onClose() }
         } else if room.isMissing {
-            missing
+            MedxEmptyState(
+                "That game is gone",
+                symbol: "questionmark.folder",
+                message: "It was cancelled, or the link was for a game that no longer exists.",
+                actionTitle: "Back to the lobby"
+            ) { onClose() }
         } else if room.isLoading {
             ProgressView("Reading the room…")
                 .controlSize(.large)
@@ -158,9 +210,21 @@ public struct DuelRoomView: View {
                     onClose()
                 }
             case .abandoned:
-                abandoned
+                MedxEmptyState(
+                    "Faceoff abandoned",
+                    symbol: "bolt.slash",
+                    message: room.theyLeft
+                        ? "\(room.theirProfile?.displayName ?? "The other one") left the game."
+                        : "This game was closed before it finished.",
+                    actionTitle: "Back to the lobby"
+                ) {
+                    room.close()
+                    onClose()
+                }
             case .loading:
-                ProgressView().controlSize(.large).frame(maxWidth: .infinity, maxHeight: .infinity)
+                ProgressView()
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
@@ -168,14 +232,14 @@ public struct DuelRoomView: View {
     /// The 3 · 2 · 1. Derived entirely from `askedAt`, which both devices already have, so neither
     /// waits on the other to start counting.
     private var arming: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: MedxSpace.l) {
             Spacer()
 
             Text("\(room.armingIn)")
-                .font(.system(size: 132, weight: .heavy, design: .rounded))
+                .font(.system(size: countdownSize, weight: .heavy, design: .rounded))
                 .monospacedDigit()
                 .contentTransition(.numericText(countsDown: true))
-                .foregroundStyle(MedxSection.duel.fill)
+                .foregroundStyle(MedxTheme.accent)
                 .animation(.snappy(duration: 0.2), value: room.armingIn)
 
             Text("Question \(room.qIndex + 1) coming up")
@@ -190,148 +254,90 @@ public struct DuelRoomView: View {
                 myProfile: room.myProfile,
                 theirProfile: room.theirProfile
             )
-            .padding(.horizontal, MedxSurface.gutter)
-            .padding(.bottom, 20)
+            .padding(.horizontal, MedxSpace.l)
+            .padding(.bottom, MedxSpace.xl)
         }
         .frame(maxWidth: .infinity)
+        .background(Color(uiColor: .systemGroupedBackground))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Starting in \(room.armingIn)")
-    }
-
-    private var abandoned: some View {
-        ContentUnavailableView {
-            Label("Faceoff abandoned", systemImage: "bolt.slash")
-        } description: {
-            Text(room.theyLeft
-                 ? "\(room.theirProfile?.displayName ?? "The other one") left the game."
-                 : "This game was closed before it finished.")
-        } actions: {
-            Button("Back to the lobby") {
-                room.close()
-                onClose()
-            }
-            .medxFilledButton()
-            .buttonBorderShape(.capsule)
-        }
-    }
-
-    private var missing: some View {
-        ContentUnavailableView {
-            Label("That game is gone", systemImage: "questionmark.folder")
-        } description: {
-            Text("It was cancelled, or the link was for a game that no longer exists.")
-        } actions: {
-            Button("Back to the lobby") { onClose() }
-                .medxFilledButton()
-                .buttonBorderShape(.capsule)
-        }
-    }
-
-    private func failed(_ message: String) -> some View {
-        ContentUnavailableView {
-            Label("Faceoff cannot run", systemImage: "icloud.slash")
-        } description: {
-            Text(message + " Nothing else in the app is affected.")
-        } actions: {
-            Button("Back") { onClose() }
-                .medxFilledButton()
-                .buttonBorderShape(.capsule)
-        }
     }
 
     // MARK: - The open question
 
     private var playing: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    if let question = room.question {
-                        HTMLRichTextView(html: question.html, fontSize: 17, weight: .semibold)
-                            .padding(16)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .medxCard()
-
-                        options(for: question)
-                    }
-
-                    if room.phase == .reveal {
-                        DuelRevealPane(room: room)
-                    } else if let beatenBy = room.beatenBy {
-                        // Said out loud, because on a shared clock the useful pressure is knowing
-                        // they have already committed.
-                        HStack(spacing: 6) {
-                            MedxSticker(beatenBy.sticker, size: 18)
-                            Text("\(beatenBy.displayName) answered already")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(beatenBy.duelFill)
-                        }
-                        .padding(.horizontal, 4)
-                    } else if room.phase == .waiting {
-                        HStack(spacing: 6) {
-                            ProgressView().controlSize(.small)
-                            Text("Waiting for \(room.theirProfile?.displayName ?? "them")")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 4)
-                    }
-                }
-                .padding(.horizontal, MedxSurface.gutter)
-                .padding(.top, 10)
-                .padding(.bottom, 20)
-            }
-            .safeAreaInset(edge: .top, spacing: 0) { clockStrip }
-
-            bottomBar
-        }
-    }
-
-    /// The clock, and the score under it. The clock is the loudest thing on the screen because it is
-    /// what the points are made of.
-    private var clockStrip: some View {
-        VStack(spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\(room.remaining)")
-                    .font(.system(size: 40, weight: .heavy, design: .rounded))
-                    .monospacedDigit()
-                    .contentTransition(.numericText(countsDown: true))
-                    .foregroundStyle(clockTint)
-
-                Text("s")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-
-                Spacer(minLength: 8)
-
+        ScrollView {
+            VStack(alignment: .leading, spacing: MedxSpace.l) {
                 if room.phase != .reveal {
                     Text("+\(MedxDuelRules.basePoints + room.remaining) if you are right")
-                        .font(.caption.weight(.semibold).monospacedDigit())
+                        .font(.footnote.weight(.semibold))
+                        .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
-            }
 
+                if let question = room.question {
+                    HTMLRichTextView(html: question.html, fontSize: 18, weight: .semibold)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    options(for: question)
+                }
+
+                if room.phase == .reveal {
+                    DuelRevealPane(room: room)
+                    revealStatus
+                } else if let beatenBy = room.beatenBy {
+                    // Said out loud, because on a shared clock the useful pressure is knowing
+                    // they have already committed.
+                    Label("\(beatenBy.displayName) answered already", systemImage: "hare.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(beatenBy.duelTint)
+                } else if room.phase == .waiting {
+                    HStack(spacing: MedxSpace.s) {
+                        ProgressView().controlSize(.small)
+                        Text("Waiting for \(room.theirProfile?.displayName ?? "them")")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.horizontal, MedxSpace.l)
+            .padding(.vertical, MedxSpace.m)
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+        .safeAreaInset(edge: .top, spacing: 0) {
             MedxVersusBar(
                 mine: room.myScore,
                 theirs: room.theirScore,
                 myProfile: room.myProfile,
                 theirProfile: room.theirProfile
             )
+            .padding(.horizontal, MedxSpace.l)
+            .padding(.vertical, MedxSpace.s)
+            .background(Color(uiColor: .systemGroupedBackground))
         }
-        .padding(.horizontal, MedxSurface.gutter)
-        .padding(.top, 4)
-        .padding(.bottom, 10)
-        .medxBar()
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(room.remaining) seconds left")
     }
 
-    private var clockTint: Color {
-        if room.phase == .reveal { return .secondary }
-        return room.remaining <= 10 ? MedxTheme.destructiveRed : MedxSection.duel.fill
+    /// Next needs *both* votes, which is what stops one player racing ahead of an explanation the
+    /// other one is still reading.
+    @ViewBuilder
+    private var revealStatus: some View {
+        if room.iVoted, !room.theyVoted {
+            Text("Waiting for \(room.theirProfile?.displayName ?? "them") to move on")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+
+        if !room.isHost, room.iVoted, room.theyVoted {
+            // The host owns `qIndex`, so if their app is asleep nothing advances. Said plainly
+            // rather than refereed, because refereeing would mean writing their document.
+            Text("Waiting for \(room.theirProfile?.displayName ?? "the host") to open the next question. Their app has to be awake.")
+                .font(.footnote)
+                .foregroundStyle(MedxOutcome.flagged)
+        }
     }
 
     private func options(for question: MedxDuelQuestion) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: MedxSpace.s) {
             ForEach(Array(question.options.enumerated()), id: \.offset) { pair in
                 QuestionOptionButton(
                     option: pair.element,
@@ -346,41 +352,6 @@ public struct DuelRoomView: View {
                 }
             }
         }
-    }
-
-    /// Next needs *both* votes, which is what stops one player racing ahead of an explanation the
-    /// other one is still reading.
-    private var bottomBar: some View {
-        VStack(spacing: 6) {
-            if room.phase == .reveal, room.iVoted, !room.theyVoted {
-                Text("Waiting for \(room.theirProfile?.displayName ?? "them") to move on")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if room.phase == .reveal, !room.isHost, room.iVoted, room.theyVoted {
-                // The host owns `qIndex`, so if their app is asleep nothing advances. Said plainly
-                // rather than refereed, because refereeing would mean writing their document.
-                Text("Waiting for \(room.theirProfile?.displayName ?? "the host") to open the next "
-                     + "question, their app has to be awake.")
-                    .font(.caption)
-                    .foregroundStyle(MedxTheme.warningOrange)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Button {
-                room.voteNext()
-            } label: {
-                Text(nextLabel)
-                    .font(.body.weight(.semibold))
-                    .frame(maxWidth: .infinity, minHeight: 50)
-            }
-            .medxFilled(MedxSection.duel.fill)
-            .disabled(room.phase != .reveal || room.iVoted)
-        }
-        .padding(.horizontal, MedxSurface.gutter)
-        .padding(.vertical, 10)
-        .medxBar(topDivider: true)
     }
 
     private var nextLabel: String {
@@ -399,16 +370,16 @@ public struct DuelRoomView: View {
 
 /// The room before it is a game.
 ///
-/// The guest's side is an empty dashed outline until they join, and Start is dead until then:
-/// joining *is* the readiness signal. The guest never gets a Start button, so it is always obvious
-/// who is being waited on.
+/// The guest's seat is a dashed outline until they join, and Start is dead until then: joining
+/// *is* the readiness signal. The guest never gets a Start button, so it is always obvious who is
+/// being waited on.
 struct DuelLobbyPane: View {
     @ObservedObject var room: MedxDuelRoom
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 18) {
-                HStack(spacing: 10) {
+        List {
+            Section {
+                HStack(spacing: MedxSpace.l) {
                     seat(profile: room.myProfile, isHere: true)
 
                     Text("vs")
@@ -421,24 +392,24 @@ struct DuelLobbyPane: View {
                         isHere: room.theirs != nil && !(room.theirs?.left ?? false)
                     )
                 }
-
-                VStack(spacing: 4) {
-                    Text(room.source?.name ?? "Faceoff")
-                        .font(.headline)
-                        .multilineTextAlignment(.center)
-                    Text("\(room.total) questions · 60s each · "
-                         + "\(MedxDuelRules.possiblePoints(room.total)) points on the table")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-
-                action
+                .padding(.vertical, MedxSpace.s)
             }
-            .padding(.horizontal, MedxSurface.gutter)
-            .padding(.top, 20)
-            .padding(.bottom, 28)
+
+            Section {
+                LabeledContent("Paper", value: room.source?.name ?? "Faceoff")
+                LabeledContent("Questions", value: "\(room.total)")
+                LabeledContent("On the table", value: "\(MedxFormat.count(MedxDuelRules.possiblePoints(room.total))) points")
+            } footer: {
+                Text("A minute a question. \(MedxDuelRules.basePoints) for a right answer plus whatever is left on the clock.")
+            }
+
+            Section {
+                action
+            } footer: {
+                hint
+            }
         }
+        .listStyle(.insetGrouped)
     }
 
     @ViewBuilder
@@ -447,75 +418,67 @@ struct DuelLobbyPane: View {
             Button {
                 room.join()
             } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "bolt.fill")
-                    Text("Join this faceoff")
-                }
-                .font(.body.weight(.semibold))
-                .frame(maxWidth: .infinity, minHeight: 50)
+                Label("Join this faceoff", systemImage: "bolt.fill")
+                    .frame(maxWidth: .infinity)
             }
-            .medxFilled(room.myProfile?.duelFill ?? MedxSection.duel.fill)
+            .medxPrimary()
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
         } else if room.isHost {
-            VStack(spacing: 8) {
-                Button {
-                    room.start()
-                } label: {
-                    Text(room.canStart ? "Start" : "Waiting to be joined")
-                        .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                }
-                .medxFilled(MedxSection.duel.fill)
-                .disabled(!room.canStart)
-
-                if !room.canStart {
-                    Text("\(room.theirProfile?.displayName ?? "The other one") gets a Join button on "
-                         + "their Home screen while this is open.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            Button {
+                room.start()
+            } label: {
+                Text(room.canStart ? "Start" : "Waiting to be joined")
+                    .frame(maxWidth: .infinity)
             }
+            .medxPrimary()
+            .disabled(!room.canStart)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
         } else {
             Text("You are in. Waiting for \(room.theirProfile?.displayName ?? "the host") to start.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+        }
+    }
+
+    @ViewBuilder
+    private var hint: some View {
+        if room.isHost, !room.canStart {
+            Text("\(room.theirProfile?.displayName ?? "The other one") gets a Join button on their Home screen while this is open.")
         }
     }
 
     private func seat(profile: Profile?, isHere: Bool) -> some View {
-        VStack(spacing: 6) {
+        VStack(spacing: MedxSpace.s) {
             if isHere, let profile {
-                MedxSticker(profile.sticker, size: 44, tilt: -8)
+                ProfileAvatarView(profile: profile, size: 56)
                 Text(profile.displayName)
-                    .font(.subheadline.weight(.bold))
-                Text(profile.tag)
-                    .font(.caption2)
+                    .font(.headline)
+                Text(profile.duelTag)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                Text("?")
-                    .font(.system(size: 40, weight: .heavy, design: .rounded))
+                Image(systemName: "person.crop.circle.badge.questionmark")
+                    .font(.largeTitle)
                     .foregroundStyle(.tertiary)
-                Text("waiting")
-                    .font(.subheadline.weight(.bold))
+                    .frame(height: 56)
+                Text("Waiting")
+                    .font(.headline)
                     .foregroundStyle(.secondary)
                 Text("not in yet")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.tertiary)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 18)
+        .padding(.vertical, MedxSpace.m)
         .background {
-            let shape = RoundedRectangle(cornerRadius: MedxSurface.cardRadius, style: .continuous)
+            let shape = RoundedRectangle(cornerRadius: MedxRadius.control, style: .continuous)
             if isHere {
-                shape.fill((profile?.duelSoft) ?? MedxSurface.cardFill)
+                shape.fill((profile?.duelTint ?? MedxTheme.accent).opacity(0.12))
             } else {
-                shape.strokeBorder(
-                    MedxSurface.separator,
-                    style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])
-                )
+                shape.strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
             }
         }
         .accessibilityElement(children: .combine)
@@ -532,40 +495,32 @@ struct DuelRevealPane: View {
     @ObservedObject var room: MedxDuelRoom
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: MedxSpace.m) {
             if let first = firstProfile {
-                HStack(spacing: 6) {
-                    Image(systemName: "hare.fill")
-                        .font(.caption.weight(.bold))
-                    Text("\(first.displayName) was first in")
-                        .font(.caption.weight(.semibold))
-                }
-                .foregroundStyle(first.duelFill)
+                Label("\(first.displayName) was first in", systemImage: "hare.fill")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(first.duelTint)
             }
 
-            VStack(spacing: 6) {
+            VStack(spacing: MedxSpace.s) {
                 line(profile: room.myProfile, answer: room.shownMine)
                 line(profile: room.theirProfile, answer: room.shownTheirs)
             }
 
             if let question = room.question, !question.explanation.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Why")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-                    HTMLRichTextView(html: question.explanation, fontSize: 15, weight: .regular)
+                VStack(alignment: .leading, spacing: MedxSpace.s) {
+                    Label("Explanation", systemImage: "lightbulb.fill")
+                        .font(.subheadline.weight(.semibold))
+                    HTMLRichTextView(html: question.explanation, fontSize: 15, weight: .regular, textColor: .secondary)
+                    if !question.reference.isEmpty {
+                        Label(question.reference, systemImage: "book.closed")
+                            .font(.footnote)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
-                .padding(14)
+                .padding(MedxSpace.l)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .medxCard()
-            }
-
-            if let question = room.question, !question.reference.isEmpty {
-                Text(question.reference)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 4)
+                .medxOptionSurface(state: nil)
             }
         }
     }
@@ -579,25 +534,27 @@ struct DuelRevealPane: View {
         let points = MedxDuelRules.score(answer)
         let label = room.question?.options.first { $0.id == answer?.optionId }?.label
 
-        return HStack(spacing: 10) {
+        return HStack(spacing: MedxSpace.m) {
             Text(profile?.displayName ?? "-")
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(profile?.duelFill ?? .secondary)
+                .foregroundStyle(profile?.duelTint ?? Color.secondary)
                 .frame(minWidth: 62, alignment: .leading)
 
             Text(pickText(answer: answer, label: label))
-                .font(.caption.monospacedDigit())
+                .font(.footnote)
+                .monospacedDigit()
                 .foregroundStyle(.secondary)
 
-            Spacer(minLength: 6)
+            Spacer(minLength: MedxSpace.s)
 
             Text(sumText(answer: answer, points: points))
-                .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(points > 0 ? MedxTheme.successGreen : .secondary)
+                .font(.subheadline.weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(points > 0 ? MedxOutcome.correct : Color.secondary)
         }
-        .padding(12)
+        .padding(MedxSpace.m)
         .frame(maxWidth: .infinity)
-        .background((profile?.duelSoft) ?? MedxSurface.tileFill, in: RoundedRectangle(cornerRadius: MedxSurface.tileRadius, style: .continuous))
+        .medxOptionSurface(state: nil)
         .accessibilityElement(children: .combine)
     }
 

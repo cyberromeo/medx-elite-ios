@@ -27,61 +27,33 @@ public struct FlashcardStudyView: View {
 
     public var body: some View {
         FlashcardLayoutReader { layout in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    countLine
-
-                    if cards.isEmpty {
-                        ContentUnavailableView(
-                            "No Flashcards",
-                            systemImage: "rectangle.stack.badge.minus",
-                            description: Text("This subject does not contain any flashcards yet.")
-                        )
-                        .padding(.top, 48)
-                    } else if filteredCards.isEmpty {
-                        ContentUnavailableView {
-                            Label("No Matches", systemImage: "magnifyingglass")
-                        } description: {
-                            Text("No card in this subject matches “\(searchText)”.")
-                        }
-                        .padding(.top, 40)
-                    } else {
-                        grid(layout: layout)
-                    }
+            Group {
+                if cards.isEmpty {
+                    MedxEmptyState(
+                        "No flashcards yet",
+                        symbol: "rectangle.stack.badge.minus",
+                        message: "This subject does not contain any flashcards yet."
+                    )
+                } else {
+                    grid(layout: layout)
                 }
-                .padding(.horizontal, MedxSurface.gutter)
-                .padding(.top, 6)
-                .padding(.bottom, 32)
             }
-            .medxBackdrop(.cards, intensity: 0.8)
+            .background(Color(uiColor: .systemGroupedBackground))
         }
         .navigationTitle(subject.name)
+        .navigationSubtitle(cards.count == 1 ? "1 card" : "\(MedxFormat.count(cards.count)) cards")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 FlashcardArtworkMenu {
                     Image(systemName: "rectangle.on.rectangle.angled")
-                        .font(.system(size: 16, weight: .semibold))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
                 }
             }
         }
-        .searchable(
-            text: $searchText,
-            placement: .navigationBarDrawer(displayMode: .automatic),
-            prompt: "Search cards"
-        )
+        .searchable(text: $searchText, prompt: "Search cards")
         .fullScreenCover(item: $activeDeck) { request in
             FlashcardDeckView(cards: request.cards, initialIndex: request.index)
         }
-    }
-
-    private var countLine: some View {
-        Text(cards.count == 1 ? "1 card" : "\(cards.count) cards")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 2)
     }
 
     // MARK: - Grid
@@ -91,21 +63,32 @@ public struct FlashcardStudyView: View {
         let minimum: CGFloat = layout.orientation == .landscape ? 230 : 150
         let maximum: CGFloat = layout.orientation == .landscape ? 320 : 210
 
-        return LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: minimum, maximum: maximum), spacing: 12)],
-            spacing: 12
-        ) {
-            ForEach(Array(filteredCards.enumerated()), id: \.element.id) { index, card in
-                Button {
-                    HapticManager.light()
-                    activeDeck = FlashcardDeckRequest(index: index, cards: filteredCards)
-                } label: {
-                    cardTile(card, number: index + 1, layout: layout)
+        return ScrollView {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: minimum, maximum: maximum), spacing: MedxSpace.m)],
+                spacing: MedxSpace.m
+            ) {
+                ForEach(Array(filteredCards.enumerated()), id: \.element.id) { pair in
+                    Button {
+                        HapticManager.light()
+                        activeDeck = FlashcardDeckRequest(index: pair.offset, cards: filteredCards)
+                    } label: {
+                        cardTile(pair.element, number: pair.offset + 1, layout: layout)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Flashcard \(pair.offset + 1), \(pair.element.name)")
+                    .accessibilityHint("Opens the full-screen viewer")
                 }
-                .buttonStyle(.plain)
-                .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .accessibilityLabel("Flashcard \(index + 1), \(card.name)")
-                .accessibilityHint("Opens the full-screen viewer")
+            }
+            .padding(.horizontal, MedxSpace.l)
+            .padding(.vertical, MedxSpace.m)
+
+            if filteredCards.isEmpty {
+                MedxEmptyState(
+                    "No matches",
+                    symbol: "magnifyingglass",
+                    message: "No card in this subject matches “\(searchText)”."
+                )
             }
         }
     }
@@ -126,22 +109,14 @@ public struct FlashcardStudyView: View {
                     .clipped()
 
                 Text("\(number)")
-                    .font(.caption2.weight(.bold).monospacedDigit())
+                    .font(.caption.weight(.bold))
+                    .monospacedDigit()
                     .foregroundStyle(.white)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
-                    .background(Color.black.opacity(0.5), in: Capsule())
-                    .padding(8)
+                    .background(Color.black.opacity(0.55), in: Capsule())
+                    .padding(MedxSpace.s)
             }
-            .clipShape(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 14,
-                    bottomLeadingRadius: 0,
-                    bottomTrailingRadius: 0,
-                    topTrailingRadius: 14,
-                    style: .continuous
-                )
-            )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(card.name)
@@ -158,10 +133,10 @@ public struct FlashcardStudyView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
+            .padding(MedxSpace.m)
         }
-        .medxCard(cornerRadius: 14)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: MedxRadius.card, style: .continuous))
     }
 }
 

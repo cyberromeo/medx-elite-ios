@@ -6,6 +6,9 @@ import SwiftUI
 /// full-page form would lose the list you are picking against every time you drilled into a
 /// subject. Faceoff presents the same sheet, so a duel host can build a fresh paper without
 /// leaving the lobby they are setting up.
+///
+/// One grouped list: the name, the shape, what is picked so far, then both banks as sections
+/// of rows you tick. Save sits in the bar and says how many questions it will be.
 public struct ModuleBuilderSheet: View {
     @State private var draft: MedxCustomModule
     private let isEditing: Bool
@@ -17,16 +20,14 @@ public struct ModuleBuilderSheet: View {
     @State private var subjects: [MedxBankSubject] = []
     @State private var loadState: MedxLoadState = .loading
     @State private var query = ""
-    @State private var openSubject: String?
+    @State private var expandedSubjects: Set<String> = []
     @State private var showAllPicked = false
-
-    @Environment(\.dismiss) private var dismiss
 
     /// How many picked modules the sheet lists by name before it summarises.
     ///
-    /// Once a whole subject can go in with one tap the chip list is no longer a dozen names, it
-    /// is potentially all 2,171 — and an unbounded list pushes the search field and the tree off
-    /// the bottom of the sheet, which breaks the very flow the bulk buttons exist to speed up.
+    /// Once a whole subject can go in with one tap the picked list is no longer a dozen names, it
+    /// is potentially all 2,171 — and an unbounded list pushes the tree off the bottom of the
+    /// sheet, which breaks the very flow the bulk buttons exist to speed up.
     private static let pickedPreview = 10
 
     private static let caps = [0, 20, 40, 100]
@@ -137,355 +138,274 @@ public struct ModuleBuilderSheet: View {
 
     public var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 14) {
-                        nameField
-                        optionsRow
+            List {
+                Section {
+                    TextField("Name it, like “Weak spots” or “Ortho + Anat”", text: $draft.name)
+                        .textInputAutocapitalization(.sentences)
+                        .submitLabel(.done)
+                } header: {
+                    Text("Name")
+                }
 
-                        if !draft.sources.isEmpty {
-                            pickedChips
-                        }
+                Section {
+                    Toggle(isOn: $draft.shuffle) {
+                        Label("Shuffle", systemImage: "shuffle")
+                    }
 
-                        if case .loaded = loadState {
-                            bulkBar
-                            tree
-                        } else if case .failed(let message) = loadState {
-                            failed(message)
-                        } else {
-                            ProgressView("Loading both banks…")
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 40)
+                    Picker("Cap", selection: capBinding) {
+                        ForEach(Self.caps, id: \.self) { value in
+                            Text(value == 0 ? "All" : "\(value)").tag(value)
                         }
                     }
-                    .padding(.horizontal, MedxSurface.gutter)
-                    .padding(.top, 12)
-                    .padding(.bottom, 20)
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Sitting")
+                } footer: {
+                    Text("A cap draws that many at random from everything picked.")
                 }
-                .searchable(
-                    text: $query,
-                    placement: .navigationBarDrawer(displayMode: .always),
-                    prompt: "Find a chapter or module"
-                )
 
-                saveBar
+                if !draft.sources.isEmpty {
+                    pickedSection
+                }
+
+                switch loadState {
+                case .loaded:
+                    Section {
+                        bulkRow
+                    }
+
+                    ForEach(shownSubjects) { subject in
+                        subjectSection(subject)
+                    }
+
+                    if shownSubjects.isEmpty {
+                        Section {
+                            Text("Nothing matches that.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                case .failed(let message):
+                    Section {
+                        MedxEmptyState(
+                            "Couldn't load the banks",
+                            symbol: "wifi.exclamationmark",
+                            message: message,
+                            actionTitle: "Try again"
+                        ) {
+                            loadState = .loading
+                            Task { await load() }
+                        }
+                    }
+                case .loading:
+                    Section {
+                        MedxPlaceholderRows(count: 6)
+                    }
+                }
             }
-            .medxBackdrop(.custom)
+            .listStyle(.insetGrouped)
+            .searchable(text: $query, prompt: "Find a chapter or module")
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { onCancel() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(draft.sources.isEmpty ? "Save" : "Save · \(MedxFormat.count(draft.effectiveCount))") {
+                        HapticManager.medium()
+                        onSave(draft)
+                    }
+                    .disabled(draft.sources.isEmpty)
                 }
             }
             .task { await load() }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .presentationSizing(.page)
     }
 
-    private var nameField: some View {
-        TextField("Name it, “Weak spots”, “Ortho + Anat”", text: $draft.name)
-            .font(.body.weight(.semibold))
-            .textInputAutocapitalization(.sentences)
-            .submitLabel(.done)
-            .padding(14)
-            .medxCard()
-            .accessibilityLabel("Module name")
+    private var capBinding: Binding<Int> {
+        Binding(
+            get: { draft.limit ?? 0 },
+            set: { draft.limit = $0 > 0 ? $0 : nil }
+        )
     }
 
-    private var optionsRow: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle(isOn: $draft.shuffle) {
-                Label("Shuffle", systemImage: "shuffle")
-                    .font(.subheadline.weight(.semibold))
-            }
-            .tint(MedxSection.custom.fill)
+    // MARK: - Picked
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Cap")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                MedxSegmented(
-                    section: .custom,
-                    segments: Self.caps.map {
-                        MedxSegment(value: $0, label: $0 == 0 ? "All" : "\($0)")
-                    },
-                    selection: Binding(
-                        get: { draft.limit ?? 0 },
-                        set: { draft.limit = $0 > 0 ? $0 : nil }
-                    )
-                )
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .medxCard()
-    }
-
-    private var pickedChips: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            MedxFlow(spacing: 6, lineSpacing: 6) {
-                    ForEach(showAllPicked ? draft.sources : Array(draft.sources.prefix(Self.pickedPreview))) { source in
-                        Button {
-                            HapticManager.selection()
-                            draft.sources.removeAll { $0.moduleId == source.moduleId }
-                        } label: {
-                            HStack(spacing: 3) {
-                                Text(source.name)
-                                    .font(.caption2.weight(.bold))
-                                    .lineLimit(1)
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 8, weight: .black))
-                            }
-                            .foregroundStyle(MedxSection.custom.onSoft)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 5)
-                            .background(MedxSection.custom.soft, in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Remove \(source.name)")
+    private var pickedSection: some View {
+        Section {
+            ForEach(showAllPicked ? draft.sources : Array(draft.sources.prefix(Self.pickedPreview))) { source in
+                HStack(spacing: MedxSpace.m) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(source.name)
+                            .lineLimit(2)
+                        Text(source.subject)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            HStack(spacing: 10) {
-                if draft.sources.count > Self.pickedPreview {
-                    Button(showAllPicked ? "show fewer" : "+\(draft.sources.count - Self.pickedPreview) more") {
-                        showAllPicked.toggle()
-                    }
-                    .font(.caption.weight(.semibold))
+                    Spacer(minLength: MedxSpace.s)
                 }
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                        HapticManager.selection()
+                        draft.sources.removeAll { $0.moduleId == source.moduleId }
+                    } label: {
+                        Label("Remove", systemImage: "minus.circle")
+                    }
+                }
+            }
 
+            if draft.sources.count > Self.pickedPreview {
+                Button(showAllPicked ? "Show fewer" : "Show all \(draft.sources.count)") {
+                    showAllPicked.toggle()
+                }
+            }
+        } header: {
+            HStack {
+                Text("Picked · \(draft.sources.count)")
+                Spacer()
                 if draft.sources.count > 1 {
                     // The bulk button below is scoped to what the search is showing, so this is
                     // the only way back to nothing from any state.
-                    Button("clear all \(draft.sources.count)", role: .destructive) {
+                    Button("Clear all", role: .destructive) {
                         HapticManager.warning()
                         draft.sources = []
                         showAllPicked = false
                     }
-                    .font(.caption.weight(.semibold))
+                    .font(.footnote)
                 }
-
-                Spacer(minLength: 0)
             }
+        } footer: {
+            Text("Swipe left to drop one.")
         }
     }
 
     /// It reads the *filtered* tree, and says so, because a "select all" that quietly reached
     /// past the search would be the one control in this sheet you could not trust.
-    private var bulkBar: some View {
-        HStack(spacing: 10) {
-            Text("\(pickedVisible.formatted()) of \(visibleIds.count.formatted()) "
+    private var bulkRow: some View {
+        HStack(spacing: MedxSpace.m) {
+            Text("\(MedxFormat.count(pickedVisible)) of \(MedxFormat.count(visibleIds.count)) "
                  + (query.isEmpty ? "" : "matching ")
                  + (visibleIds.count == 1 ? "module" : "modules"))
-                .font(.caption.weight(.semibold).monospacedDigit())
+                .font(.footnote.weight(.semibold))
+                .monospacedDigit()
                 .foregroundStyle(.secondary)
 
-            Spacer(minLength: 0)
+            Spacer(minLength: MedxSpace.s)
 
-            Button {
+            Button(allVisiblePicked ? "Clear" : (query.isEmpty ? "Select all" : "Select matches")) {
                 toggle(shownSubjects.flatMap { rows(of: $0) })
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: allVisiblePicked ? "xmark" : "checklist")
-                        .font(.system(size: 10, weight: .bold))
-                    Text(allVisiblePicked
-                         ? "clear"
-                         : (query.isEmpty ? "select all" : "select \(visibleIds.count) matches"))
-                        .font(.caption.weight(.bold))
-                }
-                .foregroundStyle(MedxSection.custom.onSoft)
-                .padding(.horizontal, 10)
-                .frame(minHeight: 30)
-                .background(MedxSection.custom.soft, in: Capsule())
             }
-            .buttonStyle(.plain)
+            .medxSecondary(size: .small)
             .disabled(visibleIds.isEmpty)
         }
-        .padding(.horizontal, 4)
     }
 
-    private var tree: some View {
-        VStack(spacing: 8) {
-            ForEach(shownSubjects) { subject in
-                subjectBlock(subject)
-            }
+    // MARK: - Subject section
 
-            if shownSubjects.isEmpty {
-                Text("Nothing matches that.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 28)
-            }
-        }
-    }
-
-    private func failed(_ message: String) -> some View {
-        ContentUnavailableView {
-            Label("Couldn't load the banks", systemImage: "wifi.exclamationmark")
-        } description: {
-            Text(message)
-        } actions: {
-            Button("Try Again") {
-                loadState = .loading
-                Task { await load() }
-            }
-            .medxFilledButton()
-            .buttonBorderShape(.capsule)
-        }
-    }
-
-    private var saveBar: some View {
-        Button {
-            HapticManager.medium()
-            onSave(draft)
-        } label: {
-            Text(draft.sources.isEmpty
-                 ? "Pick at least one module"
-                 : "Save · \(draft.effectiveCount.formatted()) questions")
-                .font(.body.weight(.semibold))
-                .frame(maxWidth: .infinity, minHeight: 50)
-        }
-        .medxFilled(MedxSection.custom.fill)
-        .disabled(draft.sources.isEmpty)
-        .padding(.horizontal, MedxSurface.gutter)
-        .padding(.vertical, 10)
-        .medxBar(topDivider: true)
-    }
-
-    // MARK: - Subject block
-
-    private func subjectBlock(_ subject: MedxBankSubject) -> some View {
-        let isOpen = openSubject == subject.id || !query.isEmpty
+    private func subjectSection(_ subject: MedxBankSubject) -> some View {
+        let isOpen = expandedSubjects.contains(subject.id) || !query.isEmpty
         let mine = subject.modules
         let picked = pickedIds
         let here = mine.reduce(0) { picked.contains($1.id) ? $0 + 1 : $0 }
         let allHere = !mine.isEmpty && here == mine.count
 
-        return VStack(alignment: .leading, spacing: 8) {
-            // Two controls, not one: the row expands, the pill on the end takes the whole
+        return Section {
+            // Two controls, not one: the row expands, the button on the end takes the whole
             // subject. Nesting the second inside the first would be an unreachable button.
-            HStack(spacing: 8) {
+            HStack(spacing: MedxSpace.m) {
                 Button {
                     HapticManager.light()
                     withAnimation(.easeOut(duration: 0.2)) {
-                        openSubject = (isOpen && query.isEmpty) ? nil : subject.id
+                        if expandedSubjects.contains(subject.id) {
+                            expandedSubjects.remove(subject.id)
+                        } else {
+                            expandedSubjects.insert(subject.id)
+                        }
                     }
                 } label: {
-                    subjectHeader(subject, matched: mine.count, isOpen: isOpen)
-                }
-                .buttonStyle(.plain)
-                .disabled(!query.isEmpty)
+                    HStack(spacing: MedxSpace.m) {
+                        MedxSymbolTile(MedxSubjectArt.symbol(for: subject.name), hue: MedxFeature.qbank.color, size: 36)
 
-                Button {
-                    toggle(rows(of: subject))
-                } label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: allHere ? "checkmark" : "plus")
-                            .font(.system(size: 9, weight: .black))
-                        Text(here > 0 ? "\(here)/\(mine.count)" : "all")
-                            .font(.caption2.weight(.bold).monospacedDigit())
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(subject.name)
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            // Under a search the section only holds the matches, so it says so —
+                            // otherwise "All" beside a subject listing 2 of 38 modules reads as 38.
+                            Text(query.isEmpty
+                                 ? "\(subject.bank.label) · \(subject.moduleCount) modules · \(MedxFormat.count(subject.questionCount)) questions"
+                                 : "\(subject.bank.label) · \(mine.count) of \(subject.moduleCount) modules match")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer(minLength: MedxSpace.s)
+
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .rotationEffect(.degrees(isOpen ? 90 : 0))
                     }
-                    .foregroundStyle(allHere ? MedxSection.custom.onSoft : .secondary)
-                    .padding(.horizontal, 8)
-                    .frame(minHeight: 30)
-                    .background(
-                        Capsule().fill(allHere ? MedxSection.custom.soft : MedxSurface.fieldFill)
-                    )
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
+                .disabled(!query.isEmpty)
+                .accessibilityLabel(subject.name)
+                .accessibilityValue("\(here) of \(mine.count) picked, \(isOpen ? "expanded" : "collapsed")")
+
+                Button(allHere ? "Clear" : (here > 0 ? "\(here)/\(mine.count)" : "All")) {
+                    toggle(rows(of: subject))
+                }
+                .medxSecondary(size: .small)
+                .monospacedDigit()
                 .accessibilityLabel("\(allHere ? "Clear" : "Select") every module in \(subject.name)")
             }
 
             if isOpen {
-                VStack(spacing: 8) {
-                    ForEach(subject.chapters) { chapter in
-                        chapterBlock(chapter, in: subject)
-                    }
+                ForEach(subject.chapters) { chapter in
+                    chapterRows(chapter, in: subject, picked: picked)
                 }
-                .padding(.leading, 6)
             }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .medxCard()
     }
 
-    private func subjectHeader(
-        _ subject: MedxBankSubject,
-        matched: Int,
-        isOpen: Bool
-    ) -> some View {
-        HStack(spacing: 10) {
-            MedxSymbolMark(MedxSubjectArt.symbol(for: subject.name), hue: MedxSection.qbank.fill, size: 32)
+    // MARK: - Chapter rows
 
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 5) {
-                    Text(subject.name)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    MedxPill(subject.bank.label, hue: subject.bank == .marrow ? MedxCandy.butter : MedxCandy.lime)
-                }
-                // Under a search the row only holds the matches, so it says so — otherwise the
-                // "all" pill beside a subject listing 2 of 38 modules reads as all 38.
-                Text(query.isEmpty
-                     ? "\(subject.questionCount.formatted()) q · \(subject.moduleCount) modules"
-                     : "\(matched) of \(subject.moduleCount) modules match")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 0)
-
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.tertiary)
-                .rotationEffect(.degrees(isOpen ? 90 : 0))
-        }
-        .contentShape(Rectangle())
-    }
-
-    // MARK: - Chapter block
-
-    private func chapterBlock(_ chapter: MedxBankChapter, in subject: MedxBankSubject) -> some View {
-        let picked = pickedIds
+    @ViewBuilder
+    private func chapterRows(_ chapter: MedxBankChapter, in subject: MedxBankSubject, picked: Set<String>) -> some View {
         let on = chapter.modules.reduce(0) { picked.contains($1.id) ? $0 + 1 : $0 }
         let allOn = !chapter.modules.isEmpty && on == chapter.modules.count
 
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text(chapter.name)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+        HStack(spacing: MedxSpace.s) {
+            Text(chapter.name.isEmpty ? "Modules" : chapter.name)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
 
-                Spacer(minLength: 0)
+            Spacer(minLength: MedxSpace.s)
 
-                if on > 0 {
-                    Text("\(on)/\(chapter.modules.count)")
-                        .font(.caption2.weight(.bold).monospacedDigit())
-                        .foregroundStyle(MedxSection.custom.onSoft)
-                }
-
-                Button(allOn ? "clear" : "all") {
-                    toggle(rows(of: chapter, in: subject))
-                }
-                .font(.caption2.weight(.bold))
-                .buttonStyle(.plain)
-                .foregroundStyle(allOn ? MedxSection.custom.onSoft : .secondary)
-                .accessibilityLabel("\(allOn ? "Clear" : "Select") every module in \(chapter.name)")
+            if on > 0 {
+                Text("\(on)/\(chapter.modules.count)")
+                    .font(.footnote.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(MedxTheme.accent)
             }
 
-            ForEach(chapter.modules) { module in
-                moduleRow(module, chapter: chapter, subject: subject, isOn: picked.contains(module.id))
+            Button(allOn ? "Clear" : "All") {
+                toggle(rows(of: chapter, in: subject))
             }
+            .font(.footnote.weight(.semibold))
+            .buttonStyle(.borderless)
+            .accessibilityLabel("\(allOn ? "Clear" : "Select") every module in \(chapter.name)")
         }
-        .padding(.vertical, 2)
+
+        ForEach(chapter.modules) { module in
+            moduleRow(module, chapter: chapter, subject: subject, isOn: picked.contains(module.id))
+        }
     }
 
     private func moduleRow(
@@ -497,33 +417,27 @@ public struct ModuleBuilderSheet: View {
         Button {
             toggle([MedxModuleSource(module: module, chapter: chapter, subject: subject)])
         } label: {
-            HStack(spacing: 10) {
-                Image(systemName: isOn ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(isOn ? MedxSection.custom.onSoft : Color.secondary)
+            HStack(spacing: MedxSpace.m) {
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isOn ? MedxTheme.accent : Color.secondary)
 
                 Text(module.name)
-                    .font(.footnote)
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
-                Spacer(minLength: 0)
+                Spacer(minLength: MedxSpace.s)
 
                 Text("\(module.questionCount)")
-                    .font(.caption2.monospacedDigit())
+                    .font(.footnote)
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
-            .frame(minHeight: 40)
-            .medxTile(accentColor: MedxSection.custom.fill, isSelected: isOn)
-            .contentShape(RoundedRectangle(cornerRadius: MedxSurface.tileRadius, style: .continuous))
         }
-        .buttonStyle(.plain)
         .accessibilityLabel(module.name)
-        .accessibilityValue("\(module.questionCount) questions")
-        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
+        .accessibilityValue("\(module.questionCount) questions, \(isOn ? "picked" : "not picked")")
+        .accessibilityAddTraits(isOn ? [.isSelected] : [])
     }
 
     // MARK: - Data
