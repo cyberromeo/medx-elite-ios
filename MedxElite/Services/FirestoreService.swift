@@ -646,6 +646,7 @@ public actor FirestoreService {
         descending: Bool = true,
         limit: Int,
         startAfterTimestamp: String? = nil,
+        startAfterDocument: String? = nil,
         idToken: String
     ) async throws -> [[String: Any]] {
         let urlString = "https://firestore.googleapis.com/v1/projects/\(FirebaseConfig.projectId)/databases/(default)/documents:runQuery"
@@ -656,21 +657,26 @@ public actor FirestoreService {
         request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        let direction = descending ? "DESCENDING" : "ASCENDING"
+        // The document name is the tie-breaker. Ordering by the timestamp alone made the cursor
+        // ambiguous between two recordings uploaded in the same second, and the one after the
+        // page boundary was skipped.
         var structured: [String: Any] = [
             "from": [["collectionId": collection]],
-            "orderBy": [[
-                "field": ["fieldPath": orderByField],
-                "direction": descending ? "DESCENDING" : "ASCENDING"
-            ]],
+            "orderBy": [
+                ["field": ["fieldPath": orderByField], "direction": direction],
+                ["field": ["fieldPath": "__name__"], "direction": direction]
+            ],
             "limit": limit
         ]
         if let startAfterTimestamp {
             // `before: false` is what turns `startAt` into "start *after* this value", which
             // is the difference between paging and re-serving the last row of every page.
-            structured["startAt"] = [
-                "values": [["timestampValue": startAfterTimestamp]],
-                "before": false
-            ]
+            var values: [[String: Any]] = [["timestampValue": startAfterTimestamp]]
+            if let startAfterDocument {
+                values.append(["referenceValue": startAfterDocument])
+            }
+            structured["startAt"] = ["values": values, "before": false]
         }
 
         request.httpBody = try JSONSerialization.data(withJSONObject: ["structuredQuery": structured])
@@ -688,13 +694,27 @@ public actor FirestoreService {
     // MARK: - The VOD bucket
 
     /// One page of the feed, newest upload first.
+    ///
+    /// The cursor is opaque to callers: the last row's timestamp and its document name, so the
+    /// next page starts strictly after that document even when several share the second.
     public func fetchVodPage(pageSize: Int = 48, cursor: String? = nil, idToken: String) async throws -> MedxVodPage {
+        var afterTimestamp: String?
+        var afterDocument: String?
+        if let cursor {
+            if let split = cursor.range(of: "|", options: .backwards) {
+                afterTimestamp = String(cursor[..<split.lowerBound])
+                afterDocument = String(cursor[split.upperBound...])
+            } else {
+                afterTimestamp = cursor
+            }
+        }
         let documents = try await runOrderedQuery(
             collection: "medx_vod",
             orderByField: "uploadedAt",
             descending: true,
             limit: pageSize,
-            startAfterTimestamp: cursor,
+            startAfterTimestamp: afterTimestamp,
+            startAfterDocument: afterDocument,
             idToken: idToken
         )
 
@@ -704,9 +724,14 @@ public actor FirestoreService {
             return MedxVodItem(fields: Self.normalizeFirestoreMap(raw), fallbackId: fallbackId)
         }
 
+        var cursor: String?
+        if let stamp = items.last?.uploadedAtRaw {
+            cursor = stamp
+            if let name = documents.last?["name"] as? String { cursor = stamp + "|" + name }
+        }
         return MedxVodPage(
             items: items,
-            cursor: items.last?.uploadedAtRaw,
+            cursor: cursor,
             done: documents.count < pageSize
         )
     }

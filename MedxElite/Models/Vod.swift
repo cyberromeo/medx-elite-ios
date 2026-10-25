@@ -168,7 +168,7 @@ public struct MedxVodMeta: Hashable, Sendable {
 /// One page of the feed, with the cursor that fetches the next.
 public struct MedxVodPage: Sendable {
     public let items: [MedxVodItem]
-    /// The last item's raw `uploadedAt`, or nil at the end of the bucket.
+    /// Opaque: where the next page starts, or nil at the end of the bucket.
     public let cursor: String?
     public let done: Bool
 }

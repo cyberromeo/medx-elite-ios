@@ -462,6 +462,23 @@ public final class MedxLiveActivityController {
         profile.id == Profile.graveyard.id ? "#FF4D8D" : "#23C3F5"
     }
 
+    /// Activities left on the Lock Screen by a process that died. A sitting cannot survive a
+    /// relaunch and a download comes back paused with no task behind it, so none of them is live
+    /// any more — for up to eight hours they showed a frozen clock and buttons that did nothing,
+    /// and the next sitting stacked a second exam activity on top. Ended at launch.
+    public func endStrays() {
+        for activity in Activity<MedxExamActivityAttributes>.activities where activity.id != exam?.id {
+            Task { await activity.end(nil, dismissalPolicy: .immediate) }
+        }
+        let liveDownloads = Set(downloads.values.map(\.id))
+        for activity in Activity<MedxDownloadActivityAttributes>.activities where !liveDownloads.contains(activity.id) {
+            Task { await activity.end(nil, dismissalPolicy: .immediate) }
+        }
+        for activity in Activity<MedxDuelActivityAttributes>.activities where activity.id != duel?.id {
+            Task { await activity.end(nil, dismissalPolicy: .immediate) }
+        }
+    }
+
     /// Called when the app is signed out or torn down, so nothing is left on the Lock Screen.
     public func endAll() {
         endExam(

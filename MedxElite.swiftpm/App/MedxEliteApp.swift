@@ -81,9 +81,12 @@ struct MedxEliteApp: App {
         // them, so a poisoned payload cannot render an empty tab.
         await CacheManager.shared.pruneStaleVersions()
 
-        // Still needed: the proxy is the only thing that can attach the CDN's expected
-        // headers to a *live* stream. Downloads no longer go through it.
+        // The proxy is the only thing that can attach the CDN's expected headers to a live
+        // stream, and finished downloads are served through its `/offline/` route as well.
         HLSProxyServer.shared.start()
+
+        // Anything the last process left on the Lock Screen is dead now.
+        MedxLiveActivityController.shared.endStrays()
 
         // Touching `.shared` installs the notification-centre delegate.
         await MedxNotificationManager.shared.refreshAuthorization()

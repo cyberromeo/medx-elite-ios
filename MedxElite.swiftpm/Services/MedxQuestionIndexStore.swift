@@ -430,6 +430,7 @@ public final class MedxQuestionIndexStore: ObservableObject {
 
     private func runBuild(targets: [MedxModuleTarget]) async {
         var sinceLastPersist = 0
+        var failedModules = 0
 
         for chunkStart in stride(from: 0, to: targets.count, by: Self.concurrentFetches) {
             if Task.isCancelled { break }
@@ -458,6 +459,13 @@ public final class MedxQuestionIndexStore: ObservableObject {
             }
 
             for result in harvested {
+                // A fetch that failed is left unmarked so the next build retries it. Marking it
+                // seen — which every failure used to do — turned hundreds of modules permanently
+                // unsearchable on one flaky connection while the index reported itself complete.
+                if result.failed {
+                    failedModules += 1
+                    continue
+                }
                 entries.append(contentsOf: result.questions)
                 foldedKeys.append(contentsOf: result.questions.map { Self.fold($0.text) })
                 for question in result.questions { noteBank(of: question) }
@@ -477,6 +485,10 @@ public final class MedxQuestionIndexStore: ObservableObject {
         isBuilding = false
         buildTask = nil
         lastBuiltAt = Date()
+        if failedModules > 0 {
+            lastError = "\(failedModules) module\(failedModules == 1 ? "" : "s") could not be fetched. "
+                + "Finish downloading to try again."
+        }
         persist()
     }
 
@@ -488,7 +500,7 @@ public final class MedxQuestionIndexStore: ObservableObject {
             moduleId: target.moduleId,
             idToken: idToken
         ) else {
-            return MedxHarvest(moduleId: target.moduleId, questions: [])
+            return MedxHarvest(moduleId: target.moduleId, questions: [], failed: true)
         }
 
         let questions = (module.questions ?? []).map { question in
@@ -591,8 +603,15 @@ public final class MedxQuestionIndexStore: ObservableObject {
     // MARK: - Persistence
 
     public func wipe() {
+        // Not `cancelBuild()`: that persists, and the write it started would recreate the file
+        // after it was deleted here — "Remove offline search" came back on the next launch.
+        buildTask?.cancel()
+        buildTask = nil
+        isBuilding = false
+        let inFlight = persistTask
+        persistTask = nil
+        inFlight?.cancel()
 
-        cancelBuild()
         entries = []
         foldedKeys = []
         indexedModuleIds = []
@@ -601,7 +620,13 @@ public final class MedxQuestionIndexStore: ObservableObject {
         modulesDone = 0
         lastBuiltAt = nil
         lastError = nil
-        try? fileManager.removeItem(at: fileURL)
+
+        let destination = fileURL
+        Task {
+            // Let a write that had already passed its cancellation check finish, then delete.
+            _ = await inFlight?.value
+            try? FileManager.default.removeItem(at: destination)
+        }
     }
 
     private func loadFromDisk() {
@@ -622,6 +647,8 @@ public final class MedxQuestionIndexStore: ObservableObject {
         for entry in payload.entries { noteBank(of: entry) }
     }
 
+    private var persistTask: Task<Void, Never>?
+
     /// Encoded off the main actor: the finished file is several megabytes and re-encoding it
     /// on the main thread every forty modules would be a visible stutter.
     private func persist() {
@@ -634,8 +661,9 @@ public final class MedxQuestionIndexStore: ObservableObject {
             builtAt: lastBuiltAt ?? Date()
         )
         let destination = fileURL
-        Task.detached(priority: .utility) {
-            guard let data = try? JSONEncoder().encode(payload) else { return }
+        persistTask?.cancel()
+        persistTask = Task.detached(priority: .utility) {
+            guard let data = try? JSONEncoder().encode(payload), !Task.isCancelled else { return }
             try? data.write(to: destination, options: .atomic)
         }
     }
@@ -655,6 +683,8 @@ struct MedxModuleTarget: Sendable {
 struct MedxHarvest: Sendable {
     let moduleId: String
     let questions: [MedxIndexedQuestion]
+    /// The fetch itself failed, as opposed to a module that decoded to no questions.
+    var failed: Bool = false
 }
 
 struct MedxIndexFile: Codable, Sendable {

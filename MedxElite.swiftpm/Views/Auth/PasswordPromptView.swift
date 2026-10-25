@@ -115,8 +115,9 @@ public struct PasswordPromptView: View {
     }
 
     private func handleSignIn() {
-        let clean = password.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !clean.isEmpty else { return }
+        // Sent as typed: a password with a leading or trailing space could never sign in.
+        let clean = password
+        guard !clean.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         localError = nil
         Task {
             do {

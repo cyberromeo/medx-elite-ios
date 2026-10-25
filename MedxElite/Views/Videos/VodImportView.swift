@@ -546,6 +546,8 @@ public struct VodImportView: View {
     }
 
     private func add(_ item: MedxVodItem) async {
+        // One at a time: two quick taps used to file two recordings under the same class number.
+        guard adding == nil else { return }
         guard let folder = selectedFolder, let subject = selectedSubject else { return }
         guard let token = try? await authService.getValidIdToken() else {
             failure = "Sign in again to file recordings."

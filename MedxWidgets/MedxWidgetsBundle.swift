@@ -62,12 +62,33 @@ struct MedxSnapshotProvider: TimelineProvider {
         let calendar = Calendar.current
         let now = Date()
 
-        var entries = [MedxSnapshotEntry(date: now, snapshot: snapshot, isLive: isLive)]
-        for hour in 1...24 {
-            guard let date = calendar.date(byAdding: .hour, value: hour, to: now) else { continue }
-            entries.append(MedxSnapshotEntry(date: date, snapshot: snapshot, isLive: isLive))
+        // "Today" belongs to the day the snapshot was written. Past midnight its answered count
+        // is yesterday's, so an entry on a later day shows 0 until the app writes a fresh one —
+        // the alternative was a widget congratulating a full goal at breakfast.
+        func rolled(to date: Date) -> MedxStudySnapshot {
+            guard !calendar.isDate(date, inSameDayAs: snapshot.updatedAt) else { return snapshot }
+            var copy = snapshot
+            copy.answeredToday = 0
+            return copy
         }
 
+        var dates = [now]
+        for hour in 1...24 {
+            guard let date = calendar.date(byAdding: .hour, value: hour, to: now) else { continue }
+            dates.append(date)
+        }
+        // One entry exactly at midnight, so the rollover is prompt rather than up to an hour late.
+        if let midnight = calendar.nextDate(
+            after: now,
+            matching: DateComponents(hour: 0, minute: 0),
+            matchingPolicy: .nextTime
+        ) {
+            dates.append(midnight)
+        }
+
+        let entries = dates.sorted().map { date in
+            MedxSnapshotEntry(date: date, snapshot: rolled(to: date), isLive: isLive)
+        }
         completion(Timeline(entries: entries, policy: .atEnd))
     }
 }

@@ -76,12 +76,17 @@ public final class HLSProxyServer: ObservableObject {
             parameters.allowLocalEndpointReuse = true
             let newListener = try NWListener(using: parameters, on: .any)
 
-            newListener.stateUpdateHandler = { [weak self] state in
+            newListener.stateUpdateHandler = { [weak self, weak newListener] state in
                 guard let self = self else { return }
                 DispatchQueue.main.async {
+                    // Only the listener this object currently owns may change its state. During a
+                    // `restart()` the old listener's late `.cancelled` used to arrive after the new
+                    // one had been stored and nil it out, so the new `.ready` was ignored and the
+                    // proxy reported "Not bound" over a socket that was in fact listening.
+                    guard let newListener, self.listener === newListener else { return }
                     switch state {
                     case .ready:
-                        if let portVal = self.listener?.port?.rawValue {
+                        if let portVal = newListener.port?.rawValue {
                             self.port = portVal
                             self.isRunning = true
                             print("[HLSProxy] Running on port \(portVal)")
@@ -378,8 +383,17 @@ public final class HLSProxyServer: ObservableObject {
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
 
-            if trimmed.isEmpty || trimmed.hasPrefix("#") {
+            if trimmed.isEmpty {
                 rewritten.append(line)
+                continue
+            }
+
+            if trimmed.hasPrefix("#") {
+                // Tags carry URIs too: the audio rendition (`#EXT-X-MEDIA`), the init segment
+                // (`#EXT-X-MAP`) and the key (`#EXT-X-KEY`). Left alone, a relative one resolved
+                // against 127.0.0.1 and answered 404 — a class that played from its download but
+                // streamed silent — and an absolute one bypassed the headers the CDN insists on.
+                rewritten.append(Self.rewriteTagURI(line, baseStr: baseStr, portText: "\(self.port)"))
                 continue
             }
 
@@ -399,6 +413,19 @@ public final class HLSProxyServer: ObservableObject {
         }
 
         return Data(rewritten.joined(separator: "\n").utf8)
+    }
+
+    /// Rewrites the `URI="…"` attribute of a playlist tag through the proxy, leaving the rest of
+    /// the line untouched.
+    private static func rewriteTagURI(_ line: String, baseStr: String, portText: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: "URI=\"([^\"]+)\""),
+              let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+              let valueRange = Range(match.range(at: 1), in: line)
+        else { return line }
+        let raw = String(line[valueRange])
+        let absolute = raw.hasPrefix("http://") || raw.hasPrefix("https://") ? raw : baseStr + raw
+        let encoded = absolute.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? absolute
+        return line.replacingCharacters(in: valueRange, with: "http://127.0.0.1:\(portText)/proxy?url=\(encoded)")
     }
 
     // MARK: - Offline files
@@ -763,6 +790,17 @@ public final class VideoDownloadStore: ObservableObject {
             createdAt: Date(),
             errorMessage: nil
         )
+        // A retry at a different quality starts clean. Segment files are named by position, and
+        // anything non-empty on disk counts as done, so the old rendition's files would be kept
+        // and mixed into the new one — decode errors and resolution jumps mid-class.
+        if let existing = items[video.id], existing.quality != quality {
+            try? fileManager.removeItem(at: Self.directory(for: video.id))
+            item.completedSegments = 0
+            item.totalSegments = 0
+            item.bytesOnDisk = 0
+            item.resolution = nil
+        }
+
         item.video = video
         item.state = .queued
         item.quality = quality
@@ -931,6 +969,10 @@ public final class VideoDownloadStore: ObservableObject {
             )
             HapticManager.success()
         } catch {
+            // A newer task owns this row now — a pause followed by a quick resume — so this one's
+            // ending must not overwrite the state the new one is reporting.
+            guard generation[id] == gen else { return }
+
             let wasCancelled = Task.isCancelled
                 || error is CancellationError
                 || (error as? URLError)?.code == .cancelled
@@ -944,13 +986,18 @@ public final class VideoDownloadStore: ObservableObject {
                 }
             }
             persist(id)
-            MedxLiveActivityController.shared.endDownload(
-                id: id,
-                completed: items[id]?.completedSegments ?? 0,
-                total: items[id]?.totalSegments ?? 0,
-                statusText: items[id]?.statusLabel ?? "Stopped",
-                finished: false
-            )
+            // `pause()` has already flipped the activity to its paused face, Resume button and
+            // all; ending it here was what made pausing from the Lock Screen remove the only
+            // place Resume could be pressed. Only a real failure closes it out.
+            if !wasCancelled {
+                MedxLiveActivityController.shared.endDownload(
+                    id: id,
+                    completed: items[id]?.completedSegments ?? 0,
+                    total: items[id]?.totalSegments ?? 0,
+                    statusText: items[id]?.statusLabel ?? "Stopped",
+                    finished: false
+                )
+            }
         }
 
         if generation[id] == gen {
