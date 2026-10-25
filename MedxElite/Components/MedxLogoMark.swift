@@ -49,7 +49,7 @@ public struct MedxLogoGlyph: Shape {
 ///
 /// This is the one place in the app that is allowed a glass treatment — a tinted gradient
 /// tile, a specular sweep across the top and a rim light. Everywhere *inside* the app the
-/// rule from `GlassModifier` still holds: flat semantic surfaces, materials only in
+/// rule of the kit still holds: flat semantic surfaces, materials only in
 /// `medxBar`. An icon is chrome about the app, not content within it.
 public struct MedxLogoMark: View {
     public var size: CGFloat

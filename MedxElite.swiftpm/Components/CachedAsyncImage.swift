@@ -42,7 +42,7 @@ public struct CachedAsyncImage: View {
         } else if isLoading {
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(MedxSurface.tileFill)
+                    .fill(Color(uiColor: .tertiarySystemFill))
                 ProgressView()
                     .controlSize(.small)
             }
@@ -54,7 +54,7 @@ public struct CachedAsyncImage: View {
 
     private func placeholder(icon: String) -> some View {
         RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(MedxSurface.tileFill)
+            .fill(Color(uiColor: .tertiarySystemFill))
             .overlay(
                 Image(systemName: icon)
                     .font(.title3)

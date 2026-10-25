@@ -1,107 +1,70 @@
 # Medx-elite iOS Native Application
 
-A native iOS application built in **pure Swift and SwiftUI**, targeting **iOS 17+**, connected directly to the **Medx-elite Firebase backend** (`medx-e9acd`) and Arise CDNs. It is the same backend the `Medx elite pwa` sibling runs on, and it now carries the same feature set: two question banks, the Marrow FMGE test series, the two-player Faceoff, shared custom modules and the raw VOD bucket.
+A native iOS application built in **pure Swift and SwiftUI**, targeting **iOS 26**, connected directly to the **Medx-elite Firebase backend** (`medx-e9acd`) and Arise CDNs. It is the same backend the `Medx elite pwa` sibling runs on, and it carries the same feature set: two question banks, the Marrow FMGE test series, the two-player Faceoff, shared custom modules and the raw VOD bucket.
 
-Designed to Apple's Human Interface Guidelines — the platform's own navigation, toolbars and large titles, flat grouped cards on `systemGroupedBackground`, Dynamic Type throughout, full VoiceOver labelling. Each of the five sections has a hue and a mark, and a screen introduces itself with that mark, a line of context and a paragraph — **once**: the title belongs to the navigation bar alone, so no screen prints its own name twice. The one place that departs from this is the **sitting runner**, which is a different mode and looks like one: pitch black, numbers in a rounded monospaced voice, an answer-sheet cell grid for progress, and Liquid Glass on the two panes that float over the question — the HUD and the action bar. Everything else in the app is opaque. Where the running OS is iOS 26 the app takes the platform's own chrome — a minimising tab bar, a glass-prominent primary button, soft scroll edges — each behind an `#available` check, because the deployment target is iOS 17.
+Built on the platform's own iOS 26 vocabulary and nothing else: grouped lists on `systemGroupedBackground`, the navigation bar's large titles and subtitles, toolbars and a tab bar that are Liquid Glass because the system makes them so, system text styles throughout so Dynamic Type works everywhere, and full VoiceOver labelling. One accent, chosen in Settings, for everything interactive; colour otherwise means an outcome (correct, wrong, flagged) or tells one feature's icon tile from another. No custom glass, no backdrops, and no second design for the runner: a sitting is the same grouped page with the question counter as its title, the paper as its subtitle, a wall-clock deadline in the bar and Previous · Questions · Next in the bottom bar.
 
-Five top-level destinations: **Home · QBank · Tests · Classes · Library**. Home is a dashboard with no launcher tiles; Library is the launcher, a grid of eleven doors. Nothing appears in both. Two targets ship from this project: the app, and a `MedxWidgets` extension carrying two Home Screen widgets, three Lock Screen accessories and **three** Live Activities.
+Five top-level destinations: **Home · QBank · Tests · Classes · Library**. Home is today only — the countdown, the goal, the class you left half-watched, the week, the syllabus — and Library is a grouped list of doors (Study / Watch / Play / Yours), every one of which pushes. Nothing appears in both. Two targets ship from this project: the app, and a `MedxWidgets` extension carrying two Home Screen widgets, three Lock Screen accessories and **three** Live Activities.
 
 ---
 
 ## Design language
 
-Glass has been in and out of this app four times, and the history is the argument for where it ended up.
-The first pass wrapped every rectangle in `.ultraThinMaterial` over flat grey: nothing behind it to
-refract, so it came out as haze. The second built a section-hued backdrop and then put glass on
-*everything* — cards, tiles, pills, chips, badges, segments — so one screen was thirty translucent panes
-sampling each other, which is haze plus a blur pass per pane. The third took the glass off content and
-left the decoration behind it: a gradient rim, a hairline and an invisible-on-black shadow on all 82
-surfaces, plus a live blur at every scroll edge of every screen. **That is the version that felt slow.**
-The fourth replaced the whole thing with a pitch-black, answer-sheet-led design, which was a coherent
-design and not the one this app wanted.
+The app has been through six design passes; four were rejected and one was reverted wholesale. What is here now (the seventh, October 2026) is not a seventh vocabulary but the removal of the previous six: the browse screens, the runner, Faceoff, the Library doors and Settings all draw from one ten-file kit, and the kit draws nothing the platform does not already draw. Every screen keeps its type name and file path, so `MainTabView`, `AppState.open(route:)` and the screenshot director instantiate screens by name and nothing outside a screen's file knows it was rebuilt.
 
-So the browse half of the app is back on the platform's own surfaces — the state that shipped as
-unsigned IPA #10 — and the runner keeps the design that was built for it. Two vocabularies, and the
-boundary between them is deliberate: you are either choosing what to study, in which case the app should
-look like iOS, or you are sitting a paper, in which case the screen should get out of the way.
+**The kit** — `MedxElite/Kit/`, the only place that draws a surface:
 
-The fifth pass (October 2026) kept all of that and fixed the one thing it left behind. On iOS 26 the
-navigation bar, the toolbar buttons and the floating tab bar are Liquid Glass whether the app asks for it
-or not, and over flat `systemGroupedBackground` they read as grey bands — the same haze as the first
-pass, only on the chrome this time. So every browse screen now sits on **one soft wash of its section's
-two hues**, pinned to the top of the page and fading out a third of the way down (`MedxBackdrop`). It is
-drawn once, never animates, never sits on a card, and steps back under Increase Contrast. The glass
-samples it; the content stays opaque on top of it. Alongside it: Home leads with a **hero countdown** — the
-one coloured surface on a browse screen, used once — the goal card carries the streak and today's figures,
-cards round up to iOS 26's geometry, large marks are solid Settings-style squircles, figures speak in
-the rounded voice, and the lists that load show the shape of the page (`MedxSkeleton`) instead of a
-spinner. The runner was untouched by that pass.
-
-The sixth pass (October 2026) did the runner, the Profile page and the bank switcher. The runner keeps its
-black page and its two panes of glass, but each pane is now one piece: the **HUD** is a single row (✕, a
-"Q3 of 50" title that opens the navigator, a timer *ring* that drains green to orange to red, the bookmark)
-over the block's answer-sheet track, and the **action bar** is one capsule of glass carrying three opaque
-controls (Back, the `3/50` navigator chip, a wide Next that becomes Submit). The stem sits on a card under a
-`QUESTION n` label, options are lettered squircles that glow in their outcome colour, the reveal is a card
-with an outcome header, and the review opens on a score ring. Settings was rebuilt as a **Profile page**: a
-hero with the avatar on the profile's own gradient ring and four figures (streak, sittings, accuracy, days
-left), four library tiles, then short grouped sections with every icon on one squircle; search, Siri and the
-diagnostics moved to their own Advanced page. The QBank's Arise / Marrow choice is a **glass tab switcher**
-(`MedxGlassTabs`), because it switches the whole page, not a filter inside it.
-
-**Caching rule (sixth pass).** A cached read used to be served for as long as it existed, on disk and across
-launches, so a module, paper or class added on the backend never appeared until the cache was cleared by
-hand. Now every list paints from its cached copy at once and then **always revalidates** against the backend
-(`medxLoadRevalidating`, `MedxReadPolicy.cachedFirst`); a cached copy stands in for a fetch only if it was
-written this session, after the last refresh, and less than ten minutes ago (`CacheManager.isFresh`).
-Pull-to-refresh and returning to the app after a minute mark everything stale and refetch the screen on
-show. Offline, the cache is still the fallback.
-
-| Rule | Where it lives |
+| File | What it holds |
 |---|---|
-| **A surface is a flat grouped card.** One fill, a hairline, and a shadow only when it is genuinely raised | `medxCard()` / `medxTile()` and the `MedxSurface` tokens in `Theme/GlassModifier.swift` — `secondarySystemGroupedBackground` on `systemGroupedBackground`, which is what Settings, Mail and Files draw |
-| **Glass needs colour behind it, and only the chrome gets it.** One static wash per screen, under the bars, never under a card | `MedxBackdrop` / `medxBackdrop(_:)` in `Theme/MedxSections.swift`; `medxCardList(_:)` for the `List` screens. The pale hues wash at two thirds so lime does not turn olive over black |
-| **One hero per screen, at most** — a coloured, opaque headline card | `MedxHeroBackground` in `Components/CountdownWidgetView.swift`, used by the exam countdown on Home |
-| **A section has a hue and a mark**, and a screen wears them | `MedxSection` / `MedxCandy` in `Theme/MedxSections.swift`; `MedxSymbolMark` in `Components/MedxSticker.swift` — an SF Symbol in the section colour, in the rounded square the system uses in Settings and Shortcuts |
-| **Nothing is said twice.** One heading per screen, one route per destination | the navigation bar owns the title, `.large`; `MedxPageHeader` draws the mark, the eyebrow and the lead and **no title at all**. It used to draw a `.largeTitle` from the same string the screen handed `navigationTitle`, with the bar forced to `.inline` — the word "Tests" twice on screen at once, on nine screens |
-| **The toolbar button is a monogram**, not a photo | `MedxSettingsMonogram` in `Components/MedxMonogram.swift` — a 32pt circle and one letter, in all six toolbars. It replaced a `ProfileAvatarView` that watched `AvatarStore` from every one of them to draw an avatar the size of a fingernail |
-| **A row action is a swipe, not a button.** Where the platform has a gesture for something, use it | `.swipeActions` on Classes, the VOD feed and Downloads — left to save offline, right to play, and pause/resume on the download queue. Those three screens are `List`s for exactly this reason; `medxCardRow()` hands the cell's background and insets back to the row so the card looks identical to the `LazyVStack` version, and cell reuse over 2,900 VOD rows comes along free |
-| **The runner is the app's other mode**, and looks like it | `medxPage()` (`#000`), `MedxType` (rounded monospaced figures), `MedxAnswerSheet` at `track` scale for the block's progress, and the stem sitting directly on the page with no card |
-| **The answer sheet is the runner's one picture.** A grid of cells, each filled or not, at four scales — the block in the HUD, the whole sitting in the review | `MedxAnswerSheet` in `Components/MedxSheet.swift` — one `Canvas`, three batched fills, one animatable `Double`. 240 cells is one draw call, and it replaced both branches of the old `RunnerProgressTrack`, so a 150-question paper finally gets the cell grid a 20-question one always had |
-| **Inside the runner, colour means outcome** — correct, wrong, pending | `MedxDS.correct` / `.wrong` / `.warn` / `.pending`; an option row has no border until it is chosen, then it takes the outcome colour |
-| **Glass lives in three places and nowhere else** — the runner's HUD, the runner's action bar, and anything *presented* (the question navigator, the section handover, the badge over video) | `MedxSurfaceSpec.hud`, `medxFloatingBar()`, `medxGlassCircle()`; a `glassEffect` anywhere else is a bug, and `availability_audit.py` lists every one |
-| **One material vocabulary.** Exactly one place decides what a rectangle is made of, and therefore one place answers for the iOS 17 fallback and Reduce Transparency | `medxSurface(_:_:)` + `MedxSurfaceSpec` in `Theme/MedxLiquidGlass.swift` |
-| **Never put an `interactive()` glass effect inside a button label** | it swallows the tap on iOS 26; this is what broke the flashcard close button. The one interactive glass in the app is `.glassProminent` on the single primary action per screen |
-| **Glass cannot sample glass.** Neighbours share a container, and a chip of glass never goes on a panel of glass | `MedxGlassGroup` (`GlassEffectContainer`) + `medxGlassID(_:in:)`, whose only caller is `RunnerActionBar`; the HUD's clock and ✕ are bare glyphs for the same reason |
-| **No sharp ends.** Every rectangle `.continuous`, every control a `Capsule` | `MedxSurface.cardRadius` / `.tileRadius` in browse, `MedxDS.shape(_:)` in the runner |
-| **Motion animates transforms and opacity**, never a blur, a material or a gradient. That rule is why the third pass felt slow: it animated glass | `MedxDS.snap` / `.settle` / `.pop` and `BouncyButtonStyle`, every use gated on Reduce Motion |
-| A figure that changes rolls rather than cuts | `.contentTransition(.numericText())` on the runner's clock, counters and scores |
-| **Semantic** colour names *meaning*, never brand | `MedxTheme` — all system colours, so both appearances and Increase Contrast work for free |
-| One accent for interactive chrome, chosen in Settings | `MedxTheme.accent` — **not** `Color.accentColor`, which reads the asset catalogue and does not follow `.tint()` |
-| A sticker is an illustration, never an icon, and is always hidden from VoiceOver | `MedxSticker` — `NSDataAsset`-backed WebP, `.accessibilityHidden(true)` |
-| A picture beats a row only when the picture *is* the content | Flashcards keeps its thumbnail grid and Classes keeps its thumbnails — those are the content. Everything else leads with type |
-| iOS 26 chrome degrades to the iOS 17 equivalent, never to a stub | `medxTabBarMinimize()`, `medxScrollEdge()`, `medxFilledButton()` in `Theme/GlassModifier.swift` |
+| `Tokens.swift` | `MedxSpace` (4 / 8 / 12 / 16 / 24), `MedxRadius` (control 14, card 22), `MedxOutcome` (correct / wrong / flagged / pending, all system colours), `MedxFeature` (every feature's one name, SF Symbol and tile colour — the tab, the title, the Library row and the iPad sidebar all read it), `MedxCopy` (the sentences said in more than one place), the two Faceoff players' tint, and `MedxTopGlow`, Home's one glow |
+| `Accent.swift` | `MedxAccent`, `MedxAppearance`, `MedxAccentThemeStore` and `MedxTheme.accent` — the accent chosen in Settings, and the only brand colour in the app |
+| `Figures.swift` | `MedxFigure` (rounded, monospaced digits, numeric transition), `MedxStatTile` + `MedxStatRow` (the one figure-with-caption, stacking at accessibility sizes), `MedxRing` (the one ring) |
+| `Rows.swift` | `MedxSymbolTile` (the Settings-style icon squircle, scaled with the body text), `MedxTileLabel`, `MedxFeatureRow`, `MedxRowChevron`, `MedxHeading` |
+| `Cards.swift` | `MedxCard` — Home's dashboard surfaces, and nowhere else |
+| `Buttons.swift` | exactly two treatments: `.medxPrimary()` (`.glassProminent`, capsule) and `.medxSecondary()` (`.glass`, capsule) |
+| `States.swift` | `MedxEmptyState` (`ContentUnavailableView` plus one action), `MedxPlaceholderRows` (rows of the real shape, redacted, while a list loads) |
+| `Sheets.swift` | `.medxTaskSheet()` (medium and large, a page on iPad) and `.medxFullSheet()` |
+| `Format.swift` | `MedxDates` (the one RFC 3339 parser and the one days-to-exam formula) and `MedxFormat` (bytes, relative time, counts, ratios, clocks, durations, percent) — every figure the app prints; `MedxStableHash` for ids that must survive a relaunch |
+| `ProfileButton.swift` | `MedxProfileButton` — the one way into Settings, in the trailing slot of every tab root |
+
+**The rules**, and what each one fixed:
+
+| Rule | What it replaced |
+|---|---|
+| **Every screen is a `List`, inset grouped.** A segmented switch is a clear row at the top, figures are a `MedxStatRow` in the first cell, chapters and months are sections, and every row is a system cell with a symbol tile | twelve card recipes, seven button treatments, six ring implementations, three mode pickers and fifteen corner radii across five vocabularies |
+| **Glass comes from the bars, never from content.** No `glassEffect`, no `GlassEffectContainer`, no backdrop; the one coloured surface is Home's countdown | an interactive glass effect inside a button label swallowed the tap on iOS 26 (the flashcard close button, September 2026), and the pass that animated glass is the one that felt slow |
+| **One heading, one route.** The bar owns the title, the paper is a `navigationSubtitle`, and a destination has one door | the runner printed its counter three times; Bookmarks, Downloads, Custom modules and Batch papers each had three to five entry points; Home carried a launcher that duplicated the tab bar |
+| **Every figure goes through `MedxFormat`, every date through `MedxDates`** | "0 KB" beside "Zero KB", "Last synced in 0 seconds", and Home saying 21 days to the exam while Profile said 22 |
+| **The runner is hosted once**, by the shell, through `AppState.startSitting`. A mode sheet reports its pick and dismisses; the host starts the runner from the sheet's `onDismiss` | raising a full-screen cover in the same update that dismisses a sheet hands the cover to the dismissing sheet's presentation on iOS 26 — the runner showed question 1 and Next looked dead |
+| **Inside a `Button`, say `Color.primary`, never `.primary`** | `.primary` is the first level of the button's own foreground style, which is the tint, so every row that was a button painted its title in the accent |
+| **System text styles only; `@ScaledMetric` for tiles and the one countdown numeral** | 61 fixed-size fonts and no Dynamic Type |
+| **A row action is a swipe**, and Classes, the VOD feed and Downloads say so in one sentence each (`MedxCopy`) | three screens gave three contradictory download instructions, and a 591-line hand-rolled gesture stood in for `.swipeActions` |
+| **Colour means outcome or feature.** `MedxOutcome` for correct / wrong / flagged, `MedxFeature.color` for an icon tile, `MedxTheme.accent` for everything interactive; the two Faceoff players wear the accent and the system orange | section hues on every screen, and a third "accent" per page |
+| **The clock is a wall-clock deadline per block**, drawn with `Text(timerInterval:)` and `ProgressView(timerInterval:)`, never a one-second tick; the Live Activity ends only when the sitting does | the exam clock paused when the phone was locked while the Lock Screen kept counting, and the block handover killed the activity |
+| **Caching: paint from cache, always revalidate.** `medxLoadRevalidating` and `MedxReadPolicy.cachedFirst`; a cached copy stands in for a fetch only if it is from this session, after the last refresh and under ten minutes old. Pull-to-refresh marks everything stale | a module, paper or class added on the backend never appeared until the cache was cleared by hand |
+
+**What a sitting survives.** A finished sitting is written to an outbox first and uploaded after, with a client-side id and an upsert, so airplane mode loses nothing and a retry cannot file a duplicate. Booleans are written as booleans (a right answer used to land as `1` and read as wrong on the web). A saved sitting is keyed by profile and remembers its question order, so a shuffled custom paper resumes where it was and the second profile is never offered the first one's.
 
 ## Features
 
 | Feature | Description |
 |---|---|
 | **Profiles & Authentication** | Graveyard (Mathu) and QuantumGuy (Sri) profile switching with iOS Keychain saved-password fast unlock. A second, fire-and-forget sign-in to the Firebase iOS SDK backs Faceoff's snapshot listeners; failing it costs the duel its listeners and nothing else. |
-| **Home Dashboard** | Today, and only today — no launcher tiles. Today's date, then a live Faceoff invite when the other one has dealt a game, the exam countdown, the daily goal ring with the streak beside it, four quick actions, the class you stopped halfway through, a 7-day roll-up, the accuracy chart and the syllabus checklist. The greeting *is* the large title, so the screen carries one heading rather than "Home" above it. |
+| **Home Dashboard** | Today, and only today — no launcher tiles. The date, a live Faceoff invite when the other one has dealt a game, the exam countdown (the one coloured card, tap to edit), the daily goal ring with the streak and today's accuracy, the class you stopped halfway through, the last seven days, coverage of the selected bank with an accuracy chart, and the syllabus checklist, which pushes. The greeting is the large title. |
 | **Syllabus Tracker Matrix** | Live 23-subject checklist (Videos, R1, R2, PYQs, Rev, QBank) with optimistic updates and rollback if the Firestore write fails. |
-| **Two question banks** | An Arise / Marrow segmented control, as in the PWA. **Arise**: 17,890 questions across 23 subjects and 1,211 modules. **Marrow FMGE**: 14,577 questions across 20 subjects and 960 modules. Searchable subject cards with their module and question counts, chapters as cards of modules, per-module best-score bars, long-press to start a module in either mode. |
+| **Two question banks** | An Arise / Marrow segmented row, as in the PWA. **Arise**: 17,890 questions across 23 subjects and 1,211 modules. **Marrow FMGE**: 14,577 questions across 20 subjects and 960 modules. A subject list with per-subject progress, chapters as sections of module rows with best scores, the one mode picker on a tap, and long-press to start a module in either mode. |
 | **Marrow FMGE test series** | The Tests tab: 352 keyed papers in three groups (GTs / Mini tests / Subject tests) with counts, month rules newest-first, a per-paper best-score bar, and a mode picker that says what it is about to do. A grand paper over 50 questions is sat in **timed blocks of 50** with a between-blocks summary and no way back. |
-| **Batch papers** | The four Arise `medx_tests` papers, moved into Library: scored and practice split, a scope filter, prior-attempt stats and best-score history. |
+| **Batch papers** | The four Arise `medx_tests` papers, one row above the Marrow series on Tests: scored and practice split, a scope filter, prior-attempt stats and best-score history. |
 | **Faceoff** | Two players, one question, one minute. Deal from a custom module or any series paper, 10 / 20 / 30 / all questions, a 3·2·1, a points curve that rewards speed, a versus bar sized by score, a reveal spelling out `40 + 28 = 68`, and a round-by-round scoreboard. Each side files its own `medx_attempts` row, so a duel folds into accuracy, streak and the daily goal. |
 | **Saved custom modules** | Papers either of you builds, shared: pick modules across both banks with one toggle primitive at module / chapter / subject / whole-search scope, cap at 20 / 40 / 100 or none, shuffle, then run, edit or delete — from either device. Local-first, so the list is instant and works offline; the Firestore mirror is allowed to fail and the screen says so. |
 | **Quick sitting** | The other kind of custom module, kept: filter the question index by subject, scope and length — wrong, unattempted or bookmarked — and go. |
-| **Interactive Runner** | **Exam Mode** (overall or per-block timer, bulk submit, scored review, Lock Screen Live Activity) and **Revision Mode** (60s per question, instant reveal). The chrome is two floating panels of glass rather than three bands of furniture: a **HUD** carrying close · counter · clock · bookmark and the block's own answer sheet as its progress track, and a **floating action bar** whose Back · Skip · Next morph into each other inside one glass container. The clock is a ring that drains, is `fixedSize` so it can never be squeezed into truncation, and the HUD takes a red cast in the last ten seconds. Swipe left/right between questions, double-tap the stem to bookmark, question navigator. Sittings auto-saved to `medx_attempts`. |
+| **Interactive Runner** | **Exam Mode** (one clock per paper or per block — a wall-clock deadline that survives the Lock Screen — bulk submit, scored review, Lock Screen Live Activity) and **Revision Mode** (60 s a question, instant reveal). Native bars: the counter is the title, the paper the subtitle, the clock trailing, a thin time bar under the bar, Previous · Questions · Next/Submit in the bottom bar; the navigator is a sheet on a phone and a side column on an iPad in landscape; the block handover is an overlay. Swipe between questions, bookmark from the bar, a review as a grouped list with All / Wrong / Skipped. Sittings auto-saved to `medx_attempts` through an outbox. |
 | **Rich question rendering** | Custom HTML renderer: inline `<img>` figures render and zoom full-screen, authored light-mode colours and highlights are re-mapped for Dark Mode, and parses are cached so a 40-question review scrolls at frame rate. |
 | **Flashcard Gallery** | 895 high-yield cards from the Arise CloudFront CDN. Contact-sheet grid, Photos-style pager with pinch zoom, swipe from anywhere on the card, and an artwork override (Auto / Phone / Tablet × Portrait / Landscape) plus a quarter-turn rotate for reading landscape cards on a portrait phone. |
-| **Video Classroom** | 67 recorded classes by Batch and Subject. Native HLS `AVPlayer` with background audio, PiP, and silent resume. A subject's classes are a `List`: **swipe a row left to save it offline, right to play or clear its progress**, long-press for the quality menu. |
-| **The VOD feed** | Every recording in the raw ARISE bucket (~2,900 documents), newest first: a bucket summary card, sticky day-header sections, a CC filter, a `new` tag against the last-seen watermark, and paging 48 at a time — auto-paged three screens deep, then by tap. Every row is **downloadable with a swipe**: a bucket item is an HLS stream like any class, so `asRecordedVideo` hands it straight to `VideoDownloadStore` and it lands in Downloads beside them, with the same quality menu (long-press), the same pause/resume and the same shared watch progress. |
+| **Video Classroom** | 67 recorded classes by Batch and Subject. Native HLS `AVPlayer` with background audio, PiP, and silent resume. A subject's classes are a `List`: **swipe a row left to save it offline, right to play**, long-press for the quality menu, and one sentence under the list says so. |
+| **The VOD feed** | Every recording in the raw ARISE bucket (~2,900 documents), newest first: three figures, day sections, a subtitled-only toggle in the bar, a *New* mark against the last-seen watermark, and paging 48 at a time — auto-paged three screens deep, then by tap. Every row is **downloadable with a swipe**: a bucket item is an HLS stream like any class, so `asRecordedVideo` hands it straight to `VideoDownloadStore` and it lands in Downloads beside them, with the same quality menu (long-press), the same pause/resume and the same shared watch progress. |
 | **New-drop notifications** | One `medx_vod/_meta` read per check, on every foreground and opportunistically every two hours in the background, tells you when something lands: *"4 new recordings in the VOD bucket — Class 7F2A11 and 3 more."* |
-| **Offline Downloads** | Per-class HLS downloads with quality choice, pause/resume from **inside the Live Activity**, and playback with no signal through a custom `medxoffline://` scheme rather than a local HTTP server. Watch progress is shared between a download and the streaming copy of the same class, and offline progress is pushed to Firestore on the next sync. |
+| **Offline Downloads** | Per-class HLS downloads with quality choice, pause/resume from **inside the Live Activity**, and playback with no signal through the app's own loopback server out of the app container, with the custom `medxoffline://` scheme as the last resort if the server cannot bind. Watch progress is shared between a download and the streaming copy of the same class, and offline progress is pushed to Firestore on the next sync. |
 | **Offline Performance** | Multi-tier caching for documents (`CacheManager`) and images (`MedxImageLoader`, with downsampled decode). |
 
 ---
@@ -252,7 +215,7 @@ identical shape, spillover included.
 medx-elite-ios/
 ├── MedxElite.xcodeproj/             # Native Xcode project: MedxElite + MedxWidgets targets
 │                                    #   + the firebase-ios-sdk package reference
-├── Package.swift                    # Swift Package Manifest (iOS 17+) — no Firebase package
+├── Package.swift                    # Swift Package Manifest (iOS 26) — no Firebase package
 ├── Config/
 │   ├── MedxElite.entitlements       # App Group, shared with the widget extension
 │   └── MedxWidgets.entitlements
@@ -275,6 +238,7 @@ medx-elite-ios/
 │   │   ├── Flashcard.swift          # Flashcard subjects, cards, auto-detected CDN variants
 │   │   ├── Video.swift              # Recorded classes, batches, durations, HLS stream URLs
 │   │   ├── Attempt.swift            # Attempts, responses, sections, `RunnerPayload`, kinds
+│   │   ├── SittingSnapshot.swift    # A saved sitting: keyed by profile, remembers its order
 │   │   └── UserTracker.swift        # Syllabus matrix checklist document model
 │   ├── Services/
 │   │   ├── FirebaseConfig.swift     # Backend API keys, project IDs, and endpoints
@@ -287,6 +251,7 @@ medx-elite-ios/
 │   │   ├── MedxFirestoreDuelTransport.swift # Real snapshot listeners, behind `canImport`
 │   │   ├── MedxDuelRoom.swift       # The room + `MedxLobbyWatcher` + the transport factory
 │   │   ├── MedxCustomModuleStore.swift    # Local-first store, mirror, reconcile, run assembly
+│   │   ├── MedxAttemptOutbox.swift  # Finished sittings: persist first, upload after, upsert
 │   │   ├── MedxVodWatcher.swift     # `_meta` watermark check, foreground + `BGAppRefreshTask`
 │   │   ├── HapticManager.swift      # Tactile haptic feedback engine
 │   │   ├── CacheManager.swift       # On-disk & memory document cache
@@ -300,63 +265,52 @@ medx-elite-ios/
 │   │   ├── MedxAppIntents.swift     # Siri shortcuts (app target only)
 │   │   └── MedxQuestionIndexStore.swift  # The opt-in full-text index
 │   ├── Theme/
-│   │   ├── GlassModifier.swift      # The browse half's surfaces: `MedxSurface` tokens,
-│   │   │                            #   `medxCard`/`medxTile`/`medxBar`, `medxCardRow`/
-│   │   │                            #   `medxCardList` for the swipeable lists, `MedxSectionHeader`,
-│   │   │                            #   `MedxMetric`, `MedxChip`, `MedxCircleButton`,
-│   │   │                            #   and the iOS 26 chrome adoptions
-│   │   ├── MedxDS.swift             # The runner's design system: four surface tokens, three
-│   │   │                            #   outcome colours, the type voices (`MedxType`), the radii,
-│   │   │                            #   three motion curves, `medxPage()` and `MedxPressStyle`
-│   │   ├── MedxLiquidGlass.swift    # `medxSurface` + `MedxSurfaceSpec` — the one material
-│   │   │                            #   decision; `MedxGlassGroup`, floating bar, glass circle
-│   │   ├── ColorSystem.swift        # Semantic system-colour tokens + rich-text colour map
-│   │   ├── MedxSections.swift       # `MedxCandy`, `MedxSection` — the section hues and marks
-│   │   ├── AccentTheme.swift        # `MedxAccent`, appearance override, `MedxTheme.accent`
-│   │   └── Typography.swift         # `MedxFont.metric` / `.display` — the two named shapes
+│   │   └── ColorSystem.swift        # `MedxTheme` outcome colours + the rich-text colour map
+│   ├── Kit/                         # The one component kit — see Design language
+│   │   ├── Tokens.swift             # Spacing, radii, `MedxOutcome`, `MedxFeature`, `MedxCopy`
+│   │   ├── Accent.swift             # `MedxAccent`, appearance override, `MedxTheme.accent`
+│   │   ├── Figures.swift            # `MedxFigure`, `MedxStatTile`, `MedxStatRow`, `MedxRing`
+│   │   ├── Rows.swift               # `MedxSymbolTile`, `MedxTileLabel`, `MedxFeatureRow`
+│   │   ├── Cards.swift              # `MedxCard` — Home only
+│   │   ├── Buttons.swift            # `.medxPrimary()` / `.medxSecondary()`
+│   │   ├── States.swift             # `MedxEmptyState`, `MedxPlaceholderRows`
+│   │   ├── Sheets.swift             # `.medxTaskSheet()` / `.medxFullSheet()`
+│   │   ├── Format.swift             # `MedxDates`, `MedxFormat`, `MedxStableHash`
+│   │   └── ProfileButton.swift      # `MedxProfileButton` — the door to Settings
 │   ├── Components/
-│   │   ├── MedxPageHeader.swift     # The page intro (mark · eyebrow · lead — no title),
-│   │   │                            #   `MedxSegmented`, `MedxPill`, `MedxRuleHeader`
-│   │   ├── MedxSheet.swift          # `MedxAnswerSheet` — the runner's cell grid, one `Canvas`
-│   │   ├── MedxList.swift           # The runner's row vocabulary: `MedxRow`, `MedxHeader`,
-│   │   │                            #   `MedxStat`, `MedxBadge`, `MedxChevron`, `MedxCaption`,
-│   │   │                            #   `MedxCloseButton`, and the three `List` helpers
-│   │   ├── MedxMonogram.swift       # The toolbar's circle-initial button; opens Settings
-│   │   ├── MedxSticker.swift        # WebP sticker loader, `MedxSymbolMark`, subject-art rules
-│   │   ├── ProgressRingView.swift   # The daily goal ring on Home
-│   │   ├── HTMLRichTextView.swift   # HTML renderer: inline images, dark-mode remap, parse cache
-│   │   ├── CountdownWidgetView.swift# Live countdown; long press to edit the exam date
+│   │   ├── MedxSticker.swift        # `MedxSubjectArt` — which SF Symbol stands for a subject
+│   │   ├── HTMLRichTextView.swift   # HTML renderer: inline images, dark-mode remap, parse cache,
+│   │   │                            #   the full-screen figure viewer, the one image-URL resolver
 │   │   ├── CachedAsyncImage.swift   # Memory + disk image cache with downsampled decode
 │   │   ├── VideoPlayerView.swift    # AVPlayer with PiP, silent resume, offline-first,
 │   │   │                            #   and one retry through a freshly bound proxy
-│   │   ├── MedxOfflineAssetLoader.swift # `medxoffline://` resource loader for downloads
+│   │   ├── MedxOfflineAssetLoader.swift # `medxoffline://` resource loader, the last resort
 │   │   ├── MedxLogoMark.swift       # The vector mark — splash and icon share its coordinates
-│   │   ├── FlashcardDeckView.swift  # Photos-style zoomable flashcard pager
-│   │   ├── AnalyticsCard.swift      # The accuracy chart on Home
-│   │   ├── ModernButton.swift       # Primary button, MedxFilledButtonStyle
-│   │   └── FloatingTabBar.swift     # TabItem — Home · QBank · Tests · Classes · Library
+│   │   └── FlashcardDeckView.swift  # Photos-style zoomable flashcard pager
 │   ├── Views/
 │   │   ├── Auth/                    # ProfileSelectView, PasswordPromptView
 │   │   ├── Main/MainTabView.swift   # Tab bar / split view + every external presentation
-│   │   ├── Home/                    # HomeView, QBankProgressCard, SyllabusTrackerSheet
+│   │   ├── Home/                    # HomeView, SyllabusTrackerSheet (pushed), MedxExamDateSheet
 │   │   ├── QBank/                   # Subject list (both banks), chapters, StartSessionSheet,
 │   │   │                            # MedxQuestionSearchView, MedxCustomModuleSheet
-│   │   ├── Runner/                  # QuizRunnerView (+ blocks), RunnerChrome (HUD, clock,
-│   │   │                            #   progress, action bar), QuestionOptionButton,
+│   │   ├── Runner/                  # QuizRunnerView (+ blocks), RunnerChrome (clock, time bar,
+│   │   │                            #   navigator, submit sheet, handover), QuestionOptionButton,
 │   │   │                            # SittingReviewView
 │   │   ├── Tests/                   # TestsListView (Marrow series), BatchPapersView,
 │   │   │                            # TestDetailCard
 │   │   ├── Faceoff/                 # FaceoffLobbyView, DuelRoomView, DuelResultView
 │   │   ├── Custom/                  # CustomModulesView, ModuleBuilderSheet
-│   │   ├── Library/LibraryView.swift# The launcher: eleven doors in Play / Study / Yours,
-│   │   │                            #   two up on a phone, four on an iPad
+│   │   ├── Library/LibraryView.swift# The doors, a grouped list in Study / Watch / Play / Yours,
+│   │   │                            #   every one a push
 │   │   ├── Flashcards/              # FlashcardsSubjectListView, FlashcardStudyView
-│   │   ├── Videos/                  # VideosBatchListView, VideoSubjectView, VodFeedView
-│   │   └── Settings/SettingsView.swift
+│   │   ├── Videos/                  # VideosBatchListView, VideoSubjectView, DownloadsView,
+│   │   │                            # VodFeedView, VodImportView
+│   │   └── Settings/                # SettingsView, BookmarkedQuestionsView, WatchHistoryView,
+│   │                                # ActivityLogView
 │   └── Resources/
 │       ├── Info.plist               # ATS, background modes + BG task ids, Live Activities, scheme
 │       └── Assets.xcassets/         # App icon (3 appearances), accent, launch background,
-│                                    #   Stickers/ — 62 WebP `NSDataAsset` data sets
+│                                    #   Stickers/ — 62 WebP data sets, unused since the kit
 └── README.md
 ```
 

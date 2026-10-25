@@ -25,20 +25,14 @@
 		9B00101F2A00000100000001 /* CacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010202A00000100000001 /* CacheManager.swift */; };
 		9B0010622A00000100000001 /* HLSProxyServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010632A00000100000001 /* HLSProxyServer.swift */; };
 		9B0010212A00000100000001 /* ColorSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010222A00000100000001 /* ColorSystem.swift */; };
-		9B0010232A00000100000001 /* GlassModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010242A00000100000001 /* GlassModifier.swift */; };
 		9B0010272A00000100000001 /* HTMLRichTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010282A00000100000001 /* HTMLRichTextView.swift */; };
-		9B00102B2A00000100000001 /* CountdownWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00102C2A00000100000001 /* CountdownWidgetView.swift */; };
-		9B0010642A00000100000001 /* AnalyticsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010652A00000100000001 /* AnalyticsCard.swift */; };
 		9B00102D2A00000100000001 /* VideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00102E2A00000100000001 /* VideoPlayerView.swift */; };
 		9B00102F2A00000100000001 /* FlashcardDeckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010302A00000100000001 /* FlashcardDeckView.swift */; };
-		9B0010312A00000100000001 /* ModernButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010322A00000100000001 /* ModernButton.swift */; };
 		9B0010332A00000100000001 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010342A00000100000001 /* CachedAsyncImage.swift */; };
-		9B0010352A00000100000001 /* FloatingTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010362A00000100000001 /* FloatingTabBar.swift */; };
 		9B0010372A00000100000001 /* ProfileSelectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010382A00000100000001 /* ProfileSelectView.swift */; };
 		9B0010392A00000100000001 /* PasswordPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00103A2A00000100000001 /* PasswordPromptView.swift */; };
 		9B00103B2A00000100000001 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00103C2A00000100000001 /* MainTabView.swift */; };
 		9B00103D2A00000100000001 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00103E2A00000100000001 /* HomeView.swift */; };
-		9B0010412A00000100000001 /* QBankProgressCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010422A00000100000001 /* QBankProgressCard.swift */; };
 		9B0010432A00000100000001 /* SyllabusTrackerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010442A00000100000001 /* SyllabusTrackerSheet.swift */; };
 		9B0010452A00000100000001 /* QBankSubjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010462A00000100000001 /* QBankSubjectListView.swift */; };
 		9B0010472A00000100000001 /* QBankChapterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0010482A00000100000001 /* QBankChapterView.swift */; };
@@ -61,7 +55,6 @@
 		9B0011092A00000100000001 /* MedxSpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00110A2A00000100000001 /* MedxSpotlightIndexer.swift */; };
 		9B00110B2A00000100000001 /* MedxAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00110C2A00000100000001 /* MedxAppIntents.swift */; };
 		9B00110D2A00000100000001 /* MedxQuestionIndexStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00110E2A00000100000001 /* MedxQuestionIndexStore.swift */; };
-		9B00110F2A00000100000001 /* AccentTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011102A00000100000001 /* AccentTheme.swift */; };
 		9B0011112A00000100000001 /* MedxLogoMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011122A00000100000001 /* MedxLogoMark.swift */; };
 		9B0011132A00000100000001 /* MedxOfflineAssetLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011142A00000100000001 /* MedxOfflineAssetLoader.swift */; };
 		9B0011152A00000100000001 /* MedxQuestionSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011162A00000100000001 /* MedxQuestionSearchView.swift */; };
@@ -69,7 +62,6 @@
 		9B0020062A00000100000001 /* MedxWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0020022A00000100000001 /* MedxWidgetsBundle.swift */; };
 		9B0020072A00000100000001 /* MedxSharedState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011042A00000100000001 /* MedxSharedState.swift */; };
 		9B0020082A00000100000001 /* MedxWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9B0020012A00000100000001 /* MedxWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		9B00111A2A00000100000001 /* MedxSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011192A00000100000001 /* MedxSections.swift */; };
 		9B00111C2A00000100000001 /* MedxSticker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00111B2A00000100000001 /* MedxSticker.swift */; };
 		9B0011202A00000100000001 /* Series.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00111F2A00000100000001 /* Series.swift */; };
 		9B0011222A00000100000001 /* BatchPapersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011212A00000100000001 /* BatchPapersView.swift */; };
@@ -96,18 +88,9 @@
 		9B0011492A00000100000001 /* MedxActivityChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011472A00000100000001 /* MedxActivityChrome.swift */; };
 		9B00114B2A00000100000001 /* MedxSharedIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00114A2A00000100000001 /* MedxSharedIntents.swift */; };
 		9B00114C2A00000100000001 /* MedxSharedIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00114A2A00000100000001 /* MedxSharedIntents.swift */; };
-		9B00114E2A00000100000001 /* MedxLiquidGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00114D2A00000100000001 /* MedxLiquidGlass.swift */; };
 		9B0011522A00000100000001 /* RunnerChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011512A00000100000001 /* RunnerChrome.swift */; };
-		9B0011562A00000100000001 /* MedxDS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011552A00000100000001 /* MedxDS.swift */; };
-		9B0011582A00000100000001 /* MedxSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011572A00000100000001 /* MedxSheet.swift */; };
-		9B00115A2A00000100000001 /* MedxList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011592A00000100000001 /* MedxList.swift */; };
-		9B00115C2A00000100000001 /* MedxMonogram.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00115B2A00000100000001 /* MedxMonogram.swift */; };
-		9B00115E2A00000100000001 /* MedxPageHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00115D2A00000100000001 /* MedxPageHeader.swift */; };
-		9B0011602A00000100000001 /* ProgressRingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00115F2A00000100000001 /* ProgressRingView.swift */; };
-		9B0011622A00000100000001 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011612A00000100000001 /* Typography.swift */; };
 		9B0011642A00000100000001 /* MedxVideoLibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011632A00000100000001 /* MedxVideoLibraryStore.swift */; };
 		9B0011662A00000100000001 /* VodImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011652A00000100000001 /* VodImportView.swift */; };
-		9B0011692A00000100000001 /* MedxKitProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011682A00000100000001 /* MedxKitProbe.swift */; };
 		9B00116B2A00000100000001 /* Format.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00116A2A00000100000001 /* Format.swift */; };
 		9B00116D2A00000100000001 /* MedxAttemptOutbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00116C2A00000100000001 /* MedxAttemptOutbox.swift */; };
 		9B00116F2A00000100000001 /* Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00116E2A00000100000001 /* Tokens.swift */; };
@@ -122,6 +105,9 @@
 		9B0011812A00000100000001 /* ActivityLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011802A00000100000001 /* ActivityLogView.swift */; };
 		9B0011832A00000100000001 /* DownloadsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011822A00000100000001 /* DownloadsView.swift */; };
 		9B0011852A00000100000001 /* SittingSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011842A00000100000001 /* SittingSnapshot.swift */; };
+		9B0011872A00000100000001 /* Accent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011862A00000100000001 /* Accent.swift */; };
+		9B0011892A00000100000001 /* ProfileButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B0011882A00000100000001 /* ProfileButton.swift */; };
+		9B00118B2A00000100000001 /* MedxExamDateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00118A2A00000100000001 /* MedxExamDateSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -160,20 +146,14 @@
 		9B0010202A00000100000001 /* CacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheManager.swift; sourceTree = "<group>"; };
 		9B0010632A00000100000001 /* HLSProxyServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HLSProxyServer.swift; sourceTree = "<group>"; };
 		9B0010222A00000100000001 /* ColorSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorSystem.swift; sourceTree = "<group>"; };
-		9B0010242A00000100000001 /* GlassModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassModifier.swift; sourceTree = "<group>"; };
 		9B0010282A00000100000001 /* HTMLRichTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLRichTextView.swift; sourceTree = "<group>"; };
-		9B00102C2A00000100000001 /* CountdownWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownWidgetView.swift; sourceTree = "<group>"; };
-		9B0010652A00000100000001 /* AnalyticsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsCard.swift; sourceTree = "<group>"; };
 		9B00102E2A00000100000001 /* VideoPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPlayerView.swift; sourceTree = "<group>"; };
 		9B0010302A00000100000001 /* FlashcardDeckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashcardDeckView.swift; sourceTree = "<group>"; };
-		9B0010322A00000100000001 /* ModernButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModernButton.swift; sourceTree = "<group>"; };
 		9B0010342A00000100000001 /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
-		9B0010362A00000100000001 /* FloatingTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingTabBar.swift; sourceTree = "<group>"; };
 		9B0010382A00000100000001 /* ProfileSelectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth/ProfileSelectView.swift; sourceTree = "<group>"; };
 		9B00103A2A00000100000001 /* PasswordPromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth/PasswordPromptView.swift; sourceTree = "<group>"; };
 		9B00103C2A00000100000001 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Main/MainTabView.swift; sourceTree = "<group>"; };
 		9B00103E2A00000100000001 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Home/HomeView.swift; sourceTree = "<group>"; };
-		9B0010422A00000100000001 /* QBankProgressCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Home/QBankProgressCard.swift; sourceTree = "<group>"; };
 		9B0010442A00000100000001 /* SyllabusTrackerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Home/SyllabusTrackerSheet.swift; sourceTree = "<group>"; };
 		9B0010462A00000100000001 /* QBankSubjectListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QBank/QBankSubjectListView.swift; sourceTree = "<group>"; };
 		9B0010482A00000100000001 /* QBankChapterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QBank/QBankChapterView.swift; sourceTree = "<group>"; };
@@ -197,7 +177,6 @@
 		9B00110A2A00000100000001 /* MedxSpotlightIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxSpotlightIndexer.swift; sourceTree = "<group>"; };
 		9B00110C2A00000100000001 /* MedxAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxAppIntents.swift; sourceTree = "<group>"; };
 		9B00110E2A00000100000001 /* MedxQuestionIndexStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxQuestionIndexStore.swift; sourceTree = "<group>"; };
-		9B0011102A00000100000001 /* AccentTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccentTheme.swift; sourceTree = "<group>"; };
 		9B0011122A00000100000001 /* MedxLogoMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxLogoMark.swift; sourceTree = "<group>"; };
 		9B0011142A00000100000001 /* MedxOfflineAssetLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxOfflineAssetLoader.swift; sourceTree = "<group>"; };
 		9B0011162A00000100000001 /* MedxQuestionSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QBank/MedxQuestionSearchView.swift; sourceTree = "<group>"; };
@@ -207,7 +186,6 @@
 		9B0020032A00000100000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		9B0020042A00000100000001 /* MedxWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MedxWidgets.entitlements; sourceTree = "<group>"; };
 		9B0020052A00000100000001 /* MedxElite.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MedxElite.entitlements; sourceTree = "<group>"; };
-		9B0011192A00000100000001 /* MedxSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxSections.swift; sourceTree = "<group>"; };
 		9B00111B2A00000100000001 /* MedxSticker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxSticker.swift; sourceTree = "<group>"; };
 		9B00111F2A00000100000001 /* Series.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Series.swift; sourceTree = "<group>"; };
 		9B0011212A00000100000001 /* BatchPapersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/BatchPapersView.swift; sourceTree = "<group>"; };
@@ -232,18 +210,9 @@
 		9B0011452A00000100000001 /* DuelResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Faceoff/DuelResultView.swift; sourceTree = "<group>"; };
 		9B0011472A00000100000001 /* MedxActivityChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxActivityChrome.swift; sourceTree = "<group>"; };
 		9B00114A2A00000100000001 /* MedxSharedIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxSharedIntents.swift; sourceTree = "<group>"; };
-		9B00114D2A00000100000001 /* MedxLiquidGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxLiquidGlass.swift; sourceTree = "<group>"; };
 		9B0011512A00000100000001 /* RunnerChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runner/RunnerChrome.swift; sourceTree = "<group>"; };
-		9B0011552A00000100000001 /* MedxDS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxDS.swift; sourceTree = "<group>"; };
-		9B0011572A00000100000001 /* MedxSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxSheet.swift; sourceTree = "<group>"; };
-		9B0011592A00000100000001 /* MedxList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxList.swift; sourceTree = "<group>"; };
-		9B00115B2A00000100000001 /* MedxMonogram.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxMonogram.swift; sourceTree = "<group>"; };
-		9B00115D2A00000100000001 /* MedxPageHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxPageHeader.swift; sourceTree = "<group>"; };
-		9B00115F2A00000100000001 /* ProgressRingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressRingView.swift; sourceTree = "<group>"; };
-		9B0011612A00000100000001 /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
 		9B0011632A00000100000001 /* MedxVideoLibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxVideoLibraryStore.swift; sourceTree = "<group>"; };
 		9B0011652A00000100000001 /* VodImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Videos/VodImportView.swift; sourceTree = "<group>"; };
-		9B0011682A00000100000001 /* MedxKitProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxKitProbe.swift; sourceTree = "<group>"; };
 		9B00116A2A00000100000001 /* Format.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Format.swift; sourceTree = "<group>"; };
 		9B00116C2A00000100000001 /* MedxAttemptOutbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedxAttemptOutbox.swift; sourceTree = "<group>"; };
 		9B00116E2A00000100000001 /* Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tokens.swift; sourceTree = "<group>"; };
@@ -258,6 +227,9 @@
 		9B0011802A00000100000001 /* ActivityLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/ActivityLogView.swift; sourceTree = "<group>"; };
 		9B0011822A00000100000001 /* DownloadsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Videos/DownloadsView.swift; sourceTree = "<group>"; };
 		9B0011842A00000100000001 /* SittingSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SittingSnapshot.swift; sourceTree = "<group>"; };
+		9B0011862A00000100000001 /* Accent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Accent.swift; sourceTree = "<group>"; };
+		9B0011882A00000100000001 /* ProfileButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileButton.swift; sourceTree = "<group>"; };
+		9B00118A2A00000100000001 /* MedxExamDateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Home/MedxExamDateSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -360,12 +332,6 @@
 			isa = PBXGroup;
 			children = (
 				9B0010222A00000100000001 /* ColorSystem.swift */,
-				9B0010242A00000100000001 /* GlassModifier.swift */,
-				9B0011102A00000100000001 /* AccentTheme.swift */,
-				9B0011192A00000100000001 /* MedxSections.swift */,
-				9B00114D2A00000100000001 /* MedxLiquidGlass.swift */,
-				9B0011552A00000100000001 /* MedxDS.swift */,
-				9B0011612A00000100000001 /* Typography.swift */,
 			);
 			path = Theme;
 			sourceTree = "<group>";
@@ -374,21 +340,12 @@
 			isa = PBXGroup;
 			children = (
 				9B0010282A00000100000001 /* HTMLRichTextView.swift */,
-				9B00102C2A00000100000001 /* CountdownWidgetView.swift */,
-				9B0010652A00000100000001 /* AnalyticsCard.swift */,
 				9B00102E2A00000100000001 /* VideoPlayerView.swift */,
 				9B0010302A00000100000001 /* FlashcardDeckView.swift */,
-				9B0010322A00000100000001 /* ModernButton.swift */,
 				9B0010342A00000100000001 /* CachedAsyncImage.swift */,
-				9B0010362A00000100000001 /* FloatingTabBar.swift */,
 				9B0011122A00000100000001 /* MedxLogoMark.swift */,
 				9B0011142A00000100000001 /* MedxOfflineAssetLoader.swift */,
 				9B00111B2A00000100000001 /* MedxSticker.swift */,
-				9B0011572A00000100000001 /* MedxSheet.swift */,
-				9B0011592A00000100000001 /* MedxList.swift */,
-				9B00115B2A00000100000001 /* MedxMonogram.swift */,
-				9B00115D2A00000100000001 /* MedxPageHeader.swift */,
-				9B00115F2A00000100000001 /* ProgressRingView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -400,7 +357,6 @@
 				9B00103A2A00000100000001 /* PasswordPromptView.swift */,
 				9B00103C2A00000100000001 /* MainTabView.swift */,
 				9B00103E2A00000100000001 /* HomeView.swift */,
-				9B0010422A00000100000001 /* QBankProgressCard.swift */,
 				9B0010442A00000100000001 /* SyllabusTrackerSheet.swift */,
 				9B0010462A00000100000001 /* QBankSubjectListView.swift */,
 				9B0010482A00000100000001 /* QBankChapterView.swift */,
@@ -431,6 +387,7 @@
 				9B00117E2A00000100000001 /* WatchHistoryView.swift */,
 				9B0011802A00000100000001 /* ActivityLogView.swift */,
 				9B0011822A00000100000001 /* DownloadsView.swift */,
+				9B00118A2A00000100000001 /* MedxExamDateSheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -465,7 +422,6 @@
 		9B0011672A00000100000001 /* Kit */ = {
 			isa = PBXGroup;
 			children = (
-				9B0011682A00000100000001 /* MedxKitProbe.swift */,
 				9B00116A2A00000100000001 /* Format.swift */,
 				9B00116E2A00000100000001 /* Tokens.swift */,
 				9B0011702A00000100000001 /* Figures.swift */,
@@ -474,6 +430,8 @@
 				9B0011762A00000100000001 /* Buttons.swift */,
 				9B0011782A00000100000001 /* States.swift */,
 				9B00117A2A00000100000001 /* Sheets.swift */,
+				9B0011862A00000100000001 /* Accent.swift */,
+				9B0011882A00000100000001 /* ProfileButton.swift */,
 			);
 			path = Kit;
 			sourceTree = "<group>";
@@ -597,20 +555,14 @@
 				9B00101F2A00000100000001 /* CacheManager.swift in Sources */,
 				9B0010622A00000100000001 /* HLSProxyServer.swift in Sources */,
 				9B0010212A00000100000001 /* ColorSystem.swift in Sources */,
-				9B0010232A00000100000001 /* GlassModifier.swift in Sources */,
 				9B0010272A00000100000001 /* HTMLRichTextView.swift in Sources */,
-				9B00102B2A00000100000001 /* CountdownWidgetView.swift in Sources */,
-				9B0010642A00000100000001 /* AnalyticsCard.swift in Sources */,
 				9B00102D2A00000100000001 /* VideoPlayerView.swift in Sources */,
 				9B00102F2A00000100000001 /* FlashcardDeckView.swift in Sources */,
-				9B0010312A00000100000001 /* ModernButton.swift in Sources */,
 				9B0010332A00000100000001 /* CachedAsyncImage.swift in Sources */,
-				9B0010352A00000100000001 /* FloatingTabBar.swift in Sources */,
 				9B0010372A00000100000001 /* ProfileSelectView.swift in Sources */,
 				9B0010392A00000100000001 /* PasswordPromptView.swift in Sources */,
 				9B00103B2A00000100000001 /* MainTabView.swift in Sources */,
 				9B00103D2A00000100000001 /* HomeView.swift in Sources */,
-				9B0010412A00000100000001 /* QBankProgressCard.swift in Sources */,
 				9B0010432A00000100000001 /* SyllabusTrackerSheet.swift in Sources */,
 				9B0010452A00000100000001 /* QBankSubjectListView.swift in Sources */,
 				9B0010472A00000100000001 /* QBankChapterView.swift in Sources */,
@@ -632,12 +584,10 @@
 				9B0011092A00000100000001 /* MedxSpotlightIndexer.swift in Sources */,
 				9B00110B2A00000100000001 /* MedxAppIntents.swift in Sources */,
 				9B00110D2A00000100000001 /* MedxQuestionIndexStore.swift in Sources */,
-				9B00110F2A00000100000001 /* AccentTheme.swift in Sources */,
 				9B0011112A00000100000001 /* MedxLogoMark.swift in Sources */,
 				9B0011132A00000100000001 /* MedxOfflineAssetLoader.swift in Sources */,
 				9B0011152A00000100000001 /* MedxQuestionSearchView.swift in Sources */,
 				9B0011172A00000100000001 /* MedxCustomModuleSheet.swift in Sources */,
-				9B00111A2A00000100000001 /* MedxSections.swift in Sources */,
 				9B00111C2A00000100000001 /* MedxSticker.swift in Sources */,
 				9B0011202A00000100000001 /* Series.swift in Sources */,
 				9B0011222A00000100000001 /* BatchPapersView.swift in Sources */,
@@ -662,18 +612,9 @@
 				9B0011462A00000100000001 /* DuelResultView.swift in Sources */,
 				9B0011482A00000100000001 /* MedxActivityChrome.swift in Sources */,
 				9B00114B2A00000100000001 /* MedxSharedIntents.swift in Sources */,
-				9B00114E2A00000100000001 /* MedxLiquidGlass.swift in Sources */,
 				9B0011522A00000100000001 /* RunnerChrome.swift in Sources */,
-				9B0011562A00000100000001 /* MedxDS.swift in Sources */,
-				9B0011582A00000100000001 /* MedxSheet.swift in Sources */,
-				9B00115A2A00000100000001 /* MedxList.swift in Sources */,
-				9B00115C2A00000100000001 /* MedxMonogram.swift in Sources */,
-				9B00115E2A00000100000001 /* MedxPageHeader.swift in Sources */,
-				9B0011602A00000100000001 /* ProgressRingView.swift in Sources */,
-				9B0011622A00000100000001 /* Typography.swift in Sources */,
 				9B0011642A00000100000001 /* MedxVideoLibraryStore.swift in Sources */,
 				9B0011662A00000100000001 /* VodImportView.swift in Sources */,
-				9B0011692A00000100000001 /* MedxKitProbe.swift in Sources */,
 				9B00116B2A00000100000001 /* Format.swift in Sources */,
 				9B00116D2A00000100000001 /* MedxAttemptOutbox.swift in Sources */,
 				9B00116F2A00000100000001 /* Tokens.swift in Sources */,
@@ -688,6 +629,9 @@
 				9B0011812A00000100000001 /* ActivityLogView.swift in Sources */,
 				9B0011832A00000100000001 /* DownloadsView.swift in Sources */,
 				9B0011852A00000100000001 /* SittingSnapshot.swift in Sources */,
+				9B0011872A00000100000001 /* Accent.swift in Sources */,
+				9B0011892A00000100000001 /* ProfileButton.swift in Sources */,
+				9B00118B2A00000100000001 /* MedxExamDateSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

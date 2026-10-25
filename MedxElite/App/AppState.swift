@@ -820,3 +820,31 @@ public final class ActivityStore: ObservableObject {
         return try? JSONDecoder().decode(type, from: data)
     }
 }
+
+// MARK: - The five tabs
+
+/// The app's five top-level destinations.
+///
+/// `Classes` is a tab because watching a class is a daily habit and it is the one thing here that
+/// gets opened without a reason. `Flashcards` is not, for the opposite reason — flashcards are a
+/// thing you go *to*, so they live in `Library` alongside the VOD feed, Faceoff, the custom modules
+/// and the saved things. Five tabs is what iOS lays out comfortably on the smallest target device.
+public enum TabItem: String, CaseIterable, Identifiable {
+    case home = "Home"
+    case qbank = "QBank"
+    case tests = "Tests"
+    case videos = "Classes"
+    case library = "Library"
+
+    public var id: String { rawValue }
+
+    public var icon: String {
+        switch self {
+        case .home: return "house"
+        case .qbank: return "books.vertical"
+        case .tests: return "list.clipboard"
+        case .videos: return "play.rectangle"
+        case .library: return "square.grid.2x2"
+        }
+    }
+}

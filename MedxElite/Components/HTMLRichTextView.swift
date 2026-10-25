@@ -158,7 +158,7 @@ public struct HTMLRichTextView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(MedxSurface.separator.opacity(0.35), lineWidth: MedxSurface.hairline)
+                    .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 0.5)
             )
     }
 }
@@ -259,9 +259,21 @@ struct MedxImageViewer: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            MedxCircleButton(icon: "xmark", accessibilityLabel: "Close figure") {
+            // A plain button on a solid scrim, like the flashcard viewer's: an interactive glass
+            // effect inside a button label swallowed the tap on iOS 26.
+            Button {
                 close()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.body.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    .background(Color.black.opacity(0.45), in: Circle())
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close figure")
             .padding(.trailing, 14)
             .padding(.top, 8)
         }

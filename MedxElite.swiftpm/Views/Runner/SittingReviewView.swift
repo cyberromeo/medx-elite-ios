@@ -13,8 +13,6 @@ public struct SittingReviewView: View {
     public let elapsedSeconds: Int
     /// Per-block scores for a sectioned paper. Empty for everything else.
     public let sections: [MedxAttemptSection]
-    /// Kept for the call sites; the review wears the one accent like every other screen.
-    public let section: MedxSection
     /// Where each question came from, for a mixed paper (keyed by question id).
     public let questionTags: [Int: String]
     public var onDone: () -> Void
@@ -35,7 +33,6 @@ public struct SittingReviewView: View {
         gradable: Bool = true,
         elapsedSeconds: Int = 0,
         sections: [MedxAttemptSection] = [],
-        section: MedxSection = .qbank,
         questionTags: [Int: String] = [:],
         onDone: @escaping () -> Void
     ) {
@@ -47,7 +44,6 @@ public struct SittingReviewView: View {
         self.gradable = gradable
         self.elapsedSeconds = elapsedSeconds
         self.sections = sections.sorted { $0.index < $1.index }
-        self.section = section
         self.questionTags = questionTags
         self.onDone = onDone
     }

@@ -90,7 +90,6 @@ public struct QuizRunnerView: View {
                     gradable: payload.gradable,
                     elapsedSeconds: completedSeconds,
                     sections: sectionLog,
-                    section: payload.section,
                     questionTags: reviewTags
                 ) {
                     onFinishedSession()

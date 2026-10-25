@@ -4,7 +4,7 @@ import SwiftUI
 //
 // Compiled into **both** the app and the `MedxWidgets` extension, like `MedxSharedState.swift`, so
 // the three Live Activities read as one family instead of three one-off layouts. It therefore
-// imports nothing app-specific: no theme, no models, no `MedxSurface`. Colour arrives as a hex
+// imports nothing app-specific: no kit, no models. Colour arrives as a hex
 // string in the activity's attributes, exactly as the snapshot does.
 
 public extension Color {
