@@ -7,7 +7,7 @@ import SwiftUI
 public struct MedxSymbolTile: View {
     private let symbol: String
     private let hue: Color
-    @ScaledMetric(relativeTo: .body) private var size: CGFloat
+    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 29
 
     public init(_ symbol: String, hue: Color, size: CGFloat = 29) {
         self.symbol = symbol
