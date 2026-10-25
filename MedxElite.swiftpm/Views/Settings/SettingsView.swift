@@ -48,9 +48,9 @@ public struct SettingsView: View {
                     advancedSection
 
                     accountSection
+                        .id("settings.end")
 
                     aboutSection
-                        .id("settings.end")
                 }
                 .listStyle(.insetGrouped)
                 #if DEBUG
@@ -64,7 +64,7 @@ public struct SettingsView: View {
                     // into existence; the second lands on it.
                     scroller.scrollTo(id, anchor: .top)
                     try? await Task.sleep(nanoseconds: 400_000_000)
-                    scroller.scrollTo(id, anchor: target == 1 ? .top : .bottom)
+                    scroller.scrollTo(id, anchor: .top)
                 }
                 #endif
             }

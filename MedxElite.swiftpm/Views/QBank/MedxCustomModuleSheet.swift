@@ -353,7 +353,7 @@ struct MedxSubjectMultiPicker: View {
                 } label: {
                     HStack {
                         Text("All subjects")
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Color.primary)
                         Spacer()
                         if selection.isEmpty {
                             Image(systemName: "checkmark")
@@ -389,6 +389,7 @@ struct MedxSubjectMultiPicker: View {
                                         .transition(.scale.combined(with: .opacity))
                                 }
                             }
+                            .foregroundStyle(Color.primary)
                         }
                     }
                 } header: {

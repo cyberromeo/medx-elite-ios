@@ -205,6 +205,7 @@ public struct CustomModulesView: View {
                     .foregroundStyle(MedxTheme.accent)
             }
             .padding(.vertical, 2)
+            .foregroundStyle(Color.primary)
         }
         .swipeActions(edge: .leading) {
             Button {

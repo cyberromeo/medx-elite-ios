@@ -102,6 +102,7 @@ public struct TestDetailCard: View {
                 MedxRowChevron()
             }
             .padding(.vertical, 2)
+            .foregroundStyle(Color.primary)
         }
         .contextMenu {
             Button {

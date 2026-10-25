@@ -53,6 +53,8 @@ public struct MedxTileLabel: View {
         } icon: {
             MedxSymbolTile(symbol, hue: hue)
         }
+        // The label colour even inside a `Button`, where `.primary` would mean the tint.
+        .foregroundStyle(Color.primary)
     }
 }
 
@@ -96,6 +98,8 @@ public struct MedxFeatureRow<Trailing: View>: View {
             trailing
         }
         .padding(.vertical, 2)
+        // The label colour even inside a `Button`, where `.primary` would mean the tint.
+        .foregroundStyle(Color.primary)
     }
 }
 

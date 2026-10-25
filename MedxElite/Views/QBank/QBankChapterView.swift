@@ -181,6 +181,7 @@ public struct QBankChapterView: View {
                     .foregroundStyle(record == nil ? MedxTheme.accent : MedxOutcome.correct)
             }
             .padding(.vertical, 2)
+            .foregroundStyle(Color.primary)
         }
         // Long press to skip the mode sheet — the two modes are the whole decision.
         .contextMenu {

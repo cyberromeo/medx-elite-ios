@@ -374,6 +374,7 @@ public struct FaceoffLobbyView: View {
                 MedxRowChevron()
             }
             .padding(.vertical, 2)
+            .foregroundStyle(Color.primary)
         }
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
@@ -450,6 +451,7 @@ public struct FaceoffLobbyView: View {
                 MedxRowChevron()
             }
             .padding(.vertical, 2)
+            .foregroundStyle(Color.primary)
         }
         .accessibilityLabel(game.source?.name ?? "Faceoff")
         .accessibilityValue(winner.map { "\($0.displayName) won, \(line)" } ?? "dead heat, \(line)")
@@ -740,6 +742,7 @@ struct FaceoffHostSheet: View {
                     .foregroundStyle(isOn ? MedxTheme.accent : Color.secondary)
             }
             .padding(.vertical, 2)
+            .foregroundStyle(Color.primary)
         }
         .accessibilityLabel(title)
         .accessibilityValue(detail)

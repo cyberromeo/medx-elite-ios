@@ -351,6 +351,7 @@ public struct ModuleBuilderSheet: View {
                             .rotationEffect(.degrees(isOpen ? 90 : 0))
                     }
                     .contentShape(Rectangle())
+                    .foregroundStyle(Color.primary)
                 }
                 .buttonStyle(.borderless)
                 .disabled(!query.isEmpty)
@@ -434,6 +435,7 @@ public struct ModuleBuilderSheet: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
+            .foregroundStyle(Color.primary)
         }
         .accessibilityLabel(module.name)
         .accessibilityValue("\(module.questionCount) questions, \(isOn ? "picked" : "not picked")")

@@ -177,6 +177,7 @@ public struct VideosBatchListView: View {
                 }
             }
             .padding(.vertical, 2)
+            .foregroundStyle(Color.primary)
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive) {

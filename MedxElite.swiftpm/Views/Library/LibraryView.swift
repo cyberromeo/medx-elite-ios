@@ -108,6 +108,7 @@ public struct LibraryView: View {
                 doorLabel(feature, badge: badge)
                 MedxRowChevron()
             }
+            .foregroundStyle(Color.primary)
         }
         .accessibilityLabel(feature.title)
         .accessibilityValue(badge ?? "")
@@ -116,7 +117,6 @@ public struct LibraryView: View {
     private func doorLabel(_ feature: MedxFeature, badge: String?) -> some View {
         HStack(spacing: MedxSpace.m) {
             MedxTileLabel(feature.title, symbol: feature.symbol, hue: feature.color)
-                .foregroundStyle(.primary)
             Spacer(minLength: MedxSpace.s)
             if let badge {
                 Text(badge)

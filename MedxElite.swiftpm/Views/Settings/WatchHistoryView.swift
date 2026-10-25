@@ -116,6 +116,7 @@ struct WatchHistoryView: View {
                 MedxRowChevron()
             }
             .padding(.vertical, 2)
+            .foregroundStyle(Color.primary)
         }
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {

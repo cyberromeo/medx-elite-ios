@@ -82,6 +82,7 @@ public struct ProfileSelectView: View {
                 }
             }
             .padding(.vertical, 2)
+            .foregroundStyle(Color.primary)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Sign in as \(profile.displayName)")

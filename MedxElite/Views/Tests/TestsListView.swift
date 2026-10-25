@@ -226,6 +226,7 @@ public struct TestsListView: View {
                 MedxRowChevron()
             }
             .padding(.vertical, 2)
+            .foregroundStyle(Color.primary)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(paper.title)
