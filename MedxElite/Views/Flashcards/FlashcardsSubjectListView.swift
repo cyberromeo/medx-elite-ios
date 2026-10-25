@@ -91,17 +91,24 @@ public struct FlashcardsSubjectListView: View {
 
     // MARK: - Grid
 
+    private var columns: [GridItem] {
+        [GridItem(.adaptive(minimum: 158, maximum: 260), spacing: MedxSpace.m)]
+    }
+
     private func grid(layout: FlashcardLayout) -> some View {
         ScrollView {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 158, maximum: 260), spacing: MedxSpace.m)],
-                spacing: MedxSpace.m
-            ) {
-                if isLoading {
+            // Two grids rather than one grid with two branches: a lazy grid that swaps the
+            // branch under its cells can leave the first cells drawing the old one for a frame.
+            if isLoading {
+                LazyVGrid(columns: columns, spacing: MedxSpace.m) {
                     ForEach(0..<6, id: \.self) { _ in
                         placeholderTile
                     }
-                } else {
+                }
+                .padding(.horizontal, MedxSpace.l)
+                .padding(.vertical, MedxSpace.m)
+            } else {
+                LazyVGrid(columns: columns, spacing: MedxSpace.m) {
                     ForEach(filteredSubjects) { subject in
                         NavigationLink {
                             FlashcardStudyView(subject: subject)
@@ -113,9 +120,9 @@ public struct FlashcardsSubjectListView: View {
                         .accessibilityValue("\(subject.cardCount) cards")
                     }
                 }
+                .padding(.horizontal, MedxSpace.l)
+                .padding(.vertical, MedxSpace.m)
             }
-            .padding(.horizontal, MedxSpace.l)
-            .padding(.vertical, MedxSpace.m)
 
             if !isLoading, filteredSubjects.isEmpty {
                 MedxEmptyState(

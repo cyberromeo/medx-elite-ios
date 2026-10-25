@@ -95,7 +95,9 @@ public struct MedxQuestionSearchView: View {
         .navigationSubtitle(subtitle)
         .navigationBarTitleDisplayMode(.large)
         .toolbar { toolbarContent }
-        .searchable(text: $query, prompt: searchPrompt)
+        // Pinned: on the screen that *is* the search, a field that stays hidden until the list
+        // is pulled down reads as a missing feature — and an empty index has no list to pull.
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: searchPrompt)
         .task { await prepare() }
         .task(id: searchKey) { await runSearch() }
         // A subject belonging to the other bank, left set behind a bank filter, is a pair of
